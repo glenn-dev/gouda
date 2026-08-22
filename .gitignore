@@ -1,0 +1,37 @@
+# Private financial source files. Keep these outside version control.
+data/private/
+private/
+
+# Common private financial artifacts, including files moved out of the
+# expected data/private/ hierarchy before inspection.
+*.ofx
+*.qif
+*.qfx
+*.mt940
+*.sta
+*.xls
+*.xlsx
+*.xlsm
+*.csv
+
+# Local databases and secrets.
+*.db
+*.sqlite
+*.sqlite3
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Synthetic, versionable fixtures may use spreadsheet extensions.
+!tests/fixtures/**/*.xls
+!tests/fixtures/**/*.xlsx
+!tests/fixtures/**/*.xlsm
+
+# Python-generated local artifacts.
+__pycache__/
+*.py[cod]
+.pytest_cache/
