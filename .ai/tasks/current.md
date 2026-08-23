@@ -2,9 +2,10 @@
 
 ## Objective
 
-Verify checkpoint 3 concurrency semantics for the synchronous Santander
-current-account import service without changing its approved locking or
-production lifecycle.
+Extend privacy-safe Santander current-account validation from three to seven
+monthly private XLSX sources and perform read-only structural discovery of
+seven Santander credit-card PDFs. Do not implement a credit-card parser or
+change the persistence model.
 
 ## Completed
 
@@ -101,13 +102,25 @@ production lifecycle.
 - Re-ran the full PostgreSQL 16 suite (101 tests), the separate-connection
   concurrency suite (3 tests), migration drift check, Django system check, and
   `git diff --check`; all passed.
+- Confirmed the expanded ignored private corpus contains seven XLSX and seven
+  PDF sources, with valid signatures, no exact-byte duplicates, no unexpected
+  file types, and no tracked private sources.
+- Ran the frozen `import_santander_current_account_xlsx` service against all
+  seven chronological XLSX sources in disposable PostgreSQL 16. Every source
+  reached `ACCEPTED` and `RECONCILED`, with zero rejected rows, populated
+  provenance, no `FATAL` or residual `PROCESSING`, and complete raw/movement
+  graph counts. Exact-byte reimports produced seven direct `DUPLICATE`
+  attempts with empty duplicate graphs and unchanged canonical graphs.
+- Performed native text and document-structure discovery on all seven TDC PDFs.
+  All were machine-extractable and unencrypted, used US Letter dimensions,
+  and shared one broad template family with three/four-page pagination
+  variation. Added the privacy-safe observation note at
+  `docs/sources/santander-credit-card-pdf-observations.md`.
 
 ## Next action
 
-The Santander current-account XLSX v1 backend importer is technically complete
-for its approved synchronous scope. The private parser-only validation was
-previously complete; this checkpoint now also confirms the production
-application-service and persistence lifecycle. The next product decision is
-whether to approve a separate product-scope checkpoint; do not make private
-sources CI inputs. Product expansion to other sources remains a separate
-discovery decision.
+Review the privacy-safe TDC observations and decide whether to authorize a
+separate credit-card source-contract discovery checkpoint. Keep private
+sources out of CI. Do not implement a TDC parser, add models/migrations, or
+expand into REST, frontend, asynchronous processing, BCI, or generic importer
+abstractions.

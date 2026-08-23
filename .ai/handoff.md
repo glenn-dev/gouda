@@ -2,8 +2,9 @@
 
 ## Objective
 
-Gouda v0.1 — checkpoint 3 verifies the concurrency behavior of the end-to-end
-synchronous Santander current-account XLSX import service.
+Gouda checkpoint — extend privacy-safe Santander current-account validation to
+seven monthly XLSX sources and record read-only structural observations for
+seven Santander credit-card PDFs.
 
 ## Frozen baseline
 
@@ -141,17 +142,22 @@ and independent reconciliation statuses.
 - Django system check: no issues.
 - Python compilation validation with an isolated cache: passed.
 - `git diff --check`: passed.
-- Optional private application-service smoke validation is now complete against
-  all three ignored Santander current-account XLSX sources. This is distinct
-  from the earlier parser-only/private-source validation: each exact byte input
-  reached `ACCEPTED` and `RECONCILED` through
-  `import_santander_current_account_xlsx`, with two sanitized source aggregates
-  of 35 raw / 6 parsed / 29 ignored and one of 34 raw / 4 parsed / 30 ignored;
-  all had zero rejected rows.
-- Exact-byte re-imports produced three direct `DUPLICATE` attempts targeting
-  the canonical batches. Duplicate graphs were empty and canonical graphs
-  remained unchanged; no fatal, residual processing, or partial graph was
-  present. The disposable validation database was emptied afterward.
+- Expanded private application-service validation is complete against seven
+  ignored Santander current-account XLSX sources. Each exact byte input reached
+  `ACCEPTED` and `RECONCILED` through
+  `import_santander_current_account_xlsx`, with sanitized aggregates:
+  `(3,29,0)`, `(11,30,0)`, `(9,29,0)`, `(2,29,0)`, `(4,30,0)`, `(6,29,0)`, and
+  `(6,29,0)` for parsed, ignored, and rejected rows. All provenance fields
+  were populated and no fatal or residual processing attempt remained.
+- Exact-byte re-imports produced seven direct `DUPLICATE` attempts. Duplicate
+  graphs were empty and canonical graphs remained unchanged.
+- The private corpus inventory found seven XLSX and seven PDF sources. All
+  sources remained ignored and untracked, with valid signatures, no exact-byte
+  duplicate groups, and no unexpected file types.
+- Native read-only discovery of the seven TDC PDFs found machine-extractable
+  text, no encryption, one US Letter page-size family, and three/four-page
+  pagination variation. Detailed privacy-safe observations are in
+  `docs/sources/santander-credit-card-pdf-observations.md`.
 - The private source files were read-only local inputs, remained ignored, were
   not copied into fixtures or CI, and were not added to Git. No production code
   files changed.
@@ -164,11 +170,12 @@ databases, and generated artifacts remain excluded.
 
 ## Readiness
 
-The Santander current-account XLSX v1 backend importer is technically complete
-for its approved synchronous scope. The parser-only/private-source validation
-and the application-service-level/private-source validation are both complete.
-The next checkpoint is a product decision about scope expansion or approval of
-the current synchronous boundary. Private statements remain excluded from CI.
+The Santander current-account XLSX v1 backend importer remains technically
+complete for its approved synchronous scope, now validated across seven private
+monthly sources. The TDC PDFs are discovery evidence only; no parser contract,
+model, migration, or domain-semantics decision was added. The next checkpoint
+requires an explicit product decision about deeper TDC source-contract
+discovery. Private statements remain excluded from CI.
 
 Keep the parser frozen. Product work on REST, frontend, asynchronous processing,
 other institutions, and generic multi-source abstractions remains out of this
