@@ -2,8 +2,8 @@
 
 ## Objective
 
-Freeze the validated Santander Parser Contract v0.1 and prepare the first
-repository Git checkpoint without beginning persistence implementation.
+Establish the first Gouda v0.1 Django/PostgreSQL import-persistence schema
+without connecting the frozen parser to ORM persistence.
 
 ## Completed
 
@@ -40,5 +40,6 @@ repository Git checkpoint without beginning persistence implementation.
 
 ## Next action
 
-Begin the import/persistence boundary in a separate task; do not expand scope
-in this checkpoint.
+Review the schema, then implement the explicit Santander import service. Keep
+the parser frozen and do not add REST, frontend, correction, or reprocessing
+scope.

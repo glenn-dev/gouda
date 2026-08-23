@@ -1,0 +1,373 @@
+from datetime import date, datetime, timezone
+from decimal import Decimal
+import hashlib
+import uuid
+
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
+from django.test import TestCase
+
+from gouda.ledger.models import Account, ImportBatch, Movement, RawRecord, SourceArtifact
+from gouda.ledger.validation import validate_exact_money
+
+
+class LedgerModelTests(TestCase):
+    def setUp(self):
+        self.account = Account.objects.create(
+            display_name="Synthetic checking",
+            kind=Account.Kind.CURRENT,
+            currency="ZZZ",
+        )
+        content = b"synthetic artifact bytes"
+        self.artifact = SourceArtifact.objects.create(
+            source_kind=SourceArtifact.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
+            original_filename="synthetic-statement.xlsx",
+            content_digest=hashlib.sha256(content).hexdigest(),
+            content=content,
+        )
+
+    def make_batch(self, *, status=ImportBatch.Status.PROCESSING, parser_version="santander-v0.2", **kwargs):
+        values = {
+            "source_artifact": self.artifact,
+            "account": self.account,
+            "parser_version": parser_version,
+            "status": status,
+        }
+        if status in {
+            ImportBatch.Status.ACCEPTED,
+            ImportBatch.Status.PARTIAL,
+            ImportBatch.Status.REJECTED,
+        }:
+            values.update(
+                completed_at=datetime.now(timezone.utc),
+                reconciliation_status=ImportBatch.ReconciliationStatus.INSUFFICIENT_DATA,
+            )
+        if status == ImportBatch.Status.FATAL:
+            values.update(
+                completed_at=datetime.now(timezone.utc),
+                failure_stage=ImportBatch.FailureStage.PARSER,
+                failure_code="xlsx_invalid",
+            )
+        values.update(kwargs)
+        return ImportBatch.objects.create(**values)
+
+    def make_parsed_raw(self, batch):
+        return RawRecord.objects.create(
+            import_batch=batch,
+            row_number=22,
+            raw_cells=[{"column": "A", "value_kind": "string", "value": "04/02"}],
+            row_class=RawRecord.RowClass.MOVEMENT_CANDIDATE,
+            parse_outcome=RawRecord.ParseOutcome.PARSED,
+            parser_codes=[],
+        )
+
+    def make_isolated_context(self, suffix: str):
+        account = Account.objects.create(
+            display_name=f"Synthetic account {suffix}",
+            kind=Account.Kind.CURRENT,
+            currency="ZZZ",
+        )
+        content = f"synthetic artifact {suffix}".encode()
+        artifact = SourceArtifact.objects.create(
+            source_kind=SourceArtifact.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
+            original_filename=f"synthetic-{suffix}.xlsx",
+            content_digest=hashlib.sha256(content).hexdigest(),
+            content=content,
+        )
+        return account, artifact
+
+    def test_uuid_identities_are_generated_and_source_artifact_bytes_are_exact(self):
+        self.assertIsInstance(self.account.pk, uuid.UUID)
+        self.assertEqual(self.artifact.content, b"synthetic artifact bytes")
+        self.assertEqual(self.artifact.original_filename, "synthetic-statement.xlsx")
+
+    def test_account_string_representation_does_not_expose_display_name(self):
+        self.assertNotIn("Synthetic checking", str(self.account))
+        self.assertIn(str(self.account.pk), str(self.account))
+
+    def test_exact_money_validator_rejects_rounding_precision_and_nonfinite_values(self):
+        validate_exact_money(Decimal("999999999999999999.99"))
+        for value in (Decimal("1.001"), Decimal("1000000000000000000.00"), Decimal("NaN"), Decimal("Infinity")):
+            with self.assertRaises(ValidationError):
+                validate_exact_money(value)
+
+    def test_model_validation_rejects_money_that_database_scale_would_round(self):
+        batch = self.make_batch()
+        batch.opening_balance = Decimal("1.001")
+        with self.assertRaises(ValidationError):
+            batch.full_clean()
+
+    def test_source_artifact_digest_is_unique(self):
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                SourceArtifact.objects.create(
+                    source_kind=SourceArtifact.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
+                    original_filename="another-synthetic-name.xlsx",
+                    content_digest=self.artifact.content_digest,
+                    content=b"different synthetic bytes",
+                )
+
+    def test_import_batch_lifecycle_constraints(self):
+        batch = self.make_batch()
+        self.assertEqual(batch.status, ImportBatch.Status.PROCESSING)
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                ImportBatch.objects.create(
+                    source_artifact=self.artifact,
+                    account=self.account,
+                    parser_version="santander-v0.2",
+                    status=ImportBatch.Status.ACCEPTED,
+                )
+
+    def test_invalid_materialized_status_counts_are_rejected_by_postgresql(self):
+        invalid = [
+            {"status": ImportBatch.Status.ACCEPTED, "rejected_count": 1},
+            {"status": ImportBatch.Status.PARTIAL, "parsed_count": 0, "rejected_count": 1},
+            {"status": ImportBatch.Status.PARTIAL, "parsed_count": 1, "rejected_count": 0},
+            {"status": ImportBatch.Status.REJECTED, "parsed_count": 1, "rejected_count": 1},
+            {"status": ImportBatch.Status.REJECTED, "parsed_count": 0, "rejected_count": 0},
+            {"status": ImportBatch.Status.FATAL, "ignored_count": 1},
+        ]
+        for index, values in enumerate(invalid):
+            with self.subTest(values=values):
+                account, artifact = self.make_isolated_context(f"invalid-{index}")
+                values.update(
+                    source_artifact=artifact,
+                    account=account,
+                    parser_version="santander-v0.2",
+                )
+                if values["status"] in {
+                    ImportBatch.Status.ACCEPTED,
+                    ImportBatch.Status.PARTIAL,
+                    ImportBatch.Status.REJECTED,
+                }:
+                    values.update(
+                        completed_at=datetime.now(timezone.utc),
+                        reconciliation_status=ImportBatch.ReconciliationStatus.INSUFFICIENT_DATA,
+                    )
+                elif values["status"] == ImportBatch.Status.FATAL:
+                    values.update(
+                        completed_at=datetime.now(timezone.utc),
+                        failure_stage=ImportBatch.FailureStage.PARSER,
+                        failure_code="xlsx_invalid",
+                    )
+                with self.assertRaises(IntegrityError):
+                    with transaction.atomic():
+                        ImportBatch.objects.create(**values)
+
+        account, artifact = self.make_isolated_context("invalid-duplicate")
+        target = ImportBatch.objects.create(
+            source_artifact=artifact,
+            account=account,
+            parser_version="santander-v0.2",
+            status=ImportBatch.Status.ACCEPTED,
+            completed_at=datetime.now(timezone.utc),
+            reconciliation_status=ImportBatch.ReconciliationStatus.INSUFFICIENT_DATA,
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                ImportBatch.objects.create(
+                    source_artifact=artifact,
+                    account=account,
+                    parser_version="santander-v0.2",
+                    status=ImportBatch.Status.DUPLICATE,
+                    completed_at=datetime.now(timezone.utc),
+                    duplicate_of=target,
+                    parsed_count=1,
+                )
+
+        accepted = self.make_batch(status=ImportBatch.Status.ACCEPTED)
+        self.assertEqual((accepted.parsed_count, accepted.rejected_count), (0, 0))
+
+    def test_batch_counts_cannot_be_negative_in_postgresql(self):
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                self.make_batch(parsed_count=-1)
+
+    def test_one_materialized_batch_per_artifact_and_account_even_if_version_differs(self):
+        self.make_batch(status=ImportBatch.Status.ACCEPTED)
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                self.make_batch(status=ImportBatch.Status.PARTIAL, parser_version="future-version")
+
+    def test_fatal_and_duplicate_attempts_can_coexist_with_materialization_rule(self):
+        materialized = self.make_batch(status=ImportBatch.Status.ACCEPTED)
+        fatal = self.make_batch(status=ImportBatch.Status.FATAL, parser_version="santander-v0.3")
+        duplicate = self.make_batch(
+            status=ImportBatch.Status.DUPLICATE,
+            parser_version="santander-v0.4",
+            completed_at=datetime.now(timezone.utc),
+            duplicate_of=materialized,
+        )
+        self.assertEqual(fatal.status, ImportBatch.Status.FATAL)
+        self.assertEqual(duplicate.duplicate_of_id, materialized.id)
+
+        second_fatal = self.make_batch(status=ImportBatch.Status.FATAL, parser_version="santander-v0.5")
+        second_duplicate = self.make_batch(
+            status=ImportBatch.Status.DUPLICATE,
+            parser_version="santander-v0.6",
+            completed_at=datetime.now(timezone.utc),
+            duplicate_of=materialized,
+        )
+        self.assertEqual(second_fatal.status, ImportBatch.Status.FATAL)
+        self.assertEqual(second_duplicate.duplicate_of_id, materialized.id)
+
+    def test_database_rejects_duplicate_self_reference(self):
+        batch_id = uuid.uuid4()
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                ImportBatch.objects.create(
+                    id=batch_id,
+                    source_artifact=self.artifact,
+                    account=self.account,
+                    parser_version="santander-v0.2",
+                    status=ImportBatch.Status.DUPLICATE,
+                    duplicate_of_id=batch_id,
+                    completed_at=datetime.now(timezone.utc),
+                )
+
+    def test_duplicate_model_validation_requires_matching_materialized_target(self):
+        target = self.make_batch(status=ImportBatch.Status.ACCEPTED)
+
+        processing_target = self.make_batch()
+        candidate = self.make_batch(
+            status=ImportBatch.Status.DUPLICATE,
+            completed_at=datetime.now(timezone.utc),
+            duplicate_of=processing_target,
+        )
+        with self.assertRaises(ValidationError):
+            candidate.full_clean()
+
+        other_account = Account.objects.create(display_name="Other synthetic account", kind=Account.Kind.CURRENT, currency="ZZZ")
+        mismatched_account = ImportBatch(
+            source_artifact=self.artifact,
+            account=other_account,
+            parser_version="santander-v0.2",
+            status=ImportBatch.Status.DUPLICATE,
+            completed_at=datetime.now(timezone.utc),
+            duplicate_of=target,
+        )
+        with self.assertRaises(ValidationError):
+            mismatched_account.full_clean()
+
+        other_artifact = SourceArtifact.objects.create(
+            source_kind=SourceArtifact.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
+            original_filename="second-synthetic.xlsx",
+            content_digest="1" * 64,
+            content=b"second synthetic artifact",
+        )
+        mismatched_artifact = ImportBatch(
+            source_artifact=other_artifact,
+            account=self.account,
+            parser_version="santander-v0.2",
+            status=ImportBatch.Status.DUPLICATE,
+            completed_at=datetime.now(timezone.utc),
+            duplicate_of=target,
+        )
+        with self.assertRaises(ValidationError):
+            mismatched_artifact.full_clean()
+
+        duplicate_target = self.make_batch(
+            status=ImportBatch.Status.DUPLICATE,
+            completed_at=datetime.now(timezone.utc),
+            duplicate_of=target,
+        )
+        duplicate_of_duplicate = ImportBatch(
+            source_artifact=self.artifact,
+            account=self.account,
+            parser_version="santander-v0.2",
+            status=ImportBatch.Status.DUPLICATE,
+            completed_at=datetime.now(timezone.utc),
+            duplicate_of=duplicate_target,
+        )
+        with self.assertRaises(ValidationError):
+            duplicate_of_duplicate.full_clean()
+
+    def test_raw_record_row_identity_and_outcome_constraints(self):
+        batch = self.make_batch(status=ImportBatch.Status.ACCEPTED)
+        self.make_parsed_raw(batch)
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                self.make_parsed_raw(batch)
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                RawRecord.objects.create(
+                    import_batch=batch,
+                    row_number=23,
+                    raw_cells=[],
+                    row_class=RawRecord.RowClass.AUXILIARY,
+                    parse_outcome="UNKNOWN",
+                    parser_codes=[],
+                )
+
+    def test_movement_requires_nonzero_amount_and_known_source_column(self):
+        batch = self.make_batch(status=ImportBatch.Status.ACCEPTED)
+        raw = self.make_parsed_raw(batch)
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Movement.objects.create(
+                    raw_record=raw,
+                    account=self.account,
+                    occurrence_date=date(2026, 2, 4),
+                    signed_amount=Decimal("0.00"),
+                    currency="ZZZ",
+                    amount_source_column="E",
+                )
+
+    def test_movement_is_one_to_one_with_raw_record(self):
+        batch = self.make_batch(status=ImportBatch.Status.ACCEPTED)
+        raw = self.make_parsed_raw(batch)
+        values = {
+            "raw_record": raw,
+            "account": self.account,
+            "occurrence_date": date(2026, 2, 4),
+            "signed_amount": Decimal("-10.00"),
+            "currency": "ZZZ",
+            "amount_source_column": "E",
+        }
+        first = Movement.objects.create(**values)
+        self.assertIsNotNone(first.pk)
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Movement.objects.create(**values)
+
+    def test_movement_clean_preserves_parsed_account_and_currency_invariants(self):
+        batch = self.make_batch(status=ImportBatch.Status.ACCEPTED)
+        raw = self.make_parsed_raw(batch)
+        movement = Movement(
+            raw_record=raw,
+            account=self.account,
+            occurrence_date=date(2026, 2, 4),
+            signed_amount=Decimal("-10.00"),
+            currency="ZZZ",
+            amount_source_column="E",
+        )
+        movement.full_clean()
+
+        movement.currency = "USD"
+        with self.assertRaises(ValidationError):
+            movement.full_clean()
+
+    def test_nonparsed_raw_record_cannot_have_movement_through_model_validation(self):
+        batch = self.make_batch(status=ImportBatch.Status.ACCEPTED)
+        raw = RawRecord.objects.create(
+            import_batch=batch,
+            row_number=23,
+            raw_cells=[],
+            row_class=RawRecord.RowClass.AUXILIARY,
+            parse_outcome=RawRecord.ParseOutcome.IGNORED,
+            parser_codes=["auxiliary_row"],
+        )
+        movement = Movement(
+            raw_record=raw,
+            account=self.account,
+            occurrence_date=date(2026, 2, 4),
+            signed_amount=Decimal("1.00"),
+            currency="ZZZ",
+            amount_source_column="F",
+        )
+        with self.assertRaises(ValidationError):
+            movement.full_clean()

@@ -4,7 +4,14 @@
 source -> ingest batch -> raw/source records -> normalize -> validate -> canonical movements -> summaries
 ```
 
-Each stage should be deterministic and idempotent for the same source record and normalization version.
+Each stage should be deterministic and idempotent for the same source record
+and normalization version. In v0.1, the database permits at most one
+materialized interpretation for a source artifact and account; parser-version
+reprocessing and supersession are deferred to an explicit later design.
+
+The persistence schema rejects invalid materialized batch/count combinations.
+Exact monetary representability and cross-row duplicate identity remain
+application-boundary checks for the future import service.
 
 ## Failure handling
 

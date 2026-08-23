@@ -24,3 +24,15 @@ Gouda is organized as a pipeline with clear boundaries:
 6. **Present** exposes explainable views over those summaries.
 
 The canonical model is the contract between ingestion and every downstream consumer. Derived totals must be reproducible from persisted movements and must retain enough references to explain their inputs.
+
+## v0.1 persistence foundation
+
+The first implemented persistence slice is the `gouda.ledger` Django app. It
+contains `Account`, `SourceArtifact`, `ImportBatch`, `RawRecord`, and
+`Movement`, backed by PostgreSQL. The exact source artifact is content-addressed
+by a boundary-computed SHA-256 digest; raw records preserve every parser row
+outcome; and each canonical movement traces to exactly one raw record.
+
+The Santander parser remains a pure-Python component. The import service that
+will project parser results into these models is deliberately a later
+checkpoint.

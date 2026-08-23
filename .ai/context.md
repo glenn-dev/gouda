@@ -39,8 +39,9 @@ Santander source discovery baseline:
 - Privacy-safe smoke validation now recognizes the confirmed markers in all
   three private samples; all three reconcile with commission-summary rows
   ignored.
-- Santander Parser Contract v0.1 is frozen as the validated baseline. No
-  Django/PostgreSQL persistence implementation has begun.
+- Santander Parser Contract v0.1 is frozen as the validated baseline. The first
+  Django/PostgreSQL persistence foundation now exists in `gouda.ledger`; the
+  parser-to-ORM import service remains a later checkpoint.
 
 Canonical semantics:
 

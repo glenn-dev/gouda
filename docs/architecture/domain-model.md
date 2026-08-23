@@ -4,21 +4,23 @@
 
 ### Account
 
-An account has an internal identifier, a display name, an account kind, a currency, and optional external identifiers. External identifiers must be treated as sensitive.
+An account has an internal identifier, a display name, an account kind, and a
+currency. External bank account identifiers are deferred.
 
-### Source record
+### Source artifact and source record
 
-A source record stores the original provider payload or a safely normalized equivalent, its import batch, source identifier, and ingestion timestamp. It supports deduplication and auditability.
+An artifact stores the exact received source bytes, a boundary-computed content
+digest, and private receipt metadata. A source record is the immutable row
+interpretation associated with an import batch.
 
 ### Movement
 
-A movement references an account and source record and contains:
+A movement references an account and exactly one source record and contains:
 
-- occurrence date and optional posting date;
+- occurrence date;
 - signed amount and currency;
-- description and normalized merchant text;
-- movement type and optional category;
-- provenance and reconciliation status.
+- optional description, source reference, and running balance;
+- source-column provenance.
 
 ### Import batch
 
@@ -27,6 +29,6 @@ An import batch groups one ingestion attempt, its source, validation results, an
 ## Invariants
 
 - A movement has exactly one canonical signed amount.
-- A transfer has an explicit relationship between its source and destination movements when both sides are known.
+- A transfer relationship is deferred; it is not inferred by this persistence slice.
 - Source records are never silently overwritten by normalization.
 - Monetary arithmetic uses exact decimal semantics, not binary floating point.

@@ -2,8 +2,8 @@
 
 ## Objective
 
-Gouda v0.1 — freeze the validated Santander Parser Contract and prepare the
-first Git checkpoint without beginning persistence.
+Gouda v0.1 — establish the Django/PostgreSQL persistence foundation for the
+frozen Santander parser without implementing the import service.
 
 ## Frozen baseline
 
@@ -54,10 +54,17 @@ synthetic fixture, documentation, tests, and configuration. Private source
 locations, caches, secrets, local databases, and editor/OS artifacts remain
 excluded. The working tree should remain clean after the checkpoint.
 
-No Django models, PostgreSQL schema, migrations, import persistence, APIs,
-frontend, correction flows, or generic multi-bank abstractions exist yet.
+The first Django project foundation is in `config/`, the `gouda.ledger` app
+contains the five approved models, and migration `0001_initial` defines the
+PostgreSQL schema and constraints. The import service, APIs, frontend,
+correction flows, and generic multi-bank abstractions remain out of scope.
+
+PostgreSQL model tests pass against the local Compose PostgreSQL 16 service.
+The schema includes database count/status checks, an explicit exact-money
+validator, and model-level duplicate-target validation. Secrets are required
+from the environment; no password fallback is committed.
 
 ## Next development phase
 
-The next development phase is the import/persistence boundary. It must begin in
-a separate task after this checkpoint; do not expand the frozen parser scope.
+Review the schema and implement `gouda.ledger.services.santander_import` in a
+separate checkpoint. Do not expand the frozen parser scope.
