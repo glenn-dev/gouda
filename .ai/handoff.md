@@ -141,9 +141,20 @@ and independent reconciliation statuses.
 - Django system check: no issues.
 - Python compilation validation with an isolated cache: passed.
 - `git diff --check`: passed.
-
-Validation used only synthetic fixtures and an isolated PostgreSQL 16 test
-container. No private source statements were accessed.
+- Optional private application-service smoke validation is now complete against
+  all three ignored Santander current-account XLSX sources. This is distinct
+  from the earlier parser-only/private-source validation: each exact byte input
+  reached `ACCEPTED` and `RECONCILED` through
+  `import_santander_current_account_xlsx`, with two sanitized source aggregates
+  of 35 raw / 6 parsed / 29 ignored and one of 34 raw / 4 parsed / 30 ignored;
+  all had zero rejected rows.
+- Exact-byte re-imports produced three direct `DUPLICATE` attempts targeting
+  the canonical batches. Duplicate graphs were empty and canonical graphs
+  remained unchanged; no fatal, residual processing, or partial graph was
+  present. The disposable validation database was emptied afterward.
+- The private source files were read-only local inputs, remained ignored, were
+  not copied into fixtures or CI, and were not added to Git. No production code
+  files changed.
 
 ## Repository state
 
@@ -154,10 +165,10 @@ databases, and generated artifacts remain excluded.
 ## Readiness
 
 The Santander current-account XLSX v1 backend importer is technically complete
-for its approved synchronous scope. The next source-specific confidence step is
-optional manual validation with private statements under the established
-privacy-safe procedure. Private statements remain excluded from CI and were not
-accessed during this checkpoint.
+for its approved synchronous scope. The parser-only/private-source validation
+and the application-service-level/private-source validation are both complete.
+The next checkpoint is a product decision about scope expansion or approval of
+the current synchronous boundary. Private statements remain excluded from CI.
 
 Keep the parser frozen. Product work on REST, frontend, asynchronous processing,
 other institutions, and generic multi-source abstractions remains out of this

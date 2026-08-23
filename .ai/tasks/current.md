@@ -89,11 +89,25 @@ production lifecycle.
   locking is account-scoped rather than application-wide.
 - Kept `one_materialized_batch_per_artifact_account` unchanged as defense in
   depth. No named-constraint recovery or production-code change was needed.
+- Completed the optional private application-service smoke validation against
+  all three ignored Santander current-account XLSX sources. All three exact
+  byte imports materialized as `ACCEPTED` and `RECONCILED`; two had 35 raw
+  records (6 parsed, 29 ignored) and one had 34 raw records (4 parsed, 30
+  ignored), with zero rejected rows.
+- Re-imported each exact source byte sequence. All three attempts became direct
+  `DUPLICATE` results pointing to their canonical batch, with empty duplicate
+  graphs and unchanged canonical graphs. No private source bytes remain in the
+  isolated validation database.
+- Re-ran the full PostgreSQL 16 suite (101 tests), the separate-connection
+  concurrency suite (3 tests), migration drift check, Django system check, and
+  `git diff --check`; all passed.
 
 ## Next action
 
 The Santander current-account XLSX v1 backend importer is technically complete
-for its approved synchronous scope. The next validation step is optional manual
-smoke validation with private Santander statements under the established
-privacy procedure; do not make private sources CI inputs. Product expansion to
-other sources remains a separate discovery decision.
+for its approved synchronous scope. The private parser-only validation was
+previously complete; this checkpoint now also confirms the production
+application-service and persistence lifecycle. The next product decision is
+whether to approve a separate product-scope checkpoint; do not make private
+sources CI inputs. Product expansion to other sources remains a separate
+discovery decision.
