@@ -1,6 +1,8 @@
 # AI context
 
-Gouda is being developed as a trust-first personal-finance movement ledger. The current repository is documentation-first and does not yet contain an application implementation.
+Gouda is being developed as a trust-first personal-finance movement ledger. The
+repository began documentation-first and now contains the first Django/PostgreSQL
+persistence foundation; the parser-to-ORM import service is not yet implemented.
 
 Initial technology direction:
 

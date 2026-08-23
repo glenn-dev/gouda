@@ -2,8 +2,8 @@
 
 ## Objective
 
-Establish the first Gouda v0.1 Django/PostgreSQL import-persistence schema
-without connecting the frozen parser to ORM persistence.
+Establish the first Santander current-account import-service boundary
+checkpoint without implementing parser orchestration or ORM materialization.
 
 ## Completed
 
@@ -37,9 +37,26 @@ without connecting the frozen parser to ORM persistence.
   three-source validation; all three private sources now reconcile.
 - Marked Santander Parser Contract v0.1 as a frozen baseline supported by the
   three monthly source samples and 29-test synthetic suite.
+- Added ADR-0004 to distinguish source kind, source variant, and parser
+  implementation version without introducing a generic importer abstraction.
+- Added nullable `ImportBatch.source_variant` with PostgreSQL lifecycle
+  constraints and the approved `v1` boundary semantics.
+- Added deterministic tagged Santander raw-cell serialization, exact-money
+  boundary helpers, authoritative batch-status derivation, safe parser-error
+  mapping, parser-result graph validation, and Santander v1 recognition.
+- Kept the known Santander section markers optional while rejecting dangerous
+  changed layouts, populated columns beyond G, and incoherent parser results.
+- Added focused model, serializer, money, status, error, graph, reconciliation,
+  and format-recognition tests. The complete 78-test suite passes against
+  PostgreSQL 16.
+- Removed Finder metadata from the worktree and now ignore `.DS_Store`
+  repository-wide. Corrected the application-state and synthetic-fixture
+  reconciliation documentation.
 
 ## Next action
 
-Review the schema, then implement the explicit Santander import service. Keep
-the parser frozen and do not add REST, frontend, correction, or reprocessing
-scope.
+Implement the explicit synchronous Santander import service using the approved
+helpers: artifact/attempt registration, parser invocation outside database
+transactions, fatal compensation, atomic raw/movement materialization, and
+database-backed duplicate-race recovery. Keep the parser frozen and do not add
+REST, frontend, correction, reprocessing, or generic multi-source scope.

@@ -41,6 +41,7 @@ class LedgerModelTests(TestCase):
             values.update(
                 completed_at=datetime.now(timezone.utc),
                 reconciliation_status=ImportBatch.ReconciliationStatus.INSUFFICIENT_DATA,
+                source_variant="v1",
             )
         if status == ImportBatch.Status.FATAL:
             values.update(
@@ -48,6 +49,8 @@ class LedgerModelTests(TestCase):
                 failure_stage=ImportBatch.FailureStage.PARSER,
                 failure_code="xlsx_invalid",
             )
+        if status == ImportBatch.Status.DUPLICATE:
+            values["source_variant"] = "v1"
         values.update(kwargs)
         return ImportBatch.objects.create(**values)
 
@@ -117,6 +120,7 @@ class LedgerModelTests(TestCase):
                     source_artifact=self.artifact,
                     account=self.account,
                     parser_version="santander-v0.2",
+                    source_variant="v1",
                     status=ImportBatch.Status.ACCEPTED,
                 )
 
@@ -145,6 +149,7 @@ class LedgerModelTests(TestCase):
                     values.update(
                         completed_at=datetime.now(timezone.utc),
                         reconciliation_status=ImportBatch.ReconciliationStatus.INSUFFICIENT_DATA,
+                        source_variant="v1",
                     )
                 elif values["status"] == ImportBatch.Status.FATAL:
                     values.update(
@@ -164,6 +169,7 @@ class LedgerModelTests(TestCase):
             status=ImportBatch.Status.ACCEPTED,
             completed_at=datetime.now(timezone.utc),
             reconciliation_status=ImportBatch.ReconciliationStatus.INSUFFICIENT_DATA,
+            source_variant="v1",
         )
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
@@ -175,6 +181,7 @@ class LedgerModelTests(TestCase):
                     completed_at=datetime.now(timezone.utc),
                     duplicate_of=target,
                     parsed_count=1,
+                    source_variant="v1",
                 )
 
         accepted = self.make_batch(status=ImportBatch.Status.ACCEPTED)
@@ -225,6 +232,7 @@ class LedgerModelTests(TestCase):
                     status=ImportBatch.Status.DUPLICATE,
                     duplicate_of_id=batch_id,
                     completed_at=datetime.now(timezone.utc),
+                    source_variant="v1",
                 )
 
     def test_duplicate_model_validation_requires_matching_materialized_target(self):
@@ -244,6 +252,7 @@ class LedgerModelTests(TestCase):
             source_artifact=self.artifact,
             account=other_account,
             parser_version="santander-v0.2",
+            source_variant="v1",
             status=ImportBatch.Status.DUPLICATE,
             completed_at=datetime.now(timezone.utc),
             duplicate_of=target,
@@ -261,6 +270,7 @@ class LedgerModelTests(TestCase):
             source_artifact=other_artifact,
             account=self.account,
             parser_version="santander-v0.2",
+            source_variant="v1",
             status=ImportBatch.Status.DUPLICATE,
             completed_at=datetime.now(timezone.utc),
             duplicate_of=target,
@@ -277,12 +287,109 @@ class LedgerModelTests(TestCase):
             source_artifact=self.artifact,
             account=self.account,
             parser_version="santander-v0.2",
+            source_variant="v1",
             status=ImportBatch.Status.DUPLICATE,
             completed_at=datetime.now(timezone.utc),
             duplicate_of=duplicate_target,
         )
         with self.assertRaises(ValidationError):
             duplicate_of_duplicate.full_clean()
+
+    def test_source_variant_database_constraints(self):
+        processing_without_variant = self.make_batch()
+        fatal_without_variant = self.make_batch(status=ImportBatch.Status.FATAL)
+        processing_with_variant = self.make_batch(source_variant="v1")
+        fatal_with_variant = self.make_batch(status=ImportBatch.Status.FATAL, source_variant="v1")
+        self.assertIsNone(processing_without_variant.source_variant)
+        self.assertIsNone(fatal_without_variant.source_variant)
+        self.assertEqual(processing_with_variant.source_variant, "v1")
+        self.assertEqual(fatal_with_variant.source_variant, "v1")
+
+        materialized_statuses = (
+            (ImportBatch.Status.ACCEPTED, 0, 0),
+            (ImportBatch.Status.PARTIAL, 1, 1),
+            (ImportBatch.Status.REJECTED, 0, 1),
+        )
+        materialized = []
+        for index, (status, parsed_count, rejected_count) in enumerate(materialized_statuses):
+            account, artifact = self.make_isolated_context(f"variant-valid-{index}")
+            batch = ImportBatch.objects.create(
+                source_artifact=artifact,
+                account=account,
+                parser_version="santander-v0.2",
+                source_variant="v1",
+                status=status,
+                completed_at=datetime.now(timezone.utc),
+                parsed_count=parsed_count,
+                rejected_count=rejected_count,
+                reconciliation_status=ImportBatch.ReconciliationStatus.INSUFFICIENT_DATA,
+            )
+            materialized.append(batch)
+
+        duplicate = ImportBatch.objects.create(
+            source_artifact=materialized[0].source_artifact,
+            account=materialized[0].account,
+            parser_version="santander-v0.2",
+            source_variant="v1",
+            status=ImportBatch.Status.DUPLICATE,
+            duplicate_of=materialized[0],
+            completed_at=datetime.now(timezone.utc),
+        )
+        self.assertEqual(duplicate.source_variant, "v1")
+
+        required_statuses = (
+            (ImportBatch.Status.ACCEPTED, 0, 0),
+            (ImportBatch.Status.PARTIAL, 1, 1),
+            (ImportBatch.Status.REJECTED, 0, 1),
+        )
+        for index, (status, parsed_count, rejected_count) in enumerate(required_statuses):
+            account, artifact = self.make_isolated_context(f"variant-null-{index}")
+            with self.subTest(status=status), self.assertRaises(IntegrityError):
+                with transaction.atomic():
+                    ImportBatch.objects.create(
+                        source_artifact=artifact,
+                        account=account,
+                        parser_version="santander-v0.2",
+                        source_variant=None,
+                        status=status,
+                        completed_at=datetime.now(timezone.utc),
+                        parsed_count=parsed_count,
+                        rejected_count=rejected_count,
+                        reconciliation_status=ImportBatch.ReconciliationStatus.INSUFFICIENT_DATA,
+                    )
+
+        account, artifact = self.make_isolated_context("variant-null-duplicate")
+        target = ImportBatch.objects.create(
+            source_artifact=artifact,
+            account=account,
+            parser_version="santander-v0.2",
+            source_variant="v1",
+            status=ImportBatch.Status.ACCEPTED,
+            completed_at=datetime.now(timezone.utc),
+            reconciliation_status=ImportBatch.ReconciliationStatus.NOT_APPLICABLE,
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                ImportBatch.objects.create(
+                    source_artifact=artifact,
+                    account=account,
+                    parser_version="santander-v0.2",
+                    source_variant=None,
+                    status=ImportBatch.Status.DUPLICATE,
+                    duplicate_of=target,
+                    completed_at=datetime.now(timezone.utc),
+                )
+
+        account, artifact = self.make_isolated_context("variant-empty")
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                ImportBatch.objects.create(
+                    source_artifact=artifact,
+                    account=account,
+                    parser_version="santander-v0.2",
+                    source_variant="",
+                    status=ImportBatch.Status.PROCESSING,
+                )
 
     def test_raw_record_row_identity_and_outcome_constraints(self):
         batch = self.make_batch(status=ImportBatch.Status.ACCEPTED)

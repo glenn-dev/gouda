@@ -35,3 +35,6 @@ private/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+
+# macOS Finder metadata.
+.DS_Store

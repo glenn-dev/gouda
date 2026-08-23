@@ -14,7 +14,9 @@ The workbook intentionally mirrors the observed Santander layout:
 - an intentional footer row to ignore;
 - one candidate row with both debit and credit populated, which must be
   rejected;
-- opening/ending balances that reconcile under the signed convention.
+- opening/ending balances whose arithmetic balances under the signed convention;
+- one intentionally rejected movement candidate, which makes the parser's
+  reconciliation evidence `INSUFFICIENT_DATA` despite that balanced arithmetic.
 
 The fixture is for a future isolated Python parser and tests only. It is not a
 Django model, migration, endpoint, or production import.

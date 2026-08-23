@@ -79,6 +79,7 @@ class ImportBatch(models.Model):
     source_artifact = models.ForeignKey(SourceArtifact, on_delete=models.PROTECT)
     account = models.ForeignKey(Account, on_delete=models.PROTECT)
     parser_version = models.CharField(max_length=64)
+    source_variant = models.CharField(max_length=32, null=True, blank=True)
     status = models.CharField(max_length=16, choices=Status.choices)
     duplicate_of = models.ForeignKey(
         "self",
@@ -114,6 +115,20 @@ class ImportBatch(models.Model):
             models.CheckConstraint(
                 check=Q(status__in=["PROCESSING", "ACCEPTED", "PARTIAL", "REJECTED", "FATAL", "DUPLICATE"]),
                 name="batch_status_known",
+            ),
+            models.CheckConstraint(
+                check=Q(source_variant__isnull=True) | ~Q(source_variant=""),
+                name="batch_source_variant_not_empty",
+            ),
+            models.CheckConstraint(
+                check=(
+                    Q(status__in=["PROCESSING", "FATAL"])
+                    | Q(
+                        status__in=["ACCEPTED", "PARTIAL", "REJECTED", "DUPLICATE"],
+                        source_variant__isnull=False,
+                    )
+                ),
+                name="batch_source_variant_matches_status",
             ),
             models.CheckConstraint(
                 check=(
