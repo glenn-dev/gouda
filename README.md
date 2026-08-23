@@ -10,10 +10,11 @@ deferred until after Sprint 0.
 
 ## Project status
 
-The repository contains the product and architecture baseline plus the first
-Django/PostgreSQL persistence foundation. The Santander import service is the
-next checkpoint; implementation work should follow the MVP scope and the
-security rules in `docs/security/financial-data-handling.md`.
+The repository contains the product and architecture baseline, the first
+Django/PostgreSQL persistence foundation, and the synchronous Santander
+current-account XLSX import lifecycle. Simultaneous-finalization race recovery
+is the next checkpoint; implementation work should follow the MVP scope and
+the security rules in `docs/security/financial-data-handling.md`.
 
 ## Local persistence setup
 

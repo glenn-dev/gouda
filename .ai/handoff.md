@@ -2,8 +2,8 @@
 
 ## Objective
 
-Gouda v0.1 — establish the first Santander current-account import-service
-boundary checkpoint without implementing the end-to-end service.
+Gouda v0.1 — checkpoint 2 implements the first end-to-end synchronous
+Santander current-account XLSX import service.
 
 ## Frozen baseline
 
@@ -31,13 +31,13 @@ valid when present. Dangerous populated columns beyond G, incoherent result
 graphs, and changed auxiliary boundaries followed by financial rows are not v1.
 No source registry, plugin system, or generic importer abstraction exists.
 
-## Implemented boundary
+## Implemented service
 
 Migration `0003_importbatch_source_variant` adds the field and PostgreSQL
 constraints that reject empty variants and require non-null variants for
 `ACCEPTED`, `PARTIAL`, `REJECTED`, and `DUPLICATE` batches.
 
-`gouda.ledger.services.santander_import` contains pure helpers for:
+`gouda.ledger.services.santander_import` retains the checkpoint-1 helpers for:
 
 - deterministic tagged raw-cell serialization;
 - exact movement and reconciliation money validation without rounding;
@@ -46,8 +46,36 @@ constraints that reject empty variants and require non-null variants for
 - complete parser-result graph validation;
 - Santander v1 structural recognition.
 
-It intentionally contains no artifact registration, parser orchestration,
-failure compensation, ORM materialization, concurrency handling, or logging.
+The same Santander-specific module now exposes
+`import_santander_current_account_xlsx(*, content, original_filename, account)`.
+It accepts exact bytes and a persisted trusted current account, normalizes only
+the artifact basename, hashes the unmodified bytes, and owns source kind,
+parser version, variant, currency, and external parser account reference.
+An invalid trusted database currency is rejected before artifact registration
+with the stable safe code `account_currency_invalid`.
+
+The service uses three short phases:
+
+1. A registration transaction refetches and validates the account, resolves or
+   creates the exact artifact, detects a sequential canonical duplicate, and
+   otherwise commits a durable `PROCESSING` attempt.
+2. The frozen parser, graph/variant/money validation, tagged raw serialization,
+   and final-status derivation run with no database transaction or row lock.
+3. A materialization transaction locks the account and this service's attempt
+   in that order, revalidates context, checks again for a materialized target,
+   and atomically writes every `RawRecord`, parsed `Movement`, reconciliation
+   evidence, provenance, counts, variant `v1`, and final batch status.
+
+Parser, boundary, and persistence failures use stable safe codes. Any failed
+materialization rolls back before a fresh transaction locks the still-
+`PROCESSING` attempt and records a durable `FATAL`. If compensation cannot be
+persisted, callers receive only a sanitized Santander operational exception.
+The service rejects invocation inside an existing transaction because such a
+caller context cannot commit registration before openpyxl parsing.
+
+Sequential duplicates skip parsing. The normal post-parse duplicate path also
+finalizes directly to the canonical materialized target with zero canonical
+rows and zero counts. Fatal attempts do not block later successful retries.
 The frozen parser was not modified.
 
 ## Frozen parser behavior
@@ -72,10 +100,10 @@ and independent reconciliation statuses.
 
 ## Validation state
 
-- Full Django/PostgreSQL and synthetic suite: 78 passed, 0 failed.
+- Full Django/PostgreSQL and synthetic suite: 98 passed, 0 failed.
 - Migration drift check: no changes detected.
 - Django system check: no issues.
-- Python AST validation: passed.
+- Python compilation validation with an isolated cache: passed.
 - `git diff --check`: passed.
 
 Validation used only synthetic fixtures and an isolated PostgreSQL 16 test
@@ -89,15 +117,15 @@ databases, and generated artifacts remain excluded.
 
 ## Next development phase
 
-Implement orchestration in the existing Santander service module:
+Implement only the simultaneous-finalization race recovery deferred from this
+checkpoint:
 
-1. trusted account and artifact/attempt registration;
-2. duplicate detection before parsing;
-3. parser invocation outside database transactions;
-4. graph, variant, serialization, and exact-money validation;
-5. atomic raw-record/movement/reconciliation materialization;
-6. fatal compensation after rollback;
-7. conditional-uniqueness race recovery.
+1. identify the named partial unique constraint without parsing database error
+   text;
+2. recover the losing materialization attempt into a direct `DUPLICATE` in a
+   fresh transaction;
+3. prove exactly one canonical winner and one duplicate with separate database
+   connections and barrier-based PostgreSQL tests.
 
 Keep the parser frozen. Do not add REST, frontend, asynchronous processing,
 other institutions, or generic importer abstractions.

@@ -1,15 +1,20 @@
-"""Pure Santander import-boundary helpers; ORM orchestration is intentionally absent."""
+"""Santander current-account import boundary and synchronous application service."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
+import hashlib
 from math import isfinite
 import re
 import unicodedata
+from uuid import UUID
 
 from django.core.exceptions import ValidationError
+from django.db import DatabaseError, IntegrityError, transaction
+from django.utils import timezone
 
 from gouda.santander_parser import (
     PARSER_VERSION,
@@ -25,9 +30,10 @@ from gouda.santander_parser import (
     RowResult,
     SourceCell,
     UnsupportedWorkbookError,
+    parse_workbook,
 )
 
-from ..models import ImportBatch, RawRecord
+from ..models import Account, ImportBatch, Movement, RawRecord, SourceArtifact
 from ..validation import validate_exact_money
 
 
@@ -36,6 +42,27 @@ SOURCE_VARIANT_UNSUPPORTED = "source_variant_unsupported"
 PARSER_RESULT_GRAPH_INVALID = "parser_result_graph_invalid"
 PARSER_ERROR_UNRECOGNIZED = "parser_error_unrecognized"
 PARSER_UNEXPECTED = "parser_unexpected"
+ACCOUNT_CONTEXT_CHANGED = "account_context_changed"
+IMPORT_ATTEMPT_CONTEXT_CHANGED = "import_attempt_context_changed"
+BOUNDARY_VALIDATION_FAILED = "boundary_validation_failed"
+MATERIALIZATION_INTEGRITY_ERROR = "materialization_integrity_error"
+MATERIALIZATION_DATABASE_ERROR = "materialization_database_error"
+MATERIALIZATION_FAILED = "materialization_failed"
+
+_SOURCE_KIND = SourceArtifact.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX
+_MATERIALIZED_STATUSES = (
+    ImportBatch.Status.ACCEPTED,
+    ImportBatch.Status.PARTIAL,
+    ImportBatch.Status.REJECTED,
+)
+_SAFE_MONEY_CODES = frozenset(
+    {
+        "money_not_finite",
+        "money_scale_exceeded",
+        "money_precision_exceeded",
+        "movement_amount_zero",
+    }
+)
 
 _EXPECTED_COLUMNS = tuple("ABCDEFG")
 _EXPECTED_COLUMN_SET = frozenset(_EXPECTED_COLUMNS)
@@ -94,6 +121,516 @@ class SantanderImportValidationError(ValueError):
     def __init__(self, code: str):
         self.code = code
         super().__init__(code)
+
+
+class SantanderImportServiceError(Exception):
+    """Caller-facing Santander failure containing only a stable safe code."""
+
+    def __init__(self, code: str):
+        self.code = code
+        super().__init__(code)
+
+
+class SantanderImportOperationalError(SantanderImportServiceError):
+    """A safe failure raised when no truthful durable batch can be returned."""
+
+
+@dataclass(frozen=True)
+class _Registration:
+    batch: ImportBatch
+    batch_id: UUID
+    artifact_id: UUID
+    account_id: UUID
+    currency: str
+    duplicate: bool
+
+
+@dataclass(frozen=True)
+class _PreparedRow:
+    parser_row: RowResult
+    raw_cells: dict[str, object]
+
+
+@dataclass(frozen=True)
+class _PreparedImport:
+    result: ParseResult
+    rows: tuple[_PreparedRow, ...]
+    source_variant: str
+    final_status: str
+
+
+def import_santander_current_account_xlsx(
+    *,
+    content: bytes,
+    original_filename: str,
+    account: Account,
+) -> ImportBatch:
+    """Import one Santander current-account XLSX into the canonical ledger."""
+
+    if type(content) is not bytes:
+        raise SantanderImportServiceError("content_type_invalid")
+    if not isinstance(account, Account) or account.pk is None or account._state.adding:
+        raise SantanderImportServiceError("account_not_persisted")
+    normalized_filename = _normalize_original_filename(original_filename)
+    if transaction.get_connection().in_atomic_block:
+        raise SantanderImportServiceError("transaction_context_unsupported")
+
+    try:
+        digest = _content_digest(content)
+        registration = _register_import_attempt(
+            content=content,
+            normalized_filename=normalized_filename,
+            digest=digest,
+            account_id=account.pk,
+        )
+    except SantanderImportServiceError:
+        raise
+    except DatabaseError:
+        raise SantanderImportOperationalError("registration_database_error") from None
+    except Exception:
+        raise SantanderImportOperationalError("registration_failed") from None
+
+    if registration.duplicate:
+        return registration.batch
+
+    try:
+        result = parse_workbook(
+            content,
+            currency=registration.currency,
+            account_ref=str(registration.account_id),
+        )
+    except ParserError as error:
+        return _record_fatal_attempt(
+            batch_id=registration.batch_id,
+            failure_stage=ImportBatch.FailureStage.PARSER,
+            failure_code=map_parser_failure_code(error),
+            source_variant=None,
+        )
+    except Exception:
+        return _record_fatal_attempt(
+            batch_id=registration.batch_id,
+            failure_stage=ImportBatch.FailureStage.PARSER,
+            failure_code=PARSER_UNEXPECTED,
+            source_variant=None,
+        )
+
+    recognized_variant: str | None = None
+    try:
+        validate_santander_parser_result(
+            result,
+            expected_account_ref=str(registration.account_id),
+            expected_currency=registration.currency,
+        )
+        recognized_variant = assert_santander_v1_structure(result)
+        prepared = _prepare_import(
+            result=result,
+            source_variant=recognized_variant,
+        )
+    except SantanderImportValidationError as error:
+        return _record_fatal_attempt(
+            batch_id=registration.batch_id,
+            failure_stage=ImportBatch.FailureStage.BOUNDARY,
+            failure_code=error.code,
+            source_variant=recognized_variant,
+        )
+    except ValidationError as error:
+        return _record_fatal_attempt(
+            batch_id=registration.batch_id,
+            failure_stage=ImportBatch.FailureStage.BOUNDARY,
+            failure_code=_safe_validation_error_code(error),
+            source_variant=recognized_variant,
+        )
+    except Exception:
+        return _record_fatal_attempt(
+            batch_id=registration.batch_id,
+            failure_stage=ImportBatch.FailureStage.BOUNDARY,
+            failure_code=BOUNDARY_VALIDATION_FAILED,
+            source_variant=recognized_variant,
+        )
+
+    try:
+        return _materialize_import(registration=registration, prepared=prepared)
+    except SantanderImportValidationError as error:
+        return _record_fatal_attempt(
+            batch_id=registration.batch_id,
+            failure_stage=ImportBatch.FailureStage.BOUNDARY,
+            failure_code=error.code,
+            source_variant=prepared.source_variant,
+        )
+    except IntegrityError:
+        return _record_fatal_attempt(
+            batch_id=registration.batch_id,
+            failure_stage=ImportBatch.FailureStage.PERSISTENCE,
+            failure_code=MATERIALIZATION_INTEGRITY_ERROR,
+            source_variant=prepared.source_variant,
+        )
+    except DatabaseError:
+        return _record_fatal_attempt(
+            batch_id=registration.batch_id,
+            failure_stage=ImportBatch.FailureStage.PERSISTENCE,
+            failure_code=MATERIALIZATION_DATABASE_ERROR,
+            source_variant=prepared.source_variant,
+        )
+    except Exception:
+        return _record_fatal_attempt(
+            batch_id=registration.batch_id,
+            failure_stage=ImportBatch.FailureStage.PERSISTENCE,
+            failure_code=MATERIALIZATION_FAILED,
+            source_variant=prepared.source_variant,
+        )
+
+
+def _normalize_original_filename(original_filename: object) -> str:
+    if not isinstance(original_filename, str):
+        raise SantanderImportServiceError("filename_invalid")
+    try:
+        normalized = unicodedata.normalize("NFC", original_filename)
+        normalized.encode("utf-8", errors="strict")
+    except (TypeError, UnicodeError):
+        raise SantanderImportServiceError("filename_invalid") from None
+    basename = normalized.replace("\\", "/").rsplit("/", 1)[-1].strip()
+    if (
+        not basename
+        or basename in {".", ".."}
+        or len(basename) > 255
+        or any(unicodedata.category(char) == "Cc" for char in basename)
+    ):
+        raise SantanderImportServiceError("filename_invalid")
+    return basename
+
+
+def _content_digest(content: bytes) -> str:
+    return hashlib.sha256(content).hexdigest()
+
+
+def _load_account_for_registration(account_id: UUID) -> Account:
+    try:
+        return Account.objects.get(pk=account_id)
+    except Account.DoesNotExist:
+        raise SantanderImportServiceError("account_not_found") from None
+
+
+def _validate_trusted_account(account: Account) -> None:
+    if account.kind != Account.Kind.CURRENT:
+        raise SantanderImportServiceError("account_kind_unsupported")
+    if not isinstance(account.currency, str) or re.fullmatch(r"[A-Z]{3}", account.currency) is None:
+        raise SantanderImportServiceError("account_currency_invalid")
+
+
+def _register_import_attempt(
+    *,
+    content: bytes,
+    normalized_filename: str,
+    digest: str,
+    account_id: UUID,
+) -> _Registration:
+    with transaction.atomic():
+        account = _load_account_for_registration(account_id)
+        _validate_trusted_account(account)
+        artifact = _resolve_source_artifact(
+            content=content,
+            normalized_filename=normalized_filename,
+            digest=digest,
+        )
+        target = _find_materialized_batch(artifact_id=artifact.pk, account_id=account.pk)
+        batch = ImportBatch.objects.create(
+            source_artifact=artifact,
+            account=account,
+            parser_version=PARSER_VERSION,
+            status=ImportBatch.Status.PROCESSING,
+        )
+        if target is not None:
+            _finalize_duplicate(batch=batch, target=target)
+        return _Registration(
+            batch=batch,
+            batch_id=batch.pk,
+            artifact_id=artifact.pk,
+            account_id=account.pk,
+            currency=account.currency,
+            duplicate=target is not None,
+        )
+
+
+def _resolve_source_artifact(
+    *,
+    content: bytes,
+    normalized_filename: str,
+    digest: str,
+) -> SourceArtifact:
+    artifact = SourceArtifact.objects.filter(content_digest=digest).first()
+    if artifact is None:
+        try:
+            with transaction.atomic():
+                artifact = SourceArtifact.objects.create(
+                    source_kind=_SOURCE_KIND,
+                    original_filename=normalized_filename,
+                    content_digest=digest,
+                    content=content,
+                )
+        except IntegrityError:
+            artifact = SourceArtifact.objects.filter(content_digest=digest).first()
+            if artifact is None:
+                raise
+
+    if bytes(artifact.content) != content:
+        raise SantanderImportServiceError("content_digest_collision")
+    if artifact.source_kind != _SOURCE_KIND:
+        raise SantanderImportServiceError("artifact_source_kind_mismatch")
+    return artifact
+
+
+def _find_materialized_batch(*, artifact_id: UUID, account_id: UUID) -> ImportBatch | None:
+    return (
+        ImportBatch.objects.filter(
+            source_artifact_id=artifact_id,
+            account_id=account_id,
+            status__in=_MATERIALIZED_STATUSES,
+        )
+        .order_by("completed_at", "pk")
+        .first()
+    )
+
+
+def _finalize_duplicate(*, batch: ImportBatch, target: ImportBatch) -> None:
+    batch.status = ImportBatch.Status.DUPLICATE
+    batch.source_variant = target.source_variant
+    batch.duplicate_of = target
+    batch.completed_at = timezone.now()
+    batch.sheet_alias = None
+    batch.worksheet_name = None
+    batch.worksheet_ordinal = None
+    batch.period_start = None
+    batch.period_end = None
+    batch.parsed_count = 0
+    batch.ignored_count = 0
+    batch.rejected_count = 0
+    batch.reconciliation_status = None
+    batch.opening_balance = None
+    batch.ending_balance = None
+    batch.reconciliation_difference = None
+    batch.failure_stage = None
+    batch.failure_code = None
+    batch.save(
+        update_fields=[
+            "status",
+            "source_variant",
+            "duplicate_of",
+            "completed_at",
+            "sheet_alias",
+            "worksheet_name",
+            "worksheet_ordinal",
+            "period_start",
+            "period_end",
+            "parsed_count",
+            "ignored_count",
+            "rejected_count",
+            "reconciliation_status",
+            "opening_balance",
+            "ending_balance",
+            "reconciliation_difference",
+            "failure_stage",
+            "failure_code",
+        ]
+    )
+
+
+def _prepare_import(
+    *,
+    result: ParseResult,
+    source_variant: str,
+) -> _PreparedImport:
+    for movement in result.parsed_movements:
+        validate_movement_money(
+            signed_amount=movement.signed_amount,
+            running_balance=movement.running_balance,
+        )
+    validate_reconciliation_money(
+        opening_balance=result.reconciliation.opening_balance,
+        ending_balance=result.reconciliation.ending_balance,
+        difference=result.reconciliation.difference,
+    )
+    rows = tuple(
+        _PreparedRow(
+            parser_row=row,
+            raw_cells=serialize_santander_raw_cells(row.raw_record.raw_cells),
+        )
+        for row in result.rows
+    )
+    final_status = derive_batch_status(
+        parsed_count=result.parsed_count,
+        rejected_count=result.rejected_count,
+    )
+    return _PreparedImport(
+        result=result,
+        rows=rows,
+        source_variant=source_variant,
+        final_status=final_status,
+    )
+
+
+def _safe_validation_error_code(error: ValidationError) -> str:
+    code = getattr(error, "code", None)
+    return code if code in _SAFE_MONEY_CODES else BOUNDARY_VALIDATION_FAILED
+
+
+def _materialize_import(*, registration: _Registration, prepared: _PreparedImport) -> ImportBatch:
+    with transaction.atomic():
+        try:
+            account = Account.objects.select_for_update().get(pk=registration.account_id)
+        except Account.DoesNotExist:
+            raise SantanderImportValidationError(ACCOUNT_CONTEXT_CHANGED) from None
+        if account.kind != Account.Kind.CURRENT or account.currency != registration.currency:
+            raise SantanderImportValidationError(ACCOUNT_CONTEXT_CHANGED)
+
+        try:
+            batch = ImportBatch.objects.select_for_update().get(pk=registration.batch_id)
+        except ImportBatch.DoesNotExist:
+            raise SantanderImportValidationError(IMPORT_ATTEMPT_CONTEXT_CHANGED) from None
+        if (
+            batch.status != ImportBatch.Status.PROCESSING
+            or batch.source_artifact_id != registration.artifact_id
+            or batch.account_id != registration.account_id
+            or batch.parser_version != PARSER_VERSION
+            or batch.source_variant is not None
+        ):
+            raise SantanderImportValidationError(IMPORT_ATTEMPT_CONTEXT_CHANGED)
+
+        target = _find_materialized_batch(
+            artifact_id=registration.artifact_id,
+            account_id=registration.account_id,
+        )
+        if target is not None:
+            _finalize_duplicate(batch=batch, target=target)
+            return batch
+
+        raw_records = _create_raw_records(batch=batch, rows=prepared.rows)
+        _create_movements(account=account, rows=prepared.rows, raw_records=raw_records)
+        _finalize_materialized_batch(batch=batch, prepared=prepared)
+        return batch
+
+
+def _create_raw_records(
+    *,
+    batch: ImportBatch,
+    rows: tuple[_PreparedRow, ...],
+) -> dict[str, RawRecord]:
+    persisted: dict[str, RawRecord] = {}
+    for prepared_row in rows:
+        parser_row = prepared_row.parser_row
+        raw = RawRecord.objects.create(
+            import_batch=batch,
+            row_number=parser_row.raw_record.row_number,
+            raw_cells=prepared_row.raw_cells,
+            row_class=parser_row.raw_record.row_class,
+            parse_outcome=parser_row.outcome.value,
+            parser_codes=list(parser_row.error_codes),
+        )
+        persisted[parser_row.raw_record.raw_record_id] = raw
+    return persisted
+
+
+def _create_movements(
+    *,
+    account: Account,
+    rows: tuple[_PreparedRow, ...],
+    raw_records: Mapping[str, RawRecord],
+) -> None:
+    for prepared_row in rows:
+        movement = prepared_row.parser_row.movement
+        if movement is None:
+            continue
+        Movement.objects.create(
+            raw_record=raw_records[movement.source_record_id],
+            account=account,
+            occurrence_date=movement.occurrence_date,
+            signed_amount=movement.signed_amount,
+            currency=account.currency,
+            description=movement.description,
+            source_reference=movement.source_reference,
+            running_balance=movement.running_balance,
+            amount_source_column=movement.provenance["source_columns"][1],
+        )
+
+
+def _finalize_materialized_batch(*, batch: ImportBatch, prepared: _PreparedImport) -> None:
+    result = prepared.result
+    reconciliation = result.reconciliation
+    batch.status = prepared.final_status
+    batch.source_variant = prepared.source_variant
+    batch.completed_at = timezone.now()
+    batch.sheet_alias = result.sheet_alias
+    batch.worksheet_name = result.worksheet_name
+    batch.worksheet_ordinal = result.worksheet_ordinal
+    batch.period_start = result.period_start
+    batch.period_end = result.period_end
+    batch.parsed_count = result.parsed_count
+    batch.ignored_count = result.ignored_count
+    batch.rejected_count = result.rejected_count
+    batch.reconciliation_status = reconciliation.status.value
+    batch.opening_balance = reconciliation.opening_balance
+    batch.ending_balance = reconciliation.ending_balance
+    batch.reconciliation_difference = reconciliation.difference
+    batch.failure_stage = None
+    batch.failure_code = None
+    batch.save(
+        update_fields=[
+            "status",
+            "source_variant",
+            "completed_at",
+            "sheet_alias",
+            "worksheet_name",
+            "worksheet_ordinal",
+            "period_start",
+            "period_end",
+            "parsed_count",
+            "ignored_count",
+            "rejected_count",
+            "reconciliation_status",
+            "opening_balance",
+            "ending_balance",
+            "reconciliation_difference",
+            "failure_stage",
+            "failure_code",
+        ]
+    )
+
+
+def _record_fatal_attempt(
+    *,
+    batch_id: UUID,
+    failure_stage: str,
+    failure_code: str,
+    source_variant: str | None,
+) -> ImportBatch:
+    try:
+        with transaction.atomic():
+            batch = ImportBatch.objects.select_for_update().get(pk=batch_id)
+            if batch.status != ImportBatch.Status.PROCESSING:
+                raise SantanderImportOperationalError("fatal_compensation_conflict")
+            batch.status = ImportBatch.Status.FATAL
+            batch.source_variant = source_variant
+            batch.completed_at = timezone.now()
+            batch.duplicate_of = None
+            batch.sheet_alias = None
+            batch.worksheet_name = None
+            batch.worksheet_ordinal = None
+            batch.period_start = None
+            batch.period_end = None
+            batch.parsed_count = 0
+            batch.ignored_count = 0
+            batch.rejected_count = 0
+            batch.reconciliation_status = None
+            batch.opening_balance = None
+            batch.ending_balance = None
+            batch.reconciliation_difference = None
+            batch.failure_stage = failure_stage
+            batch.failure_code = failure_code
+            batch.save()
+            return batch
+    except SantanderImportOperationalError:
+        raise
+    except Exception:
+        raise SantanderImportOperationalError("fatal_compensation_failed") from None
 
 
 def serialize_santander_raw_cells(raw_cells: Mapping[str, SourceCell]) -> dict[str, object]:

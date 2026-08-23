@@ -2,7 +2,7 @@
 
 Gouda is being developed as a trust-first personal-finance movement ledger. The
 repository began documentation-first and now contains the first Django/PostgreSQL
-persistence foundation; the parser-to-ORM import service is not yet implemented.
+persistence foundation and synchronous Santander current-account import service.
 
 Initial technology direction:
 
@@ -41,9 +41,14 @@ Santander source discovery baseline:
 - Privacy-safe smoke validation now recognizes the confirmed markers in all
   three private samples; all three reconcile with commission-summary rows
   ignored.
-- Santander Parser Contract v0.1 is frozen as the validated baseline. The first
-  Django/PostgreSQL persistence foundation now exists in `gouda.ledger`; the
-  parser-to-ORM import service remains a later checkpoint.
+- Santander Parser Contract v0.1 remains frozen as the validated baseline.
+- `gouda.ledger.services.santander_import` now registers exact artifacts and
+  attempts, parses outside database transactions, validates the frozen parser
+  result, atomically materializes raw records and movements, and records safe
+  durable fatal attempts after failures.
+- Sequential and normal post-parse duplicates are supported. Recovery of the
+  simultaneous materialization uniqueness race is intentionally deferred to
+  the next checkpoint.
 
 Canonical semantics:
 

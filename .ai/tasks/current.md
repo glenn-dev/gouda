@@ -2,8 +2,9 @@
 
 ## Objective
 
-Establish the first Santander current-account import-service boundary
-checkpoint without implementing parser orchestration or ORM materialization.
+Implement checkpoint 2 of the Santander current-account import service by
+connecting the frozen parser and approved boundary helpers to durable Django
+registration, materialization, duplicate, and fatal-attempt lifecycles.
 
 ## Completed
 
@@ -52,11 +53,31 @@ checkpoint without implementing parser orchestration or ORM materialization.
 - Removed Finder metadata from the worktree and now ignore `.DS_Store`
   repository-wide. Corrected the application-state and synthetic-fixture
   reconciliation documentation.
+- Added the explicit synchronous
+  `import_santander_current_account_xlsx` application service.
+- Added strict content, filename, persisted-account, account-kind, and trusted
+  currency validation plus exact SHA-256 artifact identity and byte-level
+  digest-collision verification.
+- Added a short registration transaction with nested-savepoint artifact race
+  handling, sequential duplicate detection, and durable `PROCESSING` attempts.
+- Kept parser execution and all deterministic boundary preparation outside
+  database transactions.
+- Added atomic raw-record, movement, reconciliation, and final-batch
+  materialization with account-then-attempt row locking and account-context
+  revalidation.
+- Added safe parser, boundary, and persistence failure mapping with fresh-
+  transaction durable `FATAL` compensation after materialization rollback.
+- Added sequential and normal post-parse duplicate behavior; duplicate attempts
+  point directly to a canonical target and contain no canonical rows.
+- Added PostgreSQL integration coverage for happy, partial, rejected,
+  all-ignored, duplicate, retry, rollback, compensation, boundary, artifact,
+  filename, caller-context, and privacy behavior. The complete 98-test suite
+  passes against PostgreSQL 16.
 
 ## Next action
 
-Implement the explicit synchronous Santander import service using the approved
-helpers: artifact/attempt registration, parser invocation outside database
-transactions, fatal compensation, atomic raw/movement materialization, and
-database-backed duplicate-race recovery. Keep the parser frozen and do not add
-REST, frontend, correction, reprocessing, or generic multi-source scope.
+Implement checkpoint 3: recover the named partial-uniqueness loser during
+simultaneous finalization into a direct `DUPLICATE`, and prove one winner/one
+duplicate using separate PostgreSQL connections and barrier-based tests. Keep
+the parser frozen and do not broaden into REST, frontend, async processing, or
+generic multi-source abstractions.
