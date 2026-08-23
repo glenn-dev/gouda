@@ -2,9 +2,9 @@
 
 ## Objective
 
-Implement checkpoint 2 of the Santander current-account import service by
-connecting the frozen parser and approved boundary helpers to durable Django
-registration, materialization, duplicate, and fatal-attempt lifecycles.
+Verify checkpoint 3 concurrency semantics for the synchronous Santander
+current-account import service without changing its approved locking or
+production lifecycle.
 
 ## Completed
 
@@ -73,11 +73,27 @@ registration, materialization, duplicate, and fatal-attempt lifecycles.
   all-ignored, duplicate, retry, rollback, compensation, boundary, artifact,
   filename, caller-context, and privacy behavior. The complete 98-test suite
   passes against PostgreSQL 16.
+- Confirmed architecturally that the proposed simultaneous partial-uniqueness
+  loser race cannot occur through the approved lifecycle: same-account
+  materialization locks `Account` before the duplicate lookup and PostgreSQL
+  holds that row lock through commit.
+- Added separate-connection PostgreSQL concurrency tests proving that
+  registration and parsing overlap, while same-account materialization is
+  serialized without deadlock.
+- Proved identical concurrent imports create exactly one artifact, one
+  canonical graph, and one direct post-parse `DUPLICATE`, with no `FATAL`,
+  `PROCESSING`, or partial loser graph.
+- Proved different artifacts for the same account still parse concurrently and
+  then materialize serially as independent canonical batches.
+- Proved different accounts can hold their own Account row locks concurrently;
+  locking is account-scoped rather than application-wide.
+- Kept `one_materialized_batch_per_artifact_account` unchanged as defense in
+  depth. No named-constraint recovery or production-code change was needed.
 
 ## Next action
 
-Implement checkpoint 3: recover the named partial-uniqueness loser during
-simultaneous finalization into a direct `DUPLICATE`, and prove one winner/one
-duplicate using separate PostgreSQL connections and barrier-based tests. Keep
-the parser frozen and do not broaden into REST, frontend, async processing, or
-generic multi-source abstractions.
+The Santander current-account XLSX v1 backend importer is technically complete
+for its approved synchronous scope. The next validation step is optional manual
+smoke validation with private Santander statements under the established
+privacy procedure; do not make private sources CI inputs. Product expansion to
+other sources remains a separate discovery decision.

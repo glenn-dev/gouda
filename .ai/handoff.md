@@ -2,8 +2,8 @@
 
 ## Objective
 
-Gouda v0.1 — checkpoint 2 implements the first end-to-end synchronous
-Santander current-account XLSX import service.
+Gouda v0.1 — checkpoint 3 verifies the concurrency behavior of the end-to-end
+synchronous Santander current-account XLSX import service.
 
 ## Frozen baseline
 
@@ -78,6 +78,40 @@ finalizes directly to the canonical materialized target with zero canonical
 rows and zero counts. Fatal attempts do not block later successful retries.
 The frozen parser was not modified.
 
+## Concurrency semantics
+
+Registration and parsing remain concurrent. Parsing runs outside database
+transactions, and simultaneous first registration of identical bytes resolves
+to one exact `SourceArtifact` without poisoning either transaction.
+
+Materialization is intentionally serialized per account. Each materialization
+transaction locks the trusted `Account` first and its own `PROCESSING` batch
+second. PostgreSQL holds the Account row lock until commit. Under the configured
+`READ COMMITTED` isolation, the second same-account transaction acquires the
+lock after the first commits, observes the canonical batch in the existing
+post-parse lookup, and finalizes normally as a direct `DUPLICATE`.
+
+Consequently, the previously proposed simultaneous partial-unique-constraint
+loser race is unreachable through the approved service lifecycle. The explicit
+`one_materialized_batch_per_artifact_account` partial unique constraint remains
+unchanged as defense in depth. No Account lock was moved or weakened, no
+constraint collision was forced, and no named-constraint recovery handler was
+added. Unrelated `IntegrityError` behavior remains the checkpoint-2 safe
+`PERSISTENCE`/`materialization_integrity_error` fatal path.
+
+Separate PostgreSQL connections prove:
+
+- identical concurrent imports produce one canonical graph and one post-parse
+  duplicate, with no fatal, processing, or partial loser graph;
+- different artifacts for one account parse together but materialize serially
+  as independent canonical batches;
+- different accounts can hold their Account row locks concurrently, so there
+  is no application-wide import lock.
+
+The lock order has no reverse edge: each transaction locks only its target
+Account and then its own batch. It never locks another processing attempt or a
+canonical winner.
+
 ## Frozen parser behavior
 
 The parser uses a Santander-specific section state model:
@@ -100,7 +134,9 @@ and independent reconciliation statuses.
 
 ## Validation state
 
-- Full Django/PostgreSQL and synthetic suite: 98 passed, 0 failed.
+- Full Django/PostgreSQL and synthetic suite: 101 passed, 0 failed.
+- Separate-connection concurrency suite: 3 passed, 0 failed in five
+  consecutive final repeat runs (15 concurrency-test executions).
 - Migration drift check: no changes detected.
 - Django system check: no issues.
 - Python compilation validation with an isolated cache: passed.
@@ -115,17 +151,14 @@ Finder `.DS_Store` files are ignored repository-wide and the previously
 untracked artifacts were removed. Private sources, caches, secrets, local
 databases, and generated artifacts remain excluded.
 
-## Next development phase
+## Readiness
 
-Implement only the simultaneous-finalization race recovery deferred from this
-checkpoint:
+The Santander current-account XLSX v1 backend importer is technically complete
+for its approved synchronous scope. The next source-specific confidence step is
+optional manual validation with private statements under the established
+privacy-safe procedure. Private statements remain excluded from CI and were not
+accessed during this checkpoint.
 
-1. identify the named partial unique constraint without parsing database error
-   text;
-2. recover the losing materialization attempt into a direct `DUPLICATE` in a
-   fresh transaction;
-3. prove exactly one canonical winner and one duplicate with separate database
-   connections and barrier-based PostgreSQL tests.
-
-Keep the parser frozen. Do not add REST, frontend, asynchronous processing,
-other institutions, or generic importer abstractions.
+Keep the parser frozen. Product work on REST, frontend, asynchronous processing,
+other institutions, and generic multi-source abstractions remains out of this
+checkpoint's scope.

@@ -46,9 +46,18 @@ Santander source discovery baseline:
   attempts, parses outside database transactions, validates the frozen parser
   result, atomically materializes raw records and movements, and records safe
   durable fatal attempts after failures.
-- Sequential and normal post-parse duplicates are supported. Recovery of the
-  simultaneous materialization uniqueness race is intentionally deferred to
-  the next checkpoint.
+- Sequential and normal post-parse duplicates are supported. Separate-
+  connection PostgreSQL tests confirm that identical imports can register and
+  parse concurrently, then serialize same-account materialization on
+  `select_for_update(Account)`. The second transaction observes the committed
+  canonical batch and finalizes through the normal post-parse duplicate path.
+- `one_materialized_batch_per_artifact_account` remains a database defense in
+  depth. Its violation is unreachable through the approved service lifecycle
+  because same-account materialization is serialized; no speculative named-
+  constraint recovery exists.
+- The Santander current-account XLSX v1 backend importer is technically
+  complete for its approved synchronous scope, pending optional manual
+  validation with private source statements.
 
 Canonical semantics:
 
