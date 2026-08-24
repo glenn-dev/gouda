@@ -28,6 +28,7 @@ class SantanderImportServiceTests(TransactionTestCase):
         self.account = Account.objects.create(
             display_name="Synthetic current account",
             kind=Account.Kind.CURRENT,
+            economic_orientation=Account.EconomicOrientation.ASSET,
             currency="ZZZ",
         )
         self.content = workbook_bytes(
@@ -179,6 +180,7 @@ class SantanderImportServiceTests(TransactionTestCase):
         other = Account.objects.create(
             display_name="Other synthetic current account",
             kind=Account.Kind.CURRENT,
+            economic_orientation=Account.EconomicOrientation.ASSET,
             currency="ZZZ",
         )
         second = self.import_content(account=other)
@@ -221,6 +223,7 @@ class SantanderImportServiceTests(TransactionTestCase):
             account = Account.objects.create(
                 display_name=f"Synthetic status account {index}",
                 kind=Account.Kind.CURRENT,
+                economic_orientation=Account.EconomicOrientation.ASSET,
                 currency="ZZZ",
             )
             with self.subTest(status=expected_status):
@@ -352,6 +355,39 @@ class SantanderImportServiceTests(TransactionTestCase):
             variant=service.SANTANDER_SOURCE_VARIANT_V1,
         )
 
+    def test_changed_account_orientation_is_boundary_fatal(self):
+        real_parse = service.parse_workbook
+        real_select_for_update = Account.objects.select_for_update
+
+        def mutate_account_orientation(*args, **kwargs):
+            result = real_parse(*args, **kwargs)
+            locked_queryset = real_select_for_update()
+            real_get = locked_queryset.get
+
+            def get_with_changed_orientation(*get_args, **get_kwargs):
+                account = real_get(*get_args, **get_kwargs)
+                account.economic_orientation = Account.EconomicOrientation.LIABILITY
+                return account
+
+            locked_queryset.get = get_with_changed_orientation
+            orientation_patch = patch.object(
+                Account.objects,
+                "select_for_update",
+                return_value=locked_queryset,
+            )
+            orientation_patch.start()
+            self.addCleanup(orientation_patch.stop)
+            return result
+
+        with patch.object(service, "parse_workbook", side_effect=mutate_account_orientation):
+            batch = self.import_content()
+        self.assert_fatal(
+            batch,
+            stage=ImportBatch.FailureStage.BOUNDARY,
+            code=service.ACCOUNT_CONTEXT_CHANGED,
+            variant=service.SANTANDER_SOURCE_VARIANT_V1,
+        )
+
     def test_materialization_rolls_back_at_each_injected_seam(self):
         seams = ("_create_raw_records", "_create_movements", "_finalize_materialized_batch")
         for seam in seams:
@@ -437,29 +473,54 @@ class SantanderImportServiceTests(TransactionTestCase):
                     self.import_content(content=invalid_content)
                 self.assertEqual(context.exception.code, "content_type_invalid")
 
-        unsaved = Account(display_name="Unsaved", kind=Account.Kind.CURRENT, currency="ZZZ")
+        unsaved = Account(
+            display_name="Unsaved",
+            kind=Account.Kind.CURRENT,
+            economic_orientation=Account.EconomicOrientation.ASSET,
+            currency="ZZZ",
+        )
         with self.assertRaises(service.SantanderImportServiceError) as context:
             self.import_content(account=unsaved)
         self.assertEqual(context.exception.code, "account_not_persisted")
 
-        deleted = Account.objects.create(display_name="Deleted", kind=Account.Kind.CURRENT, currency="ZZZ")
+        deleted = Account.objects.create(
+            display_name="Deleted",
+            kind=Account.Kind.CURRENT,
+            economic_orientation=Account.EconomicOrientation.ASSET,
+            currency="ZZZ",
+        )
         deleted_id = deleted.pk
         deleted.delete()
-        deleted = Account(pk=deleted_id, display_name="Deleted", kind=Account.Kind.CURRENT, currency="ZZZ")
+        deleted = Account(
+            pk=deleted_id,
+            display_name="Deleted",
+            kind=Account.Kind.CURRENT,
+            economic_orientation=Account.EconomicOrientation.ASSET,
+            currency="ZZZ",
+        )
         deleted._state.adding = False
         with self.assertRaises(service.SantanderImportServiceError) as context:
             self.import_content(account=deleted)
         self.assertEqual(context.exception.code, "account_not_found")
 
-        unsupported = Account.objects.create(display_name="Unsupported", kind="CREDIT", currency="ZZZ")
-        with self.assertRaises(service.SantanderImportServiceError) as context:
-            self.import_content(account=unsupported)
+        unsupported = Account(
+            display_name="Unsupported",
+            kind="CREDIT",
+            economic_orientation=Account.EconomicOrientation.LIABILITY,
+            currency="ZZZ",
+        )
+        unsupported.pk = self.account.pk
+        unsupported._state.adding = False
+        with patch.object(service, "_load_account_for_registration", return_value=unsupported):
+            with self.assertRaises(service.SantanderImportServiceError) as context:
+                self.import_content(account=unsupported)
         self.assertEqual(context.exception.code, "account_kind_unsupported")
 
         invalid_currency = Account(
             pk=self.account.pk,
             display_name="Invalid context",
             kind=Account.Kind.CURRENT,
+            economic_orientation=Account.EconomicOrientation.ASSET,
             currency="zzz",
         )
         with patch.object(service, "_load_account_for_registration", return_value=invalid_currency):
@@ -467,11 +528,24 @@ class SantanderImportServiceTests(TransactionTestCase):
                 self.import_content()
         self.assertEqual(context.exception.code, "account_currency_invalid")
 
+        invalid_orientation = Account(
+            pk=self.account.pk,
+            display_name="Invalid orientation",
+            kind=Account.Kind.CURRENT,
+            economic_orientation=Account.EconomicOrientation.LIABILITY,
+            currency="ZZZ",
+        )
+        with patch.object(service, "_load_account_for_registration", return_value=invalid_orientation):
+            with self.assertRaises(service.SantanderImportServiceError) as context:
+                self.import_content()
+        self.assertEqual(context.exception.code, "account_orientation_unsupported")
+
     def test_existing_artifact_is_reused_but_mismatch_and_collision_fail_closed(self):
         first = self.import_content()
         second_account = Account.objects.create(
             display_name="Second account",
             kind=Account.Kind.CURRENT,
+            economic_orientation=Account.EconomicOrientation.ASSET,
             currency="ZZZ",
         )
         reused = self.import_content(account=second_account)
@@ -480,10 +554,11 @@ class SantanderImportServiceTests(TransactionTestCase):
         first.source_artifact.source_kind = "OTHER_SOURCE"
         first.source_artifact.save(update_fields=["source_kind"])
         with self.assertRaises(service.SantanderImportServiceError) as context:
-            self.import_content(account=Account.objects.create(
-                display_name="Third account",
-                kind=Account.Kind.CURRENT,
-                currency="ZZZ",
+                self.import_content(account=Account.objects.create(
+                    display_name="Third account",
+                    kind=Account.Kind.CURRENT,
+                    economic_orientation=Account.EconomicOrientation.ASSET,
+                    currency="ZZZ",
             ))
         self.assertEqual(context.exception.code, "artifact_source_kind_mismatch")
 
@@ -495,6 +570,7 @@ class SantanderImportServiceTests(TransactionTestCase):
                     account=Account.objects.create(
                         display_name="Collision account",
                         kind=Account.Kind.CURRENT,
+                        economic_orientation=Account.EconomicOrientation.ASSET,
                         currency="ZZZ",
                     ),
                 )

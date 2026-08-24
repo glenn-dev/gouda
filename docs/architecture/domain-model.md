@@ -8,8 +8,11 @@ An account has an internal identifier, a display name, a product/account kind,
 an economic orientation, and a currency. Product kind and economic orientation
 are separate concepts: a current account or credit card describes the product,
 while `ASSET` or `LIABILITY` describes how its contribution to household net
-worth changes. External bank account identifiers are deferred. The current
-schema has not yet added credit-card support or an orientation field.
+worth changes. The supported combinations are `CURRENT` + `ASSET` and
+`CREDIT_CARD` + `LIABILITY`; the database rejects other combinations until a
+future schema decision expands the closed-world invariant. Existing current
+accounts are backfilled as `ASSET`. External bank account identifiers are
+deferred.
 
 ### Source artifact and source record
 

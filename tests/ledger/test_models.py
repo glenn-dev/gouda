@@ -4,8 +4,9 @@ import hashlib
 import uuid
 
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.db import IntegrityError, connection, transaction
+from django.db.migrations.executor import MigrationExecutor
+from django.test import TestCase, TransactionTestCase
 
 from gouda.ledger.models import Account, ImportBatch, Movement, RawRecord, SourceArtifact
 from gouda.ledger.validation import validate_exact_money
@@ -16,6 +17,7 @@ class LedgerModelTests(TestCase):
         self.account = Account.objects.create(
             display_name="Synthetic checking",
             kind=Account.Kind.CURRENT,
+            economic_orientation=Account.EconomicOrientation.ASSET,
             currency="ZZZ",
         )
         content = b"synthetic artifact bytes"
@@ -68,6 +70,7 @@ class LedgerModelTests(TestCase):
         account = Account.objects.create(
             display_name=f"Synthetic account {suffix}",
             kind=Account.Kind.CURRENT,
+            economic_orientation=Account.EconomicOrientation.ASSET,
             currency="ZZZ",
         )
         content = f"synthetic artifact {suffix}".encode()
@@ -87,6 +90,64 @@ class LedgerModelTests(TestCase):
     def test_account_string_representation_does_not_expose_display_name(self):
         self.assertNotIn("Synthetic checking", str(self.account))
         self.assertIn(str(self.account.pk), str(self.account))
+
+    def test_account_kind_and_orientation_enum_values_are_stable(self):
+        self.assertEqual(Account.Kind.CURRENT, "CURRENT")
+        self.assertEqual(Account.Kind.CREDIT_CARD, "CREDIT_CARD")
+        self.assertEqual(Account.EconomicOrientation.ASSET, "ASSET")
+        self.assertEqual(Account.EconomicOrientation.LIABILITY, "LIABILITY")
+
+    def test_supported_kind_orientation_combinations_are_accepted(self):
+        current = self.account
+        card = Account.objects.create(
+            display_name="Synthetic credit card",
+            kind=Account.Kind.CREDIT_CARD,
+            economic_orientation=Account.EconomicOrientation.LIABILITY,
+            currency="ZZZ",
+        )
+        self.assertEqual(current.economic_orientation, Account.EconomicOrientation.ASSET)
+        self.assertEqual(card.economic_orientation, Account.EconomicOrientation.LIABILITY)
+
+    def test_database_rejects_invalid_kind_orientation_combinations(self):
+        invalid = (
+            (Account.Kind.CURRENT, Account.EconomicOrientation.LIABILITY),
+            (Account.Kind.CREDIT_CARD, Account.EconomicOrientation.ASSET),
+        )
+        for index, (kind, orientation) in enumerate(invalid):
+            with self.subTest(kind=kind, orientation=orientation):
+                with self.assertRaises(IntegrityError):
+                    with transaction.atomic():
+                        Account.objects.create(
+                            display_name=f"Invalid account {index}",
+                            kind=kind,
+                            economic_orientation=orientation,
+                            currency="ZZZ",
+                        )
+
+    def test_economic_orientation_is_required(self):
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Account.objects.create(
+                    display_name="Missing orientation",
+                    kind=Account.Kind.CURRENT,
+                    currency="ZZZ",
+                )
+
+    def test_orientation_does_not_rewrite_existing_movement_values(self):
+        batch = self.make_batch()
+        raw_record = self.make_parsed_raw(batch)
+        movement = Movement.objects.create(
+            raw_record=raw_record,
+            account=self.account,
+            occurrence_date=date(2026, 4, 2),
+            signed_amount=Decimal("-1.25"),
+            currency="ZZZ",
+            amount_source_column="E",
+        )
+        self.account.refresh_from_db()
+        movement.refresh_from_db()
+        self.assertEqual(self.account.economic_orientation, Account.EconomicOrientation.ASSET)
+        self.assertEqual(movement.signed_amount, Decimal("-1.25"))
 
     def test_exact_money_validator_rejects_rounding_precision_and_nonfinite_values(self):
         validate_exact_money(Decimal("999999999999999999.99"))
@@ -247,7 +308,12 @@ class LedgerModelTests(TestCase):
         with self.assertRaises(ValidationError):
             candidate.full_clean()
 
-        other_account = Account.objects.create(display_name="Other synthetic account", kind=Account.Kind.CURRENT, currency="ZZZ")
+        other_account = Account.objects.create(
+            display_name="Other synthetic account",
+            kind=Account.Kind.CURRENT,
+            economic_orientation=Account.EconomicOrientation.ASSET,
+            currency="ZZZ",
+        )
         mismatched_account = ImportBatch(
             source_artifact=self.artifact,
             account=other_account,
@@ -478,3 +544,30 @@ class LedgerModelTests(TestCase):
         )
         with self.assertRaises(ValidationError):
             movement.full_clean()
+
+
+class AccountOrientationMigrationTests(TransactionTestCase):
+    reset_sequences = True
+
+    def test_existing_current_accounts_are_backfilled_by_0004(self):
+        executor = MigrationExecutor(connection)
+        migrate_from = [("ledger", "0003_importbatch_source_variant")]
+        migrate_to = [("ledger", "0004_account_economic_orientation")]
+        executor.migrate(migrate_from)
+        try:
+            executor = MigrationExecutor(connection)
+            old_account = executor.loader.project_state(migrate_from).apps.get_model("ledger", "Account")
+            account = old_account.objects.create(
+                display_name="Pre-orientation current account",
+                kind="CURRENT",
+                currency="ZZZ",
+            )
+
+            executor = MigrationExecutor(connection)
+            executor.migrate(migrate_to)
+            executor = MigrationExecutor(connection)
+            new_account = executor.loader.project_state(migrate_to).apps.get_model("ledger", "Account")
+            account = new_account.objects.get(pk=account.pk)
+            self.assertEqual(account.economic_orientation, "ASSET")
+        finally:
+            executor.migrate(migrate_to)

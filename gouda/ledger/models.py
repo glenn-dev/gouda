@@ -14,10 +14,19 @@ from .validation import validate_exact_money
 class Account(models.Model):
     class Kind(models.TextChoices):
         CURRENT = "CURRENT", "Current account"
+        CREDIT_CARD = "CREDIT_CARD", "Credit card"
+
+    class EconomicOrientation(models.TextChoices):
+        ASSET = "ASSET", "Asset"
+        LIABILITY = "LIABILITY", "Liability"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     display_name = models.CharField(max_length=120)
     kind = models.CharField(max_length=32, choices=Kind.choices)
+    economic_orientation = models.CharField(
+        max_length=9,
+        choices=EconomicOrientation.choices,
+    )
     currency = models.CharField(max_length=3)
 
     class Meta:
@@ -25,6 +34,13 @@ class Account(models.Model):
             models.CheckConstraint(
                 check=Q(currency__regex=r"^[A-Z]{3}$"),
                 name="account_currency_iso_like",
+            ),
+            models.CheckConstraint(
+                check=(
+                    Q(kind="CURRENT", economic_orientation="ASSET")
+                    | Q(kind="CREDIT_CARD", economic_orientation="LIABILITY")
+                ),
+                name="account_kind_orientation_known",
             ),
         ]
 

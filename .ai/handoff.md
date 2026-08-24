@@ -190,15 +190,27 @@ Finder `.DS_Store` files are ignored repository-wide and the previously
 untracked artifacts were removed. Private sources, caches, secrets, local
 databases, and generated artifacts remain excluded.
 
-## Readiness
+## Account-domain checkpoint
+
+ADR-0005 is implemented in the Account domain. `Account.Kind` retains the
+stable `CURRENT` value and now includes `CREDIT_CARD`. Required
+`Account.EconomicOrientation` stores `ASSET` or `LIABILITY` independently from
+product kind. Migration `0004_account_economic_orientation` stages the field,
+fails closed on unexpected pre-existing kinds, backfills all supported current
+accounts to `ASSET`, makes the field non-nullable, and adds the named
+`account_kind_orientation_known` database constraint. The supported closed
+world is `CURRENT` + `ASSET` and `CREDIT_CARD` + `LIABILITY`.
 
 The Santander current-account XLSX v1 backend importer remains frozen and
-unchanged, validated across seven private monthly sources. The TDC contract is
-proposed only; it does not authorize parser, model, migration, or domain
-semantic changes. The next checkpoint is review of ADR-0005 and design of an
-explicit Account economic-orientation field, followed by revision and eventual
-approval of the proposed TDC contract. Private statements remain excluded from
-CI.
+unchanged in parser behavior and lifecycle. Its application-service boundary
+now explicitly requires `CURRENT` + `ASSET`; invalid orientation is rejected
+with the safe `account_orientation_unsupported` code. Existing signed
+movement values are not rewritten.
+
+The TDC contract remains `PROPOSED / NOT FROZEN`. No TDC parser, import
+lifecycle, transfer matching, classification, balance storage, BCI support, or
+generic importer abstraction is authorized by this checkpoint. Private
+statements remain excluded from CI.
 
 Keep the parser frozen. Product work on REST, frontend, asynchronous processing,
 other institutions, and generic multi-source abstractions remains out of this

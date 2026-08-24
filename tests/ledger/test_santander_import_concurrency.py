@@ -38,6 +38,7 @@ class SantanderImportConcurrencyTests(TransactionTestCase):
         self.account = Account.objects.create(
             display_name="Synthetic concurrent current account",
             kind=Account.Kind.CURRENT,
+            economic_orientation=Account.EconomicOrientation.ASSET,
             currency="ZZZ",
         )
         self.content = workbook_bytes(
@@ -348,6 +349,7 @@ class SantanderImportConcurrencyTests(TransactionTestCase):
         other_account = Account.objects.create(
             display_name="Other synthetic concurrent account",
             kind=Account.Kind.CURRENT,
+            economic_orientation=Account.EconomicOrientation.ASSET,
             currency="ZZZ",
         )
         real_parse = service.parse_workbook

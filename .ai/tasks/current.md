@@ -140,10 +140,27 @@ the persistence model.
   data-pipeline, TDC contract, and handoff documentation. No production code,
   model, migration, parser, importer, test, fixture, or private source changed.
 
+## Current checkpoint
+
+Implemented the minimum Account-domain support required by accepted ADR-0005:
+
+- added `Account.Kind.CREDIT_CARD` without changing `CURRENT`;
+- added required `Account.EconomicOrientation` with explicit `ASSET` and
+  `LIABILITY` values;
+- backfilled existing `CURRENT` accounts to `ASSET` in migration 0004;
+- added the closed-world database invariant for supported kind/orientation
+  combinations;
+- made Santander current-account imports require `CURRENT` + `ASSET` at the
+  application-service boundary;
+- kept `Movement.signed_amount`, parser behavior, and import lifecycle
+  unchanged.
+
+The Santander TDC PDF contract remains `PROPOSED / NOT FROZEN`. Do not
+implement its parser or import lifecycle, transfer matching, classification,
+balance storage, BCI support, or generic importer abstractions in the next
+checkpoint.
+
 ## Next action
 
-Review ADR-0005 and approve the future Account orientation design before
-revising or freezing the proposed TDC Source Contract v0.1. It remains NOT
-FROZEN. Keep private sources out of CI. Do not implement a TDC parser, add
-models/migrations, or expand into REST, frontend, asynchronous processing, BCI,
-or generic importer abstractions.
+Design and implement TDC persistence/parser support only after an explicit
+review of this Account-domain checkpoint and the proposed TDC contract.

@@ -313,6 +313,8 @@ def _load_account_for_registration(account_id: UUID) -> Account:
 def _validate_trusted_account(account: Account) -> None:
     if account.kind != Account.Kind.CURRENT:
         raise SantanderImportServiceError("account_kind_unsupported")
+    if account.economic_orientation != Account.EconomicOrientation.ASSET:
+        raise SantanderImportServiceError("account_orientation_unsupported")
     if not isinstance(account.currency, str) or re.fullmatch(r"[A-Z]{3}", account.currency) is None:
         raise SantanderImportServiceError("account_currency_invalid")
 
@@ -479,7 +481,11 @@ def _materialize_import(*, registration: _Registration, prepared: _PreparedImpor
             account = Account.objects.select_for_update().get(pk=registration.account_id)
         except Account.DoesNotExist:
             raise SantanderImportValidationError(ACCOUNT_CONTEXT_CHANGED) from None
-        if account.kind != Account.Kind.CURRENT or account.currency != registration.currency:
+        if (
+            account.kind != Account.Kind.CURRENT
+            or account.economic_orientation != Account.EconomicOrientation.ASSET
+            or account.currency != registration.currency
+        ):
             raise SantanderImportValidationError(ACCOUNT_CONTEXT_CHANGED)
 
         try:
