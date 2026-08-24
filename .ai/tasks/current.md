@@ -2,10 +2,11 @@
 
 ## Objective
 
-Extend privacy-safe Santander current-account validation from three to seven
-monthly private XLSX sources and perform read-only structural discovery of
-seven Santander credit-card PDFs. Do not implement a credit-card parser or
-change the persistence model.
+Formalize the canonical signed-movement semantics needed to support both
+current-account assets and future credit-card liabilities, while keeping the
+proposed Santander credit-card PDF contract explicitly unfrozen. Do not
+implement the parser, change the frozen current-account importer, or change
+the persistence model.
 
 ## Completed
 
@@ -116,11 +117,33 @@ change the persistence model.
   and shared one broad template family with three/four-page pagination
   variation. Added the privacy-safe observation note at
   `docs/sources/santander-credit-card-pdf-observations.md`.
+- Designed the proposed, not-frozen contract at
+  `docs/contracts/santander-credit-card-pdf-v0.1.md`. It defines a
+  fail-closed recognition boundary, section state model, conservative billed
+  transaction candidate rules, explicit row outcomes, category-directed debt
+  effects, billed/unbilled and installment boundaries, currency/date rules,
+  provenance/privacy requirements, and unsupported variations.
+- The proposed reconciliation equation was not proven complete across all
+  seven statements. The contract records `FAIL` due to insufficient operand
+  semantics, not arithmetic contradiction, and permits
+  `INSUFFICIENT_DATA` without weakening the equation.
+- Added ADR-0005 to generalize canonical movement signs across asset and
+  liability accounts: positive increases the referenced account's contribution
+  to household net worth and negative decreases it. Current-account asset
+  values remain unchanged; liability debt increases map negative and debt
+  reductions map positive.
+- Kept source-native provider meaning separate from canonical movement meaning.
+  Santander TDC `debt_effect` is converted at the source/domain boundary and
+  is not a second canonical amount. Classification and transfer correlation
+  remain separate future layers.
+- Minimally redirected ADR-0001 to ADR-0005 and updated the domain model,
+  data-pipeline, TDC contract, and handoff documentation. No production code,
+  model, migration, parser, importer, test, fixture, or private source changed.
 
 ## Next action
 
-Review the privacy-safe TDC observations and decide whether to authorize a
-separate credit-card source-contract discovery checkpoint. Keep private
-sources out of CI. Do not implement a TDC parser, add models/migrations, or
-expand into REST, frontend, asynchronous processing, BCI, or generic importer
-abstractions.
+Review ADR-0005 and approve the future Account orientation design before
+revising or freezing the proposed TDC Source Contract v0.1. It remains NOT
+FROZEN. Keep private sources out of CI. Do not implement a TDC parser, add
+models/migrations, or expand into REST, frontend, asynchronous processing, BCI,
+or generic importer abstractions.

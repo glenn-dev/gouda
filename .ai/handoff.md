@@ -2,9 +2,9 @@
 
 ## Objective
 
-Gouda checkpoint — extend privacy-safe Santander current-account validation to
-seven monthly XLSX sources and record read-only structural observations for
-seven Santander credit-card PDFs.
+Gouda checkpoint — formalize canonical movement signs across asset and
+liability accounts while keeping the Santander credit-card PDF Source Contract
+v0.1 proposed and not frozen.
 
 ## Frozen baseline
 
@@ -158,6 +158,28 @@ and independent reconciliation statuses.
   text, no encryption, one US Letter page-size family, and three/four-page
   pagination variation. Detailed privacy-safe observations are in
   `docs/sources/santander-credit-card-pdf-observations.md`.
+- Designed the proposed TDC contract in
+  `docs/contracts/santander-credit-card-pdf-v0.1.md`. It is explicitly
+  `PROPOSED / NOT FROZEN` and defines fail-closed recognition, stateful section
+  interpretation, conservative billed-row extraction, explicit outcomes,
+  category-directed debt effects, billed/unbilled and installment boundaries,
+  date/currency rules, provenance, and privacy handling.
+- The proposed billed-debt reconciliation equation remains unproven across
+  all seven statements. The contract records `FAIL` because complete operand
+  semantics were insufficient, not because private arithmetic contradicted it.
+- Added [ADR-0005](../docs/decisions/ADR-0005-canonical-movement-sign-orientation.md)
+  to define the canonical invariant: `Movement.signed_amount` is the change
+  in the referenced account's contribution to household net worth. Asset
+  increases are positive; liability debt increases are negative. Account
+  economic orientation is distinct from product/source kind and belongs in a
+  future explicit domain field.
+- Preserved source-native meaning separately from canonical movement meaning.
+  TDC `debt_effect` is converted at the source/domain boundary; it is not a
+  second mutable canonical amount. Classification and transfer/counterparty
+  correlation remain separate future layers.
+- Minimally redirected ADR-0001, and updated the domain model, data pipeline,
+  proposed TDC contract, task record, and handoff. No production code, model,
+  migration, parser, importer, test, fixture, or private source changed.
 - The private source files were read-only local inputs, remained ignored, were
   not copied into fixtures or CI, and were not added to Git. No production code
   files changed.
@@ -170,12 +192,13 @@ databases, and generated artifacts remain excluded.
 
 ## Readiness
 
-The Santander current-account XLSX v1 backend importer remains technically
-complete for its approved synchronous scope, now validated across seven private
-monthly sources. The TDC PDFs are discovery evidence only; no parser contract,
-model, migration, or domain-semantics decision was added. The next checkpoint
-requires an explicit product decision about deeper TDC source-contract
-discovery. Private statements remain excluded from CI.
+The Santander current-account XLSX v1 backend importer remains frozen and
+unchanged, validated across seven private monthly sources. The TDC contract is
+proposed only; it does not authorize parser, model, migration, or domain
+semantic changes. The next checkpoint is review of ADR-0005 and design of an
+explicit Account economic-orientation field, followed by revision and eventual
+approval of the proposed TDC contract. Private statements remain excluded from
+CI.
 
 Keep the parser frozen. Product work on REST, frontend, asynchronous processing,
 other institutions, and generic multi-source abstractions remains out of this

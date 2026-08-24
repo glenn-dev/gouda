@@ -1,6 +1,6 @@
 # ADR-0001: Represent account movements with signed amounts
 
-- Status: Accepted
+- Status: Accepted — generalized by [ADR-0005](ADR-0005-canonical-movement-sign-orientation.md)
 - Date: 2026-08-02
 
 ## Context
@@ -10,6 +10,12 @@ Financial sources commonly represent debits and credits differently. Downstream 
 ## Decision
 
 The canonical movement model stores one signed amount: positive means money enters the referenced account; negative means money leaves it. The original source direction is retained in provenance when available.
+
+This decision remains the historical and current-account interpretation. Its
+universal application across account products is generalized by
+[ADR-0005](ADR-0005-canonical-movement-sign-orientation.md), which defines the
+canonical sign through the referenced account's contribution to household net
+worth and introduces explicit asset/liability orientation.
 
 ## Consequences
 
