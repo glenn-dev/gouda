@@ -3,10 +3,10 @@
 ## Objective
 
 Formalize the canonical signed-movement semantics needed to support both
-current-account assets and future credit-card liabilities, while keeping the
-proposed Santander credit-card PDF contract explicitly unfrozen. Do not
-implement the parser, change the frozen current-account importer, or change
-the persistence model.
+current-account assets and future credit-card liabilities, while preserving
+the now-frozen Santander credit-card PDF contract boundary. Do not implement
+the parser, change the frozen current-account importer, or change the
+persistence model.
 
 ## Completed
 
@@ -117,13 +117,13 @@ the persistence model.
   and shared one broad template family with three/four-page pagination
   variation. Added the privacy-safe observation note at
   `docs/sources/santander-credit-card-pdf-observations.md`.
-- Designed the proposed, not-frozen contract at
+- Designed the contract before its v0.1 freeze at
   `docs/contracts/santander-credit-card-pdf-v0.1.md`. It defines a
   fail-closed recognition boundary, section state model, conservative billed
   transaction candidate rules, explicit row outcomes, category-directed debt
   effects, billed/unbilled and installment boundaries, currency/date rules,
   provenance/privacy requirements, and unsupported variations.
-- The proposed reconciliation equation was not proven complete across all
+- The pre-freeze reconciliation equation was not proven complete across all
   seven statements. The contract records `FAIL` due to insufficient operand
   semantics, not arithmetic contradiction, and permits
   `INSUFFICIENT_DATA` without weakening the equation.
@@ -155,12 +155,31 @@ Implemented the minimum Account-domain support required by accepted ADR-0005:
 - kept `Movement.signed_amount`, parser behavior, and import lifecycle
   unchanged.
 
-The Santander TDC PDF contract remains `PROPOSED / NOT FROZEN`. Do not
-implement its parser or import lifecycle, transfer matching, classification,
-balance storage, BCI support, or generic importer abstractions in the next
-checkpoint.
+The Santander TDC PDF Source Contract v0.1 is now `FROZEN / APPROVED`. This
+freeze covers only the observed native-text template family and
+`TDC-PDF-GIR-v1`; it does not authorize parser, persistence, application-
+service lifecycle, transfer matching, classification, balance storage, BCI
+support, or generic importer work.
+
+## TDC extraction-boundary checkpoint
+
+Freeze-readiness review found no new source-discovery requirement, and the
+approved contract now defines `TDC-PDF-GIR-v1`, canonical page coordinates,
+extraction-level normalization, geometric line/row grouping, repeated-header
+behavior, fail-closed unknown-heading behavior, explicit credit/refund
+evidence, rejected-row reconciliation behavior, and coordinate-based
+provenance. The reference conformance profile is pdfplumber 0.11.8 with
+pdfminer.six 20251107; this is not yet a repository dependency or parser
+implementation.
+
+Two native-text strategies were compared privately across all seven PDFs.
+Both were repeatable and agreed on page/line/date-line structure, but differed
+in word tokenization and raw coordinates. This supports the canonical
+geometric IR decision. The contract is frozen, while parser implementation
+remains a separate future checkpoint.
 
 ## Next action
 
-Design and implement TDC persistence/parser support only after an explicit
-review of this Account-domain checkpoint and the proposed TDC contract.
+Implement the parser-only extraction/conformance foundation against the frozen
+contract. Persistence and the application-service lifecycle remain separate
+later checkpoints.

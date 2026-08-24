@@ -8,8 +8,10 @@ private Santander credit-card statement PDFs supplied for the January–July
 source 7. No private filenames, values, account or card identifiers, names,
 transaction descriptions, or raw PDF text are retained.
 
-This is source discovery, not a parser contract. No parser, model, migration,
-or persistence behavior is defined by this note.
+This is source discovery, not a parser contract. The frozen source contract is
+the normative document for v1 behavior; hypotheses and open questions in this
+note are outside that frozen scope. No parser, TDC persistence, migration, or
+application-service behavior is defined by this note.
 
 ## Confirmed observations
 
@@ -106,6 +108,18 @@ that distinction requires a future row-level review.
 
 No obvious second page-size or wholly different template variant was observed.
 
+### Privacy-safe native-text extraction comparison
+
+Two native-text strategies were compared read-only across all seven sources.
+Each strategy was repeatable across repeated runs and preserved page
+boundaries, coordinates, derived line counts, and date-bearing line counts.
+They did not produce identical word tokenization or identical raw coordinate
+boxes; the differences were structural extraction behavior, not a second
+source template. This confirms that a future parser must consume a canonical
+geometric intermediate representation rather than arbitrary library word or
+layout-text output. No extracted text, private value, or source identifier is
+retained here.
+
 ## Installment observations
 
 Installment terminology and a current-installment/amount area recur, so the
@@ -139,11 +153,12 @@ label semantics have not been proven across enough row-level examples.
 
 ### Natural conceptual fit
 
-- `Account` can conceptually identify a credit-card account, but the current
-  `Account.Kind` enum only approves current accounts.
-- `Movement` can represent a signed card transaction at a coarse level:
-  money entering the card account is positive and money leaving it is negative,
-  preserving Gouda’s signed-movement convention.
+- `Account` now identifies a credit-card account with the explicit
+  `CREDIT_CARD` + `LIABILITY` combination.
+- `Movement` can represent a signed card transaction at a coarse level under
+  ADR-0005: canonical sign is the change in the referenced account's
+  contribution to household net worth; a card debt increase is negative and a
+  debt reduction is positive.
 - Source records and provenance are natural places to retain source-row
   traceability.
 

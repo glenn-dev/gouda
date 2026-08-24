@@ -1,15 +1,15 @@
-# Proposed Santander credit-card PDF source contract v0.1
+# Santander Credit Card PDF Source Contract v0.1
 
-## Status: PROPOSED / NOT FROZEN
+## Status: v0.1 — FROZEN / APPROVED
 
-This document defines a conservative source boundary for a future Santander
-credit-card PDF parser. It is contract design only. It does not implement a
-parser, define Django models or migrations, authorize persistence changes, or
-alter the frozen Santander current-account XLSX contract or importer.
+This document defines the frozen conservative source boundary for a future
+Santander credit-card PDF parser. It does not implement a parser, define
+Django models or migrations, authorize persistence changes, or alter the
+frozen Santander current-account XLSX contract or importer.
 
-The proposed source variant is referred to as `santander_credit_card_pdf` / v1
-within this document. Those names are logical contract vocabulary only; no
-production source-kind registration is made by this checkpoint.
+The source variant is referred to as `santander_credit_card_pdf` / v1 within
+this document. Those names are logical contract vocabulary only; no production
+source-kind registration is made by this checkpoint.
 
 ## Scope and evidence basis
 
@@ -28,6 +28,13 @@ identified here only as TDC source 1 through TDC source 7. The evidence showed:
 - no stable proof of posting dates, original-currency columns, total
   installment counts, future-installment schedules, or cross-month transaction
   identity.
+
+The frozen evidence basis is the seven consecutive January–July 2026 private
+Santander TDC PDFs, all with native text and no encryption, one observed US
+Letter template family, three-/four-page content-driven pagination, and the
+deterministic extraction-boundary study defining `TDC-PDF-GIR-v1`. The
+pdfplumber 0.11.8 / pdfminer.six 20251107 profile is the reference conformance
+profile for that boundary; it is not yet a repository dependency.
 
 The evidence hierarchy is binding:
 
@@ -77,6 +84,103 @@ A parser must not best-effort parse an unrecognized document as TDC v1.
 Changed pagination, page breaks, optional sections, or footer length alone do
 not cause failure.
 
+## Deterministic extraction boundary
+
+The parser does not receive an arbitrary extracted-text string. A conforming
+native-text extraction adapter must produce `TDC-PDF-GIR-v1`, the canonical
+geometric intermediate representation for this source variant. The adapter
+may use a PDF library internally, but parser behavior is defined only over the
+canonical representation. A different adapter or library is conforming only
+when it produces equivalent page, token, line, and coordinate conformance
+results.
+
+The reference extraction profile used for conformance review is
+`pdfplumber==0.11.8` with `pdfminer.six==20251107`, opened one
+page at a time with native text only, `use_text_flow=False`,
+`keep_blank_chars=False`, `x_tolerance=3pt`, `y_tolerance=3pt`,
+`line_dir="ttb"`, `char_dir="ltr"`, and `return_chars=True`. This reference
+profile is not a parser implementation or a persistence dependency yet. A
+future dependency upgrade requires equivalent seven-source conformance
+results and a parser/source-variant review.
+
+### Canonical geometric intermediate representation
+
+The minimum representation contains no financial semantics:
+
+- document source variant and extraction-profile version;
+- page ordinal, starting at `1`, in source order;
+- page width and height in PDF points, rounded to `0.01pt`;
+- native text words matching the reference profile's word boundaries, with
+  source text, normalized bounding box, and extraction ordinal;
+- deterministic lines with line ordinal, member token ordinals, and union
+  bounding box; and
+- deterministic row-group candidates with section-local ordinal and member
+  line ordinals, without category or amount interpretation.
+
+The canonical coordinate system uses PDF points (`72 points = 1 inch`), with
+origin at the top-left of the page, x increasing rightward, and y increasing
+downward. Every bounding box is `[x0, y0, x1, y1]`, with coordinates clamped
+to the page and quantized to `0.01pt`. A normalized diagnostic form is also
+available as `(x / page_width, y / page_height)` quantized to `1e-6`; it does
+not replace the point coordinates.
+
+Canonical extraction order is page ordinal, then top coordinate, then left
+coordinate, then right coordinate, then source extraction ordinal. Ties are
+resolved by the complete quantized bounding box and preserved token text. A
+reader that cannot provide native text objects and coordinates fails document
+recognition; OCR is never substituted. An alternative reader must reproduce
+the reference word boundaries and quantized boxes within the conformance
+tolerance; otherwise it is not a v1 extraction adapter.
+
+## Extraction-level text normalization
+
+The source token text retained in the private intermediate representation is
+Unicode NFC, with line endings normalized and non-breaking spaces represented
+as ordinary spaces. Punctuation, digits, decimal/thousands separators,
+accented characters, and token boundaries are preserved. Numeric content is
+not parsed, sign-normalized, rounded, or separator-normalized at this layer.
+
+Recognition keys use Unicode NFKC, case folding, whitespace collapse, and
+accent-insensitive comparison for structural labels only. The original token
+location and non-destructive token text remain available for provenance.
+
+## Deterministic line and row grouping
+
+Words on one page are assigned to the same physical line when their vertical
+center differs from the current line center by at most `2.00pt`. Assignment
+uses the nearest line; an exact tie goes to the earlier line. Lines are sorted
+by top coordinate and then left coordinate. A line bounding box is the union
+of member word boxes, and line ordinals restart at `1` on each page.
+
+The rule was checked structurally across all seven sources: both native-text
+strategies produced the same page and derived-line counts and the same count
+of date-bearing lines, while their word tokenization differed. That difference
+is why parser code must consume the canonical representation rather than raw
+library word output.
+
+A transaction row-group candidate is formed only after a recognized table
+header establishes column bands:
+
+1. a line occupying the date band starts a group;
+2. following lines belong to that group until the next date-band line,
+   recognized repeated header, section transition, footer boundary, or end;
+3. lines with no date-band token are continuations only when their geometry
+   remains inside the established description/location/reference bands;
+4. the group bounding box spans all member lines and its ordinal is local to
+   the recognized section; and
+5. a continuation that crosses a page boundary is accepted only when the next
+   page has compatible section/header geometry and no contradictory heading.
+
+No merchant, description, authorization value, or other literal transaction
+content is used to group rows. An otherwise plausible group with conflicting
+geometry is ambiguous and is not emitted as a financial candidate.
+
+Repeated transaction or section headers with the same normalized anchor family
+and compatible column geometry are structural `IGNORED` content. A footer or
+legal block recognized by its footer anchors or stable page-bottom geometry is
+also `IGNORED` and cannot terminate a valid group incorrectly. A conflicting
+header or an unproven page-boundary continuation is document-fatal.
+
 ## Document and section state model
 
 The parser should maintain a Santander-specific state rather than classify
@@ -98,8 +202,8 @@ financial-looking lines globally.
 Safe state transitions require a recognized heading or a continuation of an
 already recognized table. Decorative separators, whitespace, page breaks, and
 footer text are not state transitions by themselves. A financial-looking row
-after an unknown or contradictory heading is `REJECTED` or causes workbook
-recognition failure; it must not be globally interpreted as a transaction.
+after an unknown or contradictory heading causes document recognition failure;
+it must not be globally interpreted as a transaction.
 
 Domestic, international, and installment labels are conditional categories,
 not required sections. A billed table without one of those distinctions may
@@ -108,10 +212,10 @@ recognized.
 
 ## Statement-level metadata
 
-The following table defines the proposed extraction boundary. “Malformed
+The following table defines the frozen extraction boundary. “Malformed
 presence” means a recognized field is present but cannot be safely parsed.
 
-| Field | Evidence/status | Proposed semantics | Absence and malformed presence | Reconciliation |
+| Field | Evidence/status | V1 semantics | Absence and malformed presence | Reconciliation |
 | --- | --- | --- | --- | --- |
 | `statement_period` | `REQUIRED` | Period covered by the statement | Missing or malformed: recognition failure | Context only |
 | `billing_cutoff_date` | `REQUIRED` | Provider cutoff/facturation date | Missing or malformed: recognition failure | Defines billed boundary |
@@ -128,13 +232,37 @@ presence” means a recognized field is present but cannot be safely parsed.
 | `insurance_total` | `OPTIONAL/CONDITIONAL` | Insurance/protection charge aggregate when separately labeled | Absence: valid; malformed: not used | Candidate input |
 | `current_billed_balance` | `OPTIONAL/CONDITIONAL` | Ending billed debt/balance when explicitly labeled | Absence: valid; malformed: reconciliation becomes `INSUFFICIENT_DATA` | Candidate endpoint |
 | `minimum_payment` | `OPTIONAL/CONDITIONAL` | Minimum required payment, not the billed balance | Absence: valid; malformed: not used | No |
-| `total_payment` | `OPEN QUESTION` | A distinct total-payment field was not proven stable | Do not synthesize from minimum payment or balance | No |
+| `total_payment` | `UNSUPPORTED/FAIL-CLOSED` for v1 | Not a v1 field; do not synthesize from minimum payment or balance | Absence is valid; malformed presence is not used | No |
 | `available_credit` | `OPTIONAL/CONDITIONAL` | Available credit only when explicitly labeled | Absence: valid; malformed: not used | No |
-| `assigned_credit_limit` | `OPEN QUESTION` | Assigned/limit meaning was not proven distinct from availability | Do not claim or derive it | No |
+| `assigned_credit_limit` | `UNSUPPORTED/FAIL-CLOSED` for v1 | Not a v1 field; do not claim or derive it | Absence is valid; malformed presence is not used | No |
 
 Statement-level fields are not transaction rows. Summary values, minimum
 payment, available credit, and credit-limit concepts must never become
 movements merely because they are numeric.
+
+## Concrete recognition anchor families
+
+Structural labels are compared using the extraction-level recognition key.
+Values adjacent to labels are never part of an anchor. The following families
+are the v1 recognition vocabulary observed across the seven-source evidence:
+
+| Anchor family | Normalized evidence | Location/relationship | Absence |
+| --- | --- | --- | --- |
+| Provider/product | `santander` together with `tarjeta`/`tarjetas` and `credito` | Same metadata block or page header | Document-fatal |
+| Statement context | `estado` + `cuenta`, or a recognized `resumen`/`periodo` context | Metadata/summary area before detail | Document-fatal |
+| Cutoff | `fecha` near `corte` or `facturacion` | Statement metadata | Document-fatal |
+| Due date | `fecha` near `vencimiento` | Payment metadata | Document-fatal |
+| Billed detail | `compras`, `cargos`, or `movimientos`, optionally qualified by `nacional`, `internacional`, or `cuotas` | Before any unbilled/future transition and paired with a valid table header | At least one billed section is required; otherwise document-fatal |
+| Unbilled/future | `no` near `facturado`/`facturada`/`facturados` or an equivalent recognized future label | After billed detail, before footer/legal content | Optional; absence is valid |
+| Payments/credits | `pagos`, `abonos`, or explicit `credito` | Recognized payment/credit section or row label | Optional; absence is valid |
+| Financial charges | `intereses`, `comisiones`, `impuestos`, `seguros`, `avances`, or `efectivo` | Recognized financial-charge section | Optional; absence is valid |
+| Table header | A recognized date role plus amount role, with detail/location/reference and optional currency/installment roles | Header line immediately before the corresponding table | Missing/ambiguous billed header is document-fatal |
+| Footer/legal | Recognized legal/message/contact family or stable repeated page-bottom block | After the last recognized financial state | Optional when page-bottom geometry is unambiguous |
+
+Anchor families do not authorize a row by themselves. The section state,
+header geometry, row-group geometry, and candidate-field rules must also hold.
+An unknown or contradictory label that interrupts a recognized financial
+structure is not silently ignored.
 
 ## Transaction candidate contract
 
@@ -172,6 +300,27 @@ ambiguous date, or no explicit direction category, it is `REJECTED`. A row
 that is recognized as future/unbilled information is `IGNORED`, not parsed as
 a current transaction.
 
+### Column geometry
+
+The observed tables use a stable relative role order even when page breaks and
+section lengths vary. A recognized header establishes the bands for its table;
+absolute page coordinates are not reused across pages. The required ordering
+is:
+
+```text
+date -> description/detail -> optional location/reference -> currency -> amount
+```
+
+An installment table may add an installment-number/context band and an
+installment-amount band adjacent to the detail or amount roles. A candidate
+field must intersect its header-derived band and must not overlap a competing
+monetary band. Header-derived bands use the canonical `0.01pt` boxes with a
+maximum `3.00pt` edge tolerance, matching the extraction profile. A monetary
+token outside the amount band is ambiguous: inside a recognized billed state
+the row is `REJECTED`; outside a recognized financial state the document is
+fatal. A changed role order or incompatible multiple table geometry is
+document-fatal.
+
 ## Parser outcomes
 
 Every recognized row or row group has exactly one outcome:
@@ -186,10 +335,25 @@ An unrecognized document-level layout is a fatal recognition failure, not a
 set of ignored rows. Financial-looking summary or future rows must retain an
 explicit ignore reason or rejection reason.
 
-## Proposed amount and direction semantics
+### Deterministic unknown-heading policy
+
+- an unknown or contradictory heading that interrupts a recognized financial
+  structure is document-fatal;
+- financial-looking content outside every recognized financial state is
+  document-fatal, because parser state is unsafe;
+- a malformed movement-like row inside a recognized billed state is
+  `REJECTED`; and
+- recognized unbilled/future, summary, header, footer, and decorative content
+  is `IGNORED` with a safe reason code.
+
+This policy distinguishes document recognition failure from row-level
+interpretation failure and does not use best-effort recovery after an unknown
+state transition.
+
+## v1 amount and direction semantics
 
 The PDFs present categories and monetary amounts rather than a proven universal
-signed debit/credit column. The proposed source-level value is therefore a
+signed debit/credit column. The v1 source-level value is therefore a
 `debt_effect`, separate from household income/expense semantics:
 
 - purchase/charge: positive, increases billed card debt;
@@ -198,10 +362,13 @@ signed debit/credit column. The proposed source-level value is therefore a
 - payment, credit, or refund: negative, reduces billed card debt.
 
 This direction is accepted only when the recognized source section or label
-makes the category unambiguous. A bare amount has no safe sign and is
-`REJECTED`. The contract must not automatically reuse the current-account
-XLSX debit/cargo and credit/abono rule, and it must not translate debt effect
-into household income or expense.
+makes the category unambiguous. A payment, credit, or refund is a debt
+reduction only when explicit source section/label evidence establishes that
+meaning. A bare amount, a negative-looking amount, a description-only hint, or
+an otherwise ambiguous debt-reduction row has no safe sign and is `REJECTED`.
+The contract must not automatically reuse the current-account XLSX
+debit/cargo and credit/abono rule, and it must not translate debt effect into
+household income or expense.
 
 `debt_effect` is source-native normalized meaning, not the canonical Gouda
 `Movement.signed_amount`. At the Gouda source/domain boundary, a supported
@@ -226,7 +393,7 @@ this source contract.
 ## Billed and unbilled activity
 
 The seven documents expose structurally distinguishable billed transaction
-areas and unbilled/future areas. Proposed v1 behavior is:
+areas and unbilled/future areas. Frozen v1 behavior is:
 
 - current billed transaction rows may be `PARSED`;
 - recognized unbilled rows and future activity are `IGNORED` with an explicit
@@ -243,7 +410,7 @@ correlation and deduplication are deferred; a parser must not invent them.
 ## Installment semantics
 
 Installment terminology, a current installment context, and an installment
-amount area recur. The following conservative rules are proposed:
+amount area recur. The following conservative rules are frozen for v1:
 
 - a current billed installment row may be `PARSED` as one current debt effect;
 - `installment_number` is optional and only retained when explicitly tied to
@@ -288,7 +455,7 @@ a recognition failure; a malformed transaction date rejects that candidate.
 
 ## Reconciliation contract
 
-The only proposed deterministic equation is:
+The deterministic v1 equation is:
 
 ```text
 ending billed debt = previous billed debt
@@ -307,6 +474,13 @@ The equation is eligible only when every operand is explicitly labeled,
 semantically mapped, expressed in one currency, and parsed with exact decimal
 semantics. Minimum payment and available credit are not operands.
 
+If any `REJECTED` movement-like row could participate in billed financial
+activity, reconciliation must be `INSUFFICIENT_DATA`, not `RECONCILED`, unless
+complete independent evidence proves that the rejected row cannot affect every
+required operand. This preserves the equation and follows the current-account
+reconciliation rule that incomplete movement evidence cannot claim a complete
+check.
+
 ### Seven-source privacy-safe test result
 
 `FAIL` for complete deterministic reconciliation contract evidence across all
@@ -316,7 +490,7 @@ all prior-balance, billed-charge, payment/credit, financial-charge, and ending-
 billed-balance operands. A future parser may return `INSUFFICIENT_DATA`; it
 must not weaken the equation or force reconciliation.
 
-Proposed reconciliation states are `RECONCILED`, `NOT_RECONCILED`,
+Frozen reconciliation states are `RECONCILED`, `NOT_RECONCILED`,
 `INSUFFICIENT_DATA`, and `NOT_APPLICABLE`. The parser must retain which
 operands were absent or ambiguous without logging their private values.
 
@@ -325,12 +499,19 @@ operands were absent or ambiguous without logging their private values.
 Every row result, including ignored and rejected results, must retain private
 raw provenance sufficient for later audit without emitting it publicly:
 
+- artifact identity and source kind;
 - logical source variant and parser version;
+- extraction-profile and canonical-intermediate-representation version;
 - sanitized source identifier and page number;
-- section/state and table/row ordinal;
-- source column/field positions for every extracted value;
+- token and line ordinals, section/state, and table/row-group ordinal;
+- canonical page width/height and normalized bounding box for every extracted
+  field, plus its field-role relationship to the recognized column band;
 - exact row outcome and safe reason code; and
 - raw source representation only in the private raw boundary.
+
+Raw PDF text is not required in normalized records. The authoritative source
+bytes remain in the private source-artifact boundary; deterministic locations
+are sufficient to re-open the source for audit.
 
 Filenames, account/card identifiers, names, descriptions, merchant data,
 references, authorization codes, addresses, balances, limits, amounts, and raw
@@ -346,7 +527,7 @@ PDF text must not appear in logs, fixtures, documentation, or public errors.
   interest, commission, tax, insurance, and payment areas; and
 - conditional legal/footer/message content.
 
-### Unsupported or fail-closed variation for proposed v1
+### Unsupported or fail-closed variation for frozen v1
 
 - encrypted, password-protected, or OCR-only PDFs;
 - non-Letter page geometry without a deliberate contract revision;
@@ -359,7 +540,26 @@ PDF text must not appear in logs, fixtures, documentation, or public errors.
   contract; and
 - any new template whose section ordering cannot be proven equivalent.
 
-## Confirmed observations, hypotheses, and open questions
+## Explicit v1 exclusions
+
+Frozen v1 does not promise:
+
+- OCR or arbitrary Santander PDF layouts;
+- posting dates where unavailable;
+- inferred original currency or original amount;
+- unlabeled refunds or credits;
+- materialized unbilled/future activity;
+- semantic cross-month identity;
+- transaction deduplication across source products;
+- transfer matching;
+- expense/income classification;
+- complete installment lifecycle modeling; or
+- complete reconciliation for every supported statement.
+
+These are intentional boundaries, not parser implementation TODOs. Any
+extension requires an explicit source-contract revision.
+
+## Confirmed observations and out-of-v1 questions
 
 ### Confirmed observations
 
@@ -372,7 +572,7 @@ PDF text must not appear in logs, fixtures, documentation, or public errors.
 - Posting date, original currency/amount, total installment count, and stable
   cross-month identity were not confirmed.
 
-### Hypotheses
+### Out-of-v1 hypotheses
 
 - Category-directed debt effects can be mapped consistently for the observed
   purchase, payment, credit, fee, tax, insurance, and cash-advance sections.
@@ -381,7 +581,11 @@ PDF text must not appear in logs, fixtures, documentation, or public errors.
 - A source-specific parser can share one state model across the observed
   three/four-page pagination variation.
 
-### Open questions
+### Out-of-v1 questions
+
+These questions do not weaken or reopen the frozen v1 boundary. They are
+future product, source-variant, or lifecycle concerns and require an explicit
+contract revision before they can affect parser behavior.
 
 - How should card-payment rows be classified as transfers versus other payment
   or credit activity?

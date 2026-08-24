@@ -3,8 +3,8 @@
 ## Objective
 
 Gouda checkpoint — formalize canonical movement signs across asset and
-liability accounts while keeping the Santander credit-card PDF Source Contract
-v0.1 proposed and not frozen.
+liability accounts and preserve the frozen Santander credit-card PDF Source
+Contract v0.1 boundary.
 
 ## Frozen baseline
 
@@ -158,13 +158,13 @@ and independent reconciliation statuses.
   text, no encryption, one US Letter page-size family, and three/four-page
   pagination variation. Detailed privacy-safe observations are in
   `docs/sources/santander-credit-card-pdf-observations.md`.
-- Designed the proposed TDC contract in
+- Designed the TDC contract before its v0.1 freeze in
   `docs/contracts/santander-credit-card-pdf-v0.1.md`. It is explicitly
-  `PROPOSED / NOT FROZEN` and defines fail-closed recognition, stateful section
+  recorded in its pre-freeze status and defines fail-closed recognition, stateful section
   interpretation, conservative billed-row extraction, explicit outcomes,
   category-directed debt effects, billed/unbilled and installment boundaries,
   date/currency rules, provenance, and privacy handling.
-- The proposed billed-debt reconciliation equation remains unproven across
+- The pre-freeze billed-debt reconciliation equation remains unproven across
   all seven statements. The contract records `FAIL` because complete operand
   semantics were insufficient, not because private arithmetic contradicted it.
 - Added [ADR-0005](../docs/decisions/ADR-0005-canonical-movement-sign-orientation.md)
@@ -178,7 +178,7 @@ and independent reconciliation statuses.
   second mutable canonical amount. Classification and transfer/counterparty
   correlation remain separate future layers.
 - Minimally redirected ADR-0001, and updated the domain model, data pipeline,
-  proposed TDC contract, task record, and handoff. No production code, model,
+  TDC contract, task record, and handoff. No production code, model,
   migration, parser, importer, test, fixture, or private source changed.
 - The private source files were read-only local inputs, remained ignored, were
   not copied into fixtures or CI, and were not added to Git. No production code
@@ -207,10 +207,37 @@ now explicitly requires `CURRENT` + `ASSET`; invalid orientation is rejected
 with the safe `account_orientation_unsupported` code. Existing signed
 movement values are not rewritten.
 
-The TDC contract remains `PROPOSED / NOT FROZEN`. No TDC parser, import
-lifecycle, transfer matching, classification, balance storage, BCI support, or
-generic importer abstraction is authorized by this checkpoint. Private
-statements remain excluded from CI.
+The Santander TDC PDF Source Contract v0.1 is now `FROZEN / APPROVED`. The
+freeze covers only the observed native-text template family and
+`TDC-PDF-GIR-v1`. No TDC parser, import lifecycle, transfer matching,
+classification, balance storage, BCI support, or generic importer abstraction
+is authorized by this checkpoint. Private statements remain excluded from CI.
+
+## TDC extraction-boundary checkpoint
+
+The freeze-readiness review identified Category A gaps in deterministic PDF
+extraction and recognition. The contract was narrowly revised and approved
+without implementing a parser, persistence, model, migration, or application
+service.
+It now defines the `TDC-PDF-GIR-v1` canonical geometric intermediate
+representation: page-ordered native text, top-left PDF-point coordinates,
+quantized bounding boxes, deterministic lines and row-group candidates,
+header-derived column bands, and coordinate-based provenance. It also defines
+extraction normalization, repeated-header/page-break handling, unknown-heading
+fail-closed behavior, explicit credit/refund direction evidence, and
+`INSUFFICIENT_DATA` when rejected movement-like rows could affect
+reconciliation.
+
+The reference conformance profile is pdfplumber 0.11.8 with pdfminer.six
+20251107, used only as a low-level review profile. It is not yet a project
+dependency. A privacy-safe comparison of two native-text strategies across all
+seven ignored TDC PDFs found repeatable page/line/date-line structure but
+different word tokenization and raw coordinate boxes, supporting the canonical
+IR boundary. No private text or values were added to documentation.
+
+The contract is now `FROZEN / APPROVED`. The next checkpoint is synthetic PDF
+conformance fixtures and parser-only extraction implementation. Persistence
+and the application-service lifecycle remain separate later checkpoints.
 
 Keep the parser frozen. Product work on REST, frontend, asynchronous processing,
 other institutions, and generic multi-source abstractions remains out of this
