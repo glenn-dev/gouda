@@ -270,3 +270,57 @@ document recognition and financial row parsing.
 Keep the parser frozen. Product work on REST, frontend, asynchronous processing,
 other institutions, and generic multi-source abstractions remains out of this
 checkpoint's scope.
+
+## TDC parser-only checkpoint
+
+The GIR-to-parser stage is implemented in
+`gouda/santander_tdc_pdf/parser.py`, with immutable parser result/provenance
+types in `gouda/santander_tdc_pdf/types.py`. `parse_tdc_pdf_gir` consumes only
+`TdcPdfGir`; `parse_tdc_pdf` composes the existing extraction adapter with that
+GIR-only parser.
+
+An adversarial review found false acceptance through substring section
+transitions, arbitrary currency inheritance, rightmost-amount selection,
+unproven page continuation, mutable result mappings, inaccurate header
+provenance, and transaction-description reconciliation. The hardening pass
+reproduced every issue synthetically before replacing those paths.
+
+Recognition now uses exact Santander section headings, an explicit legal
+transition table, source-specific header profiles, complete multi-line header
+signatures, 3pt geometry compatibility, section-local row ordinals, and
+description/location/reference continuation bands. The observed installment
+profile maps `Cargo del mes` as the sole primary billed amount; context columns
+cannot compete with it. Repeated headers must match role and geometry, and an
+unproven cross-page continuation is fatal.
+
+Currency comes only from an explicit row role or labeled statement context;
+the frozen-family `moneda nacional` product label supplies CLP with its actual
+source provenance. Unrelated currency-like tokens are ignored. Reconciliation
+uses only exact summary-state labels, never transaction descriptions, and
+retains operand provenance. Complete synthetic operands cover both
+`RECONCILED` and `NOT_RECONCILED`; the private corpus remains correctly
+`INSUFFICIENT_DATA` because no document has all trusted operands.
+
+All result mappings are defensively copied `MappingProxyType` instances.
+Parsed fields retain actual header, statement-period, inherited-currency,
+section/category, date, amount, description, optional location/reference, and
+multi-page span provenance. No canonical signed amount or `Movement` is
+created.
+
+The synthetic parser suite has 39 tests, including all adversarial cases and
+positive domestic/international/installment/payment/credit/charge, repeated-
+header, multiline, page-boundary, provenance, immutability, and reconciliation
+cases. Focused parser/extraction/current-account validation passes 78 tests.
+
+Privacy-safe read-only validation recognized all seven PDFs and repeated both
+GIR and parser results. Parsed/ignored/rejected counts are `(50,94,7)`,
+`(20,86,8)`, `(27,86,7)`, `(36,86,6)`, `(41,94,8)`, `(31,86,10)`, and
+`(44,94,6)`. All parsed provenance is complete. Aggregate rejects are
+`date_invalid` 36, `amount_malformed` 12, and `zero_amount_unsupported` 4;
+none is a complete supported-v1 candidate.
+
+The disposable PostgreSQL 16 gate passed the complete 157-test suite, the
+separate 3-test concurrency suite, system check, migration drift, compilation,
+and diff check. The container was removed. No ORM, domain, persistence,
+application-service, transfer, classification, BCI, or generic parser work was
+introduced.

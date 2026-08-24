@@ -208,3 +208,44 @@ remains a separate future checkpoint.
 Implement Santander-specific document recognition and financial row parsing as
 the next separately scoped checkpoint. Persistence and the application-service
 lifecycle remain separate later checkpoints.
+
+## Current parser-only checkpoint
+
+Implemented the GIR-only Santander TDC v1 parser in
+`gouda/santander_tdc_pdf/parser.py`, with immutable result and provenance
+types in `gouda/santander_tdc_pdf/types.py`. Adversarial hardening replaced
+substring transitions, global currency scanning, rightmost-amount selection,
+and transaction-text reconciliation with explicit Santander header profiles,
+a closed section-transition table, role-band continuation rules, labeled
+currency contexts, and summary-state reconciliation operands.
+
+The observed current-period installment profile recognizes its complete
+multi-line header, treats only `Cargo del mes` as the primary billed amount,
+keeps numeric location/reference evidence out of monetary interpretation, and
+requires compatible repeated-header geometry. Cross-page continuations need a
+compatible repeated header; otherwise parsing is document-fatal. Unknown
+headings, contradictory section order, conflicting columns, and unsafe page
+transitions fail closed.
+
+Parser mappings are defensively copied and immutable. Parsed field provenance
+now identifies the actual header, labeled inherited currency, statement
+period, section/category source, field role, and per-page spans for multi-page
+evidence. Row-group ordinals restart per recognized financial section.
+Reconciliation reads only explicit summary-state labels and retains operand
+provenance.
+
+The synthetic parser suite now has 39 tests; focused parser, extraction, and
+current-account parser validation passes 78 tests. Privacy-safe validation of
+all seven ignored PDFs produced parsed/ignored/rejected counts
+`(50,94,7)`, `(20,86,8)`, `(27,86,7)`, `(36,86,6)`, `(41,94,8)`,
+`(31,86,10)`, and `(44,94,6)`. Every source is recognized and repeatable,
+every parsed field has complete provenance, and every reconciliation result is
+`INSUFFICIENT_DATA`. Remaining rejects are `date_invalid` 36,
+`amount_malformed` 12, and `zero_amount_unsupported` 4; none has the complete
+date/positive-primary-amount shape required by frozen v1.
+
+No-volume PostgreSQL 16 validation passed: complete Django suite 157 tests,
+explicit concurrency suite 3 tests, system check, migration drift, compilation,
+and diff check. The disposable container was removed. The parser remains GIR-
+only and has no Django, account/domain, persistence, transfer, classification,
+BCI, or generic parser dependency.
