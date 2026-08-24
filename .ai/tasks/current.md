@@ -178,8 +178,33 @@ in word tokenization and raw coordinates. This supports the canonical
 geometric IR decision. The contract is frozen, while parser implementation
 remains a separate future checkpoint.
 
+## Completed parser-only extraction checkpoint
+
+- Added the Santander-specific pure-Python package
+  `gouda.santander_tdc_pdf`, with frozen dependencies `pdfplumber==0.11.8`
+  and `pdfminer.six==20251107`.
+- Implemented immutable `TdcPdfGir`, `Page`, `Token`, `Line`, and quantized
+  `BoundingBox` structures with explicit GIR/profile versions, page ordinals,
+  native token text, and deterministic page-local lines.
+- Implemented explicit reference-profile extraction parameters, native-text /
+  encryption / invalid-PDF / page-access / Letter-geometry conformance errors,
+  NFC source normalization, and separate NFKC recognition-key normalization.
+- Implemented nearest-compatible geometric line grouping with 2.00pt center
+  tolerance, earlier-line exact ties, deterministic token/line ordering, and
+  union boxes. Canonical GIR hashes support repeatability checks.
+- Deliberately stopped before structural row groups: the frozen row-group rule
+  requires recognized table headers and column bands, which would introduce
+  financial/parser recognition semantics into this extraction-only checkpoint.
+- Added in-memory synthetic ReportLab fixtures/tests covering 3/4-page Letter
+  documents, repeated headers, multiline/page-boundary structure, unsupported
+  geometry, image-only PDFs, malformed bytes, normalization, geometry,
+  tie-breaking, encryption, repeatability, and privacy-safe fixture absence.
+- Focused tests pass (10 tests). A read-only smoke run against all seven ignored
+  TDC PDFs accepted the native-text/Letter boundary and produced stable hashes
+  across repeated extraction; no private text or extracted GIR was persisted.
+
 ## Next action
 
-Implement the parser-only extraction/conformance foundation against the frozen
-contract. Persistence and the application-service lifecycle remain separate
-later checkpoints.
+Implement Santander-specific document recognition and financial row parsing as
+the next separately scoped checkpoint. Persistence and the application-service
+lifecycle remain separate later checkpoints.

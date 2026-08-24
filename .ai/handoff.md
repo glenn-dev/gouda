@@ -229,15 +229,43 @@ fail-closed behavior, explicit credit/refund direction evidence, and
 reconciliation.
 
 The reference conformance profile is pdfplumber 0.11.8 with pdfminer.six
-20251107, used only as a low-level review profile. It is not yet a project
-dependency. A privacy-safe comparison of two native-text strategies across all
+20251107. A privacy-safe comparison of two native-text strategies across all
 seven ignored TDC PDFs found repeatable page/line/date-line structure but
 different word tokenization and raw coordinate boxes, supporting the canonical
 IR boundary. No private text or values were added to documentation.
 
-The contract is now `FROZEN / APPROVED`. The next checkpoint is synthetic PDF
-conformance fixtures and parser-only extraction implementation. Persistence
-and the application-service lifecycle remain separate later checkpoints.
+The contract is now `FROZEN / APPROVED`.
+
+## TDC parser-only extraction implementation
+
+`requirements.txt` now pins `pdfplumber==0.11.8` and
+`pdfminer.six==20251107`. The source-specific pure-Python package
+`gouda.santander_tdc_pdf` implements `TDC-PDF-GIR-v1` with frozen dataclasses
+for the document, pages, tokens, lines, and 0.01pt top-left PDF-point boxes.
+The reference profile is explicit: native text, `use_text_flow=False`,
+`keep_blank_chars=False`, `x_tolerance=3`, `y_tolerance=3`,
+`line_dir="ttb"`, `char_dir="ltr"`, and `return_chars=True`.
+
+Source text uses NFC, normalized line endings, and NBSP-to-space conversion;
+recognition keys are a separate NFKC/casefold/whitespace-collapse,
+accent-insensitive helper. Lines use nearest compatible vertical centers within
+2.00pt, earlier-line exact ties, deterministic left-to-right token order, and
+union boxes. Canonical serialization is represented by a stable SHA-256 hash.
+
+The extraction layer intentionally stops at line-level GIR. Contractual row
+groups need recognized table headers and column bands, so implementing them here
+would cross into future parser recognition and financial semantics. Synthetic
+ReportLab tests cover supported 3/4-page Letter documents, repeated headers,
+multiline/page boundaries, geometry and native-text failures, malformed bytes,
+normalization, tie behavior, encryption, repeatability, and absence of committed
+private fixtures. Focused extraction tests pass (10). A read-only smoke run accepted all
+seven ignored TDC PDFs and matched repeated canonical hashes; no private text or
+GIR was persisted.
+
+Keep the current-account parser/importer frozen. Product work on REST, frontend,
+asynchronous processing, other institutions, and generic multi-source
+abstractions remains out of scope. The next checkpoint is source-specific
+document recognition and financial row parsing.
 
 Keep the parser frozen. Product work on REST, frontend, asynchronous processing,
 other institutions, and generic multi-source abstractions remains out of this
