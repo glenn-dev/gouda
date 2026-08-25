@@ -2,10 +2,9 @@
 
 ## Objective
 
-Implement Checkpoint A of the import persistence boundary: represent future
-Santander TDC PDF source evidence without implementing its application service,
-while preserving Santander current-account XLSX behavior and canonical
-movement values exactly.
+Implement the synchronous Santander TDC PDF application-service lifecycle on
+the frozen parser v1.1 and Checkpoint A persistence boundary, including explicit
+account binding and canonical liability movements.
 
 ## Completed
 
@@ -291,8 +290,26 @@ corrected observable result contract is versioned as
 - Added migration, structural, provenance, TDC projection, and current-account
   regression coverage. Full PostgreSQL validation is required before freeze.
 
-## Next action after Checkpoint A
+## Current TDC application-service checkpoint
 
-After review/freeze, implement the separately authorized Santander TDC
-application-service lifecycle and account/card binding. Do not add
-classification, transfer pairing, installment plans, or FX conversion.
+- Added explicit, non-unique Santander TDC account binding with fail-closed
+  provisioning and no PDF-derived auto-binding.
+- Added synchronous artifact registration, duplicate/conflict lifecycle,
+  extraction/parser failure mapping, complete boundary preparation, locked
+  materialization, and durable fatal compensation.
+- Refactored the Checkpoint A projector into reusable Santander-specific
+  prepare/persist/finalize primitives while retaining its evidence-only wrapper.
+- Added canonical TDC movement projection using `signed_amount = -debt_effect`;
+  original foreign money remains source evidence and unbilled rows cannot
+  materialize.
+- Added synthetic model, migration, service, status, reconciliation, rollback,
+  privacy, and separate-connection concurrency coverage.
+- Passed the final PostgreSQL 16 gates: 67 focused TDC persistence/service
+  tests, 62 TDC parser/extraction tests, 84 current-account parser/import tests,
+  222 complete Django tests, and 9 explicit concurrency tests, plus system,
+  migration-drift, compilation, and diff checks.
+
+## Next action
+
+Review and freeze this lifecycle. Classification, transfer pairing, installment
+plans, FX conversion, BCI, and asynchronous/API work remain excluded.

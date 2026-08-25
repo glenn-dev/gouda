@@ -14,6 +14,11 @@ future schema decision expands the closed-world invariant. Existing current
 accounts are backfilled as `ASSET`. External bank account identifiers are
 deferred.
 
+`SantanderTdcAccountBinding` is a narrow import-verification association for a
+credit-card account. It stores a four-character masked-card suffix configured
+before import. The suffix is not unique and is not canonical Account identity;
+the importer never learns or changes it from a PDF.
+
 ### Source artifact and source record
 
 An artifact stores the exact received source bytes, a boundary-computed content
@@ -49,6 +54,11 @@ is excluded from consolidated flow reporting when paired.
 An import batch groups one ingestion attempt, its source kind, validation
 results, and processing status. Failed and ignored records remain inspectable
 without becoming valid movements.
+
+Santander TDC parsed billed records create canonical liability movements by
+negating source-native debt effect. Original-currency, category, and installment
+facts remain on source evidence. Reconciliation remains independent from the
+row-derived import status.
 
 ## Invariants
 

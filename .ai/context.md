@@ -101,7 +101,19 @@ column state.
 Santander TDC batch and record evidence use dedicated one-to-one models.
 Stable source facts are relational; variable page/line/token and field
 provenance use the strict `santander-tdc-field-provenance-v1` JSON schema with
-Decimal geometry encoded as strings. An internal projector materializes only
-a prepared synthetic v1.1 parser result and deliberately creates no artifact,
-movement, duplicate lifecycle, extraction, or parser call. The TDC application
-service remains the next checkpoint.
+Decimal geometry encoded as strings.
+
+## TDC application service
+
+The synchronous Santander TDC service registers exact artifacts and attempts,
+parses v1.1 outside transactions, validates the complete parser graph, and
+atomically persists all TDC evidence plus canonical movements. It requires an
+explicitly configured, non-unique four-digit Santander binding and never learns
+or changes that binding from PDF contents. Materialization locks Account,
+binding, then batch; same-route retries become direct duplicates and
+other-route materializations become source-kind conflicts.
+
+Every parsed billed record maps with `Movement.signed_amount = -debt_effect` in
+the trusted Account currency. Original foreign money remains source evidence.
+Reconciliation is independent from row import status, and unbilled records
+cannot become current movements.

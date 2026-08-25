@@ -8,7 +8,14 @@ from django.db import IntegrityError, connection, transaction
 from django.db.migrations.executor import MigrationExecutor
 from django.test import TestCase, TransactionTestCase
 
-from gouda.ledger.models import Account, ImportBatch, Movement, RawRecord, SourceArtifact
+from gouda.ledger.models import (
+    Account,
+    ImportBatch,
+    Movement,
+    RawRecord,
+    SantanderTdcAccountBinding,
+    SourceArtifact,
+)
 from gouda.ledger.validation import validate_exact_money
 
 
@@ -109,6 +116,72 @@ class LedgerModelTests(TestCase):
         )
         self.assertEqual(current.economic_orientation, Account.EconomicOrientation.ASSET)
         self.assertEqual(card.economic_orientation, Account.EconomicOrientation.LIABILITY)
+
+    def test_santander_tdc_binding_preserves_suffix_and_is_not_globally_unique(self):
+        cards = [
+            Account.objects.create(
+                display_name=f"Synthetic card {index}",
+                kind=Account.Kind.CREDIT_CARD,
+                economic_orientation=Account.EconomicOrientation.LIABILITY,
+                currency="ZZZ",
+            )
+            for index in range(2)
+        ]
+        bindings = []
+        for card in cards:
+            binding = SantanderTdcAccountBinding(
+                account=card,
+                card_last_four="0079",
+            )
+            binding.full_clean()
+            binding.save()
+            bindings.append(binding)
+        self.assertEqual([binding.card_last_four for binding in bindings], ["0079", "0079"])
+        self.assertNotIn("0079", str(bindings[0]))
+
+    def test_santander_tdc_binding_rejects_invalid_shape_account_and_duplicate_account(self):
+        card = Account.objects.create(
+            display_name="Synthetic bound card",
+            kind=Account.Kind.CREDIT_CARD,
+            economic_orientation=Account.EconomicOrientation.LIABILITY,
+            currency="ZZZ",
+        )
+        for suffix in ("079", "00079", "00A9", "１２３４"):
+            with self.subTest(suffix_length=len(suffix)):
+                binding = SantanderTdcAccountBinding(account=card, card_last_four=suffix)
+                with self.assertRaises(ValidationError):
+                    binding.full_clean()
+
+        invalid_account_binding = SantanderTdcAccountBinding(
+            account=self.account,
+            card_last_four="0079",
+        )
+        with self.assertRaises(ValidationError):
+            invalid_account_binding.full_clean()
+
+        SantanderTdcAccountBinding.objects.create(
+            account=card,
+            card_last_four="0079",
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                SantanderTdcAccountBinding.objects.create(
+                    account=card,
+                    card_last_four="0080",
+                )
+
+        other_card = Account.objects.create(
+            display_name="Synthetic invalid suffix card",
+            kind=Account.Kind.CREDIT_CARD,
+            economic_orientation=Account.EconomicOrientation.LIABILITY,
+            currency="ZZZ",
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                SantanderTdcAccountBinding.objects.create(
+                    account=other_card,
+                    card_last_four="079A",
+                )
 
     def test_database_rejects_invalid_kind_orientation_combinations(self):
         invalid = (
@@ -608,4 +681,4 @@ class AccountOrientationMigrationTests(TransactionTestCase):
             account = new_account.objects.get(pk=account.pk)
             self.assertEqual(account.economic_orientation, "ASSET")
         finally:
-            executor.migrate([("ledger", "0006_checkpoint_a_persistence_boundary")])
+            executor.migrate([("ledger", "0007_santander_tdc_account_binding")])

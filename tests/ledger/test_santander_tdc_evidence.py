@@ -166,7 +166,7 @@ def synthetic_result() -> TdcPdfParserResult:
         "financial_charges",
     )
     reconciliation = ReconciliationEvidence(
-        status=ReconciliationStatus.RECONCILED,
+        status=ReconciliationStatus.INSUFFICIENT_DATA,
         operands={
             "previous_balance": Decimal("100000.00"),
             "current_billed_balance": Decimal("112303.00"),
@@ -174,7 +174,7 @@ def synthetic_result() -> TdcPdfParserResult:
             "payments_credits": Decimal("10000.00"),
             "financial_charges": Decimal("0.00"),
         },
-        difference=Decimal("0.00"),
+        difference=None,
         fields=reconciliation_fields,
     )
     return TdcPdfParserResult(
@@ -225,7 +225,7 @@ class SantanderTdcEvidenceProjectionTests(TestCase):
         self.assertEqual(batch.status, ImportBatch.Status.PARTIAL)
         self.assertEqual((batch.parsed_count, batch.ignored_count, batch.rejected_count), (1, 1, 1))
         self.assertEqual((batch.opening_balance, batch.ending_balance), (Decimal("100000.00"), Decimal("112303.00")))
-        self.assertEqual(batch.reconciliation_difference, Decimal("0.00"))
+        self.assertIsNone(batch.reconciliation_difference)
         self.assertEqual((batch.period_start, batch.period_end), (date(2026, 6, 1), date(2026, 6, 30)))
 
         raws = list(batch.raw_records.order_by("record_ordinal"))

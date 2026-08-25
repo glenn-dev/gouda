@@ -35,7 +35,9 @@ content-addressed by a boundary-computed SHA-256 digest. Each canonical
 movement traces to exactly one raw record without carrying source layout
 fields.
 
-The Santander parsers remain pure-Python components. The current-account XLSX
-application service is implemented. Santander TDC has only an internal
-synthetic-result evidence projector; its artifact registration, duplicate
-lifecycle, account binding, and movement projection remain a later checkpoint.
+The Santander parsers remain pure-Python components. Synchronous application
+services now support current-account XLSX and Santander TDC PDF. The TDC route
+requires an explicit account/card-suffix binding, parses outside transactions,
+and atomically persists source evidence and canonical liability movements.
+Classification, transfer pairing, FX, and asynchronous processing remain
+outside this foundation.

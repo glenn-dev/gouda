@@ -403,3 +403,33 @@ Migrations 0005/0006 validate and backfill all historical XLSX rows before
 removing artifact source kind and movement E/F state. Reversal refuses TDC
 data or absent/ambiguous artifact interpretations instead of inventing old
 identity or discarding evidence.
+
+## Santander TDC synchronous application service
+
+The TDC route now requires an explicitly configured
+`SantanderTdcAccountBinding`. It stores a non-unique four-character suffix for
+a liability credit-card Account, preserves leading zeroes, and is never
+created or changed from PDF contents. Same-value provisioning is idempotent;
+conflicting provisioning fails with a sanitized code. Migration 0007 adds only
+this table and refuses reversal while bindings exist.
+
+`import_santander_credit_card_pdf` follows the current-account lifecycle:
+short artifact/attempt registration, parser v1.1 outside transactions, complete
+Santander boundary preparation, then Account/binding/batch locked atomic
+materialization. It persists every parser record and TDC evidence row and
+creates one Movement per parsed billed record using
+`signed_amount = -debt_effect`. Original foreign evidence never enters the
+canonical amount, and parsed unbilled activity is rejected as a graph
+contradiction.
+
+Row outcomes determine accepted/partial/rejected independently from all four
+reconciliation states. Same-route materializations become direct duplicates;
+other-route materializations become sanitized source-kind conflicts. Any
+materialization failure rolls back the graph before a fresh transaction records
+a zero-count fatal attempt.
+
+Final PostgreSQL 16 validation passes: 67 focused migration/model/evidence/TDC
+service tests, 62 frozen TDC parser/extraction tests, 84 current-account
+parser/import tests, the complete 222-test Django suite, and both explicit
+concurrency suites together (9 tests). System check, migration drift,
+compilation, and `git diff --check` also pass. No private PDF was inspected.

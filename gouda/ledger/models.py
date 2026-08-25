@@ -55,6 +55,39 @@ class Account(models.Model):
         return f"Account {self.pk}"
 
 
+class SantanderTdcAccountBinding(models.Model):
+    """Trusted Santander card suffix used only to verify TDC source binding."""
+
+    account = models.OneToOneField(
+        Account,
+        on_delete=models.PROTECT,
+        related_name="santander_tdc_binding",
+    )
+    card_last_four = models.CharField(max_length=4)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                check=Q(card_last_four__regex=r"^[0-9]{4}$"),
+                name="tdc_binding_card_last_four_shape",
+            ),
+        ]
+
+    def clean(self) -> None:
+        super().clean()
+        if self.account_id and (
+            self.account.kind != Account.Kind.CREDIT_CARD
+            or self.account.economic_orientation != Account.EconomicOrientation.LIABILITY
+        ):
+            raise ValidationError(
+                {"account": ["Santander TDC binding requires a liability credit-card account."]}
+            )
+
+    def __str__(self) -> str:
+        return f"Santander TDC binding {self.pk}"
+
+
 class SourceArtifact(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     original_filename = models.CharField(max_length=255)

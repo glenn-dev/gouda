@@ -24,7 +24,14 @@ encoded by the sign alone.
 
 The persistence schema rejects invalid materialized batch/count combinations.
 Exact monetary representability and cross-row duplicate identity remain
-application-boundary checks for the future import service.
+application-boundary checks.
+
+The synchronous Santander TDC service registers artifacts and attempts before
+parsing, validates parser v1.1 outside database transactions, and atomically
+persists source evidence plus one canonical movement per parsed billed record.
+It requires an explicit Santander card-suffix binding and maps liability debt
+effect with `signed_amount = -debt_effect`. Original foreign money remains
+source evidence and is never converted.
 
 ## Failure handling
 

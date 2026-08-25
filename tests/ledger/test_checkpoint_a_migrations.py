@@ -8,7 +8,8 @@ from django.test import TransactionTestCase
 
 
 MIGRATE_FROM = [("ledger", "0004_account_economic_orientation")]
-MIGRATE_TO = [("ledger", "0006_checkpoint_a_persistence_boundary")]
+MIGRATE_TO = [("ledger", "0007_santander_tdc_account_binding")]
+MIGRATE_BINDING_FROM = [("ledger", "0006_checkpoint_a_persistence_boundary")]
 XLSX_SOURCE_KIND = "SANTANDER_CURRENT_ACCOUNT_XLSX"
 
 
@@ -171,5 +172,67 @@ class CheckpointAMigrationTests(TransactionTestCase):
         finally:
             ImportBatch.objects.filter(pk=batch.pk).delete()
             SourceArtifact.objects.filter(pk=artifact.pk).delete()
+            historical_apps = MigrationExecutor(connection).loader.project_state(
+                MIGRATE_BINDING_FROM
+            ).apps
+            historical_apps.get_model("ledger", "Account").objects.filter(
+                pk=account.pk
+            ).delete()
+            self.migrate(MIGRATE_TO)
+
+    def test_binding_migration_adds_only_empty_binding_table(self):
+        old_apps = self.migrate(MIGRATE_BINDING_FROM)
+        try:
+            Account = old_apps.get_model("ledger", "Account")
+            SourceArtifact = old_apps.get_model("ledger", "SourceArtifact")
+            ImportBatch = old_apps.get_model("ledger", "ImportBatch")
+            account = Account.objects.create(
+                display_name="Pre-binding synthetic card",
+                kind="CREDIT_CARD",
+                economic_orientation="LIABILITY",
+                currency="CLP",
+            )
+            content = b"pre-binding synthetic artifact"
+            artifact = SourceArtifact.objects.create(
+                original_filename="synthetic.pdf",
+                content_digest=hashlib.sha256(content).hexdigest(),
+                content=content,
+            )
+            batch = ImportBatch.objects.create(
+                source_artifact=artifact,
+                account=account,
+                source_kind="SANTANDER_CREDIT_CARD_PDF",
+                parser_version="santander-tdc-pdf-v1.1",
+                status="PROCESSING",
+            )
+
+            new_apps = self.migrate(MIGRATE_TO)
+            NewAccount = new_apps.get_model("ledger", "Account")
+            NewSourceArtifact = new_apps.get_model("ledger", "SourceArtifact")
+            NewImportBatch = new_apps.get_model("ledger", "ImportBatch")
+            Binding = new_apps.get_model("ledger", "SantanderTdcAccountBinding")
+            self.assertTrue(NewAccount.objects.filter(pk=account.pk).exists())
+            self.assertTrue(NewSourceArtifact.objects.filter(pk=artifact.pk).exists())
+            self.assertTrue(NewImportBatch.objects.filter(pk=batch.pk).exists())
+            self.assertFalse(Binding.objects.exists())
+        finally:
+            self.migrate(MIGRATE_TO)
+
+    def test_binding_migration_reverse_fails_closed_with_configured_binding(self):
+        apps = self.migrate(MIGRATE_TO)
+        Account = apps.get_model("ledger", "Account")
+        Binding = apps.get_model("ledger", "SantanderTdcAccountBinding")
+        account = Account.objects.create(
+            display_name="Synthetic reverse-bound card",
+            kind="CREDIT_CARD",
+            economic_orientation="LIABILITY",
+            currency="CLP",
+        )
+        binding = Binding.objects.create(account=account, card_last_four="0079")
+        try:
+            with self.assertRaisesRegex(RuntimeError, "while bindings exist"):
+                self.migrate(MIGRATE_BINDING_FROM)
+        finally:
+            Binding.objects.filter(pk=binding.pk).delete()
             Account.objects.filter(pk=account.pk).delete()
             self.migrate(MIGRATE_TO)
