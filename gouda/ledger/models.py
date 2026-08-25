@@ -8,6 +8,13 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import F, Q
 
+from gouda.santander_tdc_pdf.provenance import (
+    PROVENANCE_SCHEMA_VERSION,
+    SantanderTdcProvenanceError,
+    validate_field_provenance_payload,
+    validate_positive_ordinal_list,
+)
+
 from .validation import validate_exact_money
 
 
@@ -49,14 +56,7 @@ class Account(models.Model):
 
 
 class SourceArtifact(models.Model):
-    class SourceKind(models.TextChoices):
-        SANTANDER_CURRENT_ACCOUNT_XLSX = (
-            "SANTANDER_CURRENT_ACCOUNT_XLSX",
-            "Santander current-account XLSX",
-        )
-
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    source_kind = models.CharField(max_length=64, choices=SourceKind.choices)
     original_filename = models.CharField(max_length=255)
     content_digest = models.CharField(max_length=64, unique=True)
     content = models.BinaryField(editable=False)
@@ -72,6 +72,16 @@ class SourceArtifact(models.Model):
 
 
 class ImportBatch(models.Model):
+    class SourceKind(models.TextChoices):
+        SANTANDER_CURRENT_ACCOUNT_XLSX = (
+            "SANTANDER_CURRENT_ACCOUNT_XLSX",
+            "Santander current-account XLSX",
+        )
+        SANTANDER_CREDIT_CARD_PDF = (
+            "SANTANDER_CREDIT_CARD_PDF",
+            "Santander credit-card PDF",
+        )
+
     class Status(models.TextChoices):
         PROCESSING = "PROCESSING", "Processing"
         ACCEPTED = "ACCEPTED", "Accepted"
@@ -94,6 +104,7 @@ class ImportBatch(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     source_artifact = models.ForeignKey(SourceArtifact, on_delete=models.PROTECT)
     account = models.ForeignKey(Account, on_delete=models.PROTECT)
+    source_kind = models.CharField(max_length=64, choices=SourceKind.choices)
     parser_version = models.CharField(max_length=64)
     source_variant = models.CharField(max_length=32, null=True, blank=True)
     status = models.CharField(max_length=16, choices=Status.choices)
@@ -131,6 +142,27 @@ class ImportBatch(models.Model):
             models.CheckConstraint(
                 check=Q(status__in=["PROCESSING", "ACCEPTED", "PARTIAL", "REJECTED", "FATAL", "DUPLICATE"]),
                 name="batch_status_known",
+            ),
+            models.CheckConstraint(
+                check=Q(
+                    source_kind__in=[
+                        "SANTANDER_CURRENT_ACCOUNT_XLSX",
+                        "SANTANDER_CREDIT_CARD_PDF",
+                    ]
+                ),
+                name="batch_source_kind_known",
+            ),
+            models.CheckConstraint(
+                check=(
+                    Q(source_kind="SANTANDER_CURRENT_ACCOUNT_XLSX")
+                    | Q(
+                        source_kind="SANTANDER_CREDIT_CARD_PDF",
+                        sheet_alias__isnull=True,
+                        worksheet_name__isnull=True,
+                        worksheet_ordinal__isnull=True,
+                    )
+                ),
+                name="batch_tdc_sheet_fields_null",
             ),
             models.CheckConstraint(
                 check=Q(source_variant__isnull=True) | ~Q(source_variant=""),
@@ -238,12 +270,21 @@ class ImportBatch(models.Model):
                 errors["duplicate_of"] = ["A duplicate must use the same source artifact."]
             elif target is not None and target.account_id != self.account_id:
                 errors["duplicate_of"] = ["A duplicate must use the same account."]
+            elif target is not None and target.source_kind != self.source_kind:
+                errors["source_kind"] = ["A duplicate must use the canonical batch source kind."]
 
         if errors:
             raise ValidationError(errors)
 
 
 class RawRecord(models.Model):
+    class RecordKind(models.TextChoices):
+        SANTANDER_XLSX_ROW = "SANTANDER_XLSX_ROW", "Santander XLSX row"
+        SANTANDER_TDC_PDF_RECORD = (
+            "SANTANDER_TDC_PDF_RECORD",
+            "Santander TDC PDF record",
+        )
+
     class RowClass(models.TextChoices):
         METADATA = "metadata", "Metadata"
         MOVEMENT_CANDIDATE = "movement_candidate", "Movement candidate"
@@ -258,9 +299,12 @@ class RawRecord(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     import_batch = models.ForeignKey(ImportBatch, on_delete=models.PROTECT, related_name="raw_records")
-    row_number = models.PositiveIntegerField()
-    raw_cells = models.JSONField()
-    row_class = models.CharField(max_length=32, choices=RowClass.choices)
+    record_kind = models.CharField(max_length=32, choices=RecordKind.choices)
+    record_ordinal = models.PositiveIntegerField()
+    row_number = models.PositiveIntegerField(null=True, blank=True)
+    raw_cells = models.JSONField(null=True, blank=True)
+    row_class = models.CharField(max_length=32, choices=RowClass.choices, null=True, blank=True)
+    xlsx_amount_source_column = models.CharField(max_length=1, null=True, blank=True)
     parse_outcome = models.CharField(max_length=8, choices=ParseOutcome.choices)
     parser_codes = models.JSONField(default=list)
 
@@ -270,12 +314,79 @@ class RawRecord(models.Model):
                 fields=["import_batch", "row_number"],
                 name="one_raw_record_per_batch_row",
             ),
-            models.CheckConstraint(check=Q(row_number__gt=0), name="raw_record_positive_row"),
+            models.UniqueConstraint(
+                fields=["import_batch", "record_ordinal"],
+                name="one_raw_record_per_batch_ordinal",
+            ),
+            models.CheckConstraint(check=Q(record_ordinal__gt=0), name="raw_record_positive_ordinal"),
+            models.CheckConstraint(
+                check=Q(row_number__isnull=True) | Q(row_number__gt=0),
+                name="raw_record_positive_row",
+            ),
+            models.CheckConstraint(
+                check=Q(
+                    record_kind__in=[
+                        "SANTANDER_XLSX_ROW",
+                        "SANTANDER_TDC_PDF_RECORD",
+                    ]
+                ),
+                name="raw_record_kind_known",
+            ),
+            models.CheckConstraint(
+                check=(
+                    Q(
+                        record_kind="SANTANDER_XLSX_ROW",
+                        row_number__isnull=False,
+                        raw_cells__isnull=False,
+                        row_class__isnull=False,
+                    )
+                    | Q(
+                        record_kind="SANTANDER_TDC_PDF_RECORD",
+                        row_number__isnull=True,
+                        raw_cells__isnull=True,
+                        row_class__isnull=True,
+                        xlsx_amount_source_column__isnull=True,
+                    )
+                ),
+                name="raw_record_kind_shape",
+            ),
+            models.CheckConstraint(
+                check=(
+                    Q(
+                        record_kind="SANTANDER_XLSX_ROW",
+                        parse_outcome="PARSED",
+                        xlsx_amount_source_column__in=["E", "F"],
+                    )
+                    | Q(
+                        record_kind="SANTANDER_XLSX_ROW",
+                        parse_outcome__in=["IGNORED", "REJECTED"],
+                        xlsx_amount_source_column__isnull=True,
+                    )
+                    | Q(
+                        record_kind="SANTANDER_TDC_PDF_RECORD",
+                        xlsx_amount_source_column__isnull=True,
+                    )
+                ),
+                name="raw_record_xlsx_amount_shape",
+            ),
             models.CheckConstraint(
                 check=Q(parse_outcome__in=["PARSED", "IGNORED", "REJECTED"]),
                 name="raw_record_outcome_known",
             ),
         ]
+
+    def clean(self) -> None:
+        super().clean()
+        errors: dict[str, list[str]] = {}
+        if self.import_batch_id:
+            expected_source_kind = {
+                self.RecordKind.SANTANDER_XLSX_ROW: ImportBatch.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
+                self.RecordKind.SANTANDER_TDC_PDF_RECORD: ImportBatch.SourceKind.SANTANDER_CREDIT_CARD_PDF,
+            }.get(self.record_kind)
+            if expected_source_kind and self.import_batch.source_kind != expected_source_kind:
+                errors["record_kind"] = ["Raw record kind must match its import batch source kind."]
+        if errors:
+            raise ValidationError(errors)
 
 
 class Movement(models.Model):
@@ -288,13 +399,11 @@ class Movement(models.Model):
     description = models.TextField(null=True, blank=True)
     source_reference = models.TextField(null=True, blank=True)
     running_balance = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
-    amount_source_column = models.CharField(max_length=1)
 
     class Meta:
         constraints = [
             models.CheckConstraint(check=~Q(signed_amount=0), name="movement_signed_amount_nonzero"),
             models.CheckConstraint(check=Q(currency__regex=r"^[A-Z]{3}$"), name="movement_currency_iso_like"),
-            models.CheckConstraint(check=Q(amount_source_column__in=["E", "F"]), name="movement_amount_column_known"),
         ]
         indexes = [models.Index(fields=["account", "occurrence_date"], name="movement_account_date_idx")]
 
@@ -316,5 +425,212 @@ class Movement(models.Model):
                 errors["account"] = ["Movement account must match its import batch."]
             elif self.currency != raw_record.import_batch.account.currency:
                 errors["currency"] = ["Movement currency must match the trusted account currency."]
+        if errors:
+            raise ValidationError(errors)
+
+
+class SantanderTdcPdfBatchEvidence(models.Model):
+    import_batch = models.OneToOneField(
+        ImportBatch,
+        on_delete=models.PROTECT,
+        related_name="santander_tdc_pdf_evidence",
+    )
+    provenance_schema_version = models.CharField(
+        max_length=64,
+        choices=[(PROVENANCE_SCHEMA_VERSION, PROVENANCE_SCHEMA_VERSION)],
+    )
+    gir_version = models.CharField(max_length=64)
+    extraction_profile_version = models.CharField(max_length=64)
+    billing_cutoff_date = models.DateField()
+    payment_due_date = models.DateField()
+    statement_currency = models.CharField(max_length=3, null=True, blank=True)
+    card_product_context = models.CharField(max_length=64)
+    card_last_four = models.CharField(max_length=4)
+    metadata_provenance = models.JSONField()
+    reconciliation_missing_operands = models.JSONField(default=list, blank=True)
+    reconciliation_provenance = models.JSONField()
+    purchases_charges = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    payments_credits = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    financial_charges = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                check=Q(provenance_schema_version=PROVENANCE_SCHEMA_VERSION),
+                name="tdc_batch_provenance_schema_known",
+            ),
+            models.CheckConstraint(
+                check=(~Q(gir_version="") & ~Q(extraction_profile_version="") & ~Q(card_product_context="")),
+                name="tdc_batch_required_text_nonempty",
+            ),
+            models.CheckConstraint(
+                check=Q(card_last_four__regex=r"^[0-9]{4}$"),
+                name="tdc_batch_card_last_four_shape",
+            ),
+            models.CheckConstraint(
+                check=Q(statement_currency__isnull=True) | Q(statement_currency__regex=r"^[A-Z]{3}$"),
+                name="tdc_batch_currency_iso_like",
+            ),
+        ]
+
+    def clean(self) -> None:
+        super().clean()
+        errors: dict[str, list[str]] = {}
+        if self.import_batch_id and self.import_batch.source_kind != ImportBatch.SourceKind.SANTANDER_CREDIT_CARD_PDF:
+            errors["import_batch"] = ["TDC batch evidence requires a Santander credit-card PDF batch."]
+        for field_name in ("purchases_charges", "payments_credits", "financial_charges"):
+            value = getattr(self, field_name)
+            if value is not None:
+                try:
+                    validate_exact_money(value, field_name=field_name)
+                except ValidationError as exc:
+                    errors[field_name] = exc.messages
+        for field_name in ("metadata_provenance", "reconciliation_provenance"):
+            try:
+                validate_field_provenance_payload(getattr(self, field_name))
+            except SantanderTdcProvenanceError as exc:
+                errors[field_name] = [exc.code]
+        allowed_operands = {
+            "previous_balance",
+            "current_billed_balance",
+            "purchases_charges",
+            "payments_credits",
+            "financial_charges",
+        }
+        missing = self.reconciliation_missing_operands
+        if (
+            not isinstance(missing, list)
+            or any(not isinstance(item, str) or item not in allowed_operands for item in missing)
+            or len(set(missing)) != len(missing)
+        ):
+            errors["reconciliation_missing_operands"] = ["Invalid reconciliation operand list."]
+        if errors:
+            raise ValidationError(errors)
+
+
+class SantanderTdcPdfRecordEvidence(models.Model):
+    class Section(models.TextChoices):
+        PREAMBLE = "preamble", "Preamble"
+        STATEMENT_SUMMARY = "statement_summary", "Statement summary"
+        BILLED_DOMESTIC = "billed_domestic", "Billed domestic"
+        BILLED_INTERNATIONAL = "billed_international", "Billed international"
+        BILLED_INSTALLMENT = "billed_installment", "Billed installment"
+        BILLED_OTHER = "billed_other", "Billed other"
+        PAYMENTS_CREDITS = "payments_credits", "Payments and credits"
+        FINANCIAL_CHARGES = "financial_charges", "Financial charges"
+        UNBILLED = "unbilled", "Unbilled"
+        FOOTER_LEGAL = "footer_legal", "Footer/legal"
+        END = "end", "End"
+
+    class Category(models.TextChoices):
+        PURCHASE_CHARGE = "purchase_charge", "Purchase/charge"
+        PAYMENT = "payment", "Payment"
+        CREDIT_REFUND = "credit_refund", "Credit/refund"
+        INTEREST = "interest", "Interest"
+        COMMISSION = "commission", "Commission"
+        TAX = "tax", "Tax"
+        INSURANCE = "insurance", "Insurance"
+        CASH_ADVANCE = "cash_advance", "Cash advance"
+
+    raw_record = models.OneToOneField(
+        RawRecord,
+        on_delete=models.PROTECT,
+        related_name="santander_tdc_pdf_evidence",
+    )
+    page_ordinal = models.PositiveIntegerField()
+    section = models.CharField(max_length=32, choices=Section.choices)
+    row_group_ordinal = models.PositiveIntegerField()
+    line_ordinals = models.JSONField()
+    token_ordinals = models.JSONField()
+    field_provenance = models.JSONField()
+    transaction_date = models.DateField(null=True, blank=True)
+    description_detail = models.TextField(null=True, blank=True)
+    location = models.TextField(null=True, blank=True)
+    reference_authorization = models.TextField(null=True, blank=True)
+    billed_currency = models.CharField(max_length=3, null=True, blank=True)
+    billed_amount = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    original_currency = models.CharField(max_length=3, null=True, blank=True)
+    original_amount = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    section_category = models.CharField(max_length=32, choices=Category.choices, null=True, blank=True)
+    debt_effect = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    installment_number = models.PositiveIntegerField(null=True, blank=True)
+    installment_amount = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    header_profile = models.CharField(max_length=64, null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(check=Q(page_ordinal__gt=0), name="tdc_record_page_positive"),
+            models.CheckConstraint(
+                check=Q(
+                    section__in=[
+                        "preamble",
+                        "statement_summary",
+                        "billed_domestic",
+                        "billed_international",
+                        "billed_installment",
+                        "billed_other",
+                        "payments_credits",
+                        "financial_charges",
+                        "unbilled",
+                        "footer_legal",
+                        "end",
+                    ]
+                ),
+                name="tdc_record_section_known",
+            ),
+            models.CheckConstraint(
+                check=Q(section_category__isnull=True)
+                | Q(
+                    section_category__in=[
+                        "purchase_charge",
+                        "payment",
+                        "credit_refund",
+                        "interest",
+                        "commission",
+                        "tax",
+                        "insurance",
+                        "cash_advance",
+                    ]
+                ),
+                name="tdc_record_category_known",
+            ),
+            models.CheckConstraint(
+                check=Q(billed_currency__isnull=True) | Q(billed_currency__regex=r"^[A-Z]{3}$"),
+                name="tdc_record_billed_currency_iso",
+            ),
+            models.CheckConstraint(
+                check=Q(original_currency__isnull=True) | Q(original_currency__regex=r"^[A-Z]{3}$"),
+                name="tdc_record_original_currency_iso",
+            ),
+            models.CheckConstraint(
+                check=(
+                    Q(original_amount__isnull=True, original_currency__isnull=True)
+                    | Q(original_amount__isnull=False, original_currency__isnull=False)
+                ),
+                name="tdc_record_original_pair",
+            ),
+        ]
+
+    def clean(self) -> None:
+        super().clean()
+        errors: dict[str, list[str]] = {}
+        if self.raw_record_id and self.raw_record.record_kind != RawRecord.RecordKind.SANTANDER_TDC_PDF_RECORD:
+            errors["raw_record"] = ["TDC record evidence requires a Santander TDC PDF raw record."]
+        for field_name in ("billed_amount", "original_amount", "debt_effect", "installment_amount"):
+            value = getattr(self, field_name)
+            if value is not None:
+                try:
+                    validate_exact_money(value, field_name=field_name)
+                except ValidationError as exc:
+                    errors[field_name] = exc.messages
+        for field_name in ("line_ordinals", "token_ordinals"):
+            try:
+                validate_positive_ordinal_list(getattr(self, field_name))
+            except SantanderTdcProvenanceError as exc:
+                errors[field_name] = [exc.code]
+        try:
+            validate_field_provenance_payload(self.field_provenance)
+        except SantanderTdcProvenanceError as exc:
+            errors["field_provenance"] = [exc.code]
         if errors:
             raise ValidationError(errors)

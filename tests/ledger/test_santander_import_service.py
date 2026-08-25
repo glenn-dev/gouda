@@ -78,7 +78,10 @@ class SantanderImportServiceTests(TransactionTestCase):
         self.assertEqual(bytes(artifact.content), self.content)
         self.assertEqual(artifact.original_filename, "synthetic-statement.xlsx")
         self.assertEqual(artifact.content_digest, hashlib.sha256(self.content).hexdigest())
-        self.assertEqual(artifact.source_kind, SourceArtifact.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX)
+        self.assertEqual(
+            batch.source_kind,
+            ImportBatch.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
+        )
         self.assertEqual(batch.parser_version, PARSER_VERSION)
         self.assertEqual(batch.source_variant, service.SANTANDER_SOURCE_VARIANT_V1)
         self.assertEqual(batch.status, ImportBatch.Status.ACCEPTED)
@@ -103,17 +106,53 @@ class SantanderImportServiceTests(TransactionTestCase):
         raws = list(batch.raw_records.order_by("row_number"))
         self.assertEqual(len(raws), len(expected.rows))
         self.assertEqual([raw.row_number for raw in raws], list(range(1, len(expected.rows) + 1)))
+        self.assertEqual([raw.record_ordinal for raw in raws], list(range(1, len(expected.rows) + 1)))
+        self.assertTrue(
+            all(raw.record_kind == RawRecord.RecordKind.SANTANDER_XLSX_ROW for raw in raws)
+        )
         self.assertTrue(all(raw.raw_cells["schema"] == "santander-source-row-v1" for raw in raws))
+        self.assertEqual(
+            [raw.raw_cells for raw in raws],
+            [service.serialize_santander_raw_cells(row.raw_record.raw_cells) for row in expected.rows],
+        )
+        self.assertEqual([raw.row_class for raw in raws], [row.raw_record.row_class for row in expected.rows])
+        self.assertEqual([raw.parse_outcome for raw in raws], [row.outcome.value for row in expected.rows])
+        self.assertEqual([raw.parser_codes for raw in raws], [list(row.error_codes) for row in expected.rows])
         parsed_raws = [raw for raw in raws if raw.parse_outcome == RawRecord.ParseOutcome.PARSED]
         nonparsed_raws = [raw for raw in raws if raw.parse_outcome != RawRecord.ParseOutcome.PARSED]
         self.assertEqual(Movement.objects.filter(raw_record__in=parsed_raws).count(), expected.parsed_count)
         self.assertFalse(Movement.objects.filter(raw_record__in=nonparsed_raws).exists())
+        self.assertEqual(
+            [raw.xlsx_amount_source_column for raw in parsed_raws],
+            [movement.provenance["source_columns"][1] for movement in expected.parsed_movements],
+        )
+        self.assertTrue(all(raw.xlsx_amount_source_column is None for raw in nonparsed_raws))
         movements = list(Movement.objects.filter(raw_record__import_batch=batch).order_by("occurrence_date"))
         self.assertEqual(
             [movement.signed_amount for movement in movements],
             [movement.signed_amount for movement in expected.parsed_movements],
         )
         self.assertEqual([movement.currency for movement in movements], [self.account.currency] * len(movements))
+        self.assertEqual(
+            [
+                (
+                    movement.occurrence_date,
+                    movement.description,
+                    movement.source_reference,
+                    movement.running_balance,
+                )
+                for movement in movements
+            ],
+            [
+                (
+                    movement.occurrence_date,
+                    movement.description,
+                    movement.source_reference,
+                    movement.running_balance,
+                )
+                for movement in expected.parsed_movements
+            ],
+        )
         parser.assert_called_once_with(
             self.content,
             currency=self.account.currency,
@@ -174,6 +213,73 @@ class SantanderImportServiceTests(TransactionTestCase):
             ).count(),
             1,
         )
+
+    def test_failed_wrong_route_does_not_block_correct_route(self):
+        artifact = SourceArtifact.objects.create(
+            original_filename="synthetic-statement.pdf",
+            content_digest=hashlib.sha256(self.content).hexdigest(),
+            content=self.content,
+        )
+        wrong_route = ImportBatch.objects.create(
+            source_artifact=artifact,
+            account=self.account,
+            source_kind=ImportBatch.SourceKind.SANTANDER_CREDIT_CARD_PDF,
+            parser_version="santander-tdc-pdf-v1.1",
+            status=ImportBatch.Status.FATAL,
+            completed_at=timezone.now(),
+            failure_stage=ImportBatch.FailureStage.PARSER,
+            failure_code="invalid_pdf",
+        )
+
+        canonical = self.import_content()
+
+        wrong_route.refresh_from_db()
+        self.assertEqual(wrong_route.status, ImportBatch.Status.FATAL)
+        self.assertEqual(canonical.status, ImportBatch.Status.ACCEPTED)
+        self.assertEqual(canonical.source_artifact_id, artifact.pk)
+        self.assertEqual(
+            ImportBatch.objects.filter(
+                source_artifact=artifact,
+                account=self.account,
+                status__in=(
+                    ImportBatch.Status.ACCEPTED,
+                    ImportBatch.Status.PARTIAL,
+                    ImportBatch.Status.REJECTED,
+                ),
+            ).count(),
+            1,
+        )
+
+    def test_materialized_other_route_becomes_source_kind_conflict(self):
+        artifact = SourceArtifact.objects.create(
+            original_filename="synthetic-statement.pdf",
+            content_digest=hashlib.sha256(self.content).hexdigest(),
+            content=self.content,
+        )
+        canonical = ImportBatch.objects.create(
+            source_artifact=artifact,
+            account=self.account,
+            source_kind=ImportBatch.SourceKind.SANTANDER_CREDIT_CARD_PDF,
+            parser_version="santander-tdc-pdf-v1.1",
+            source_variant="santander_credit_card_pdf",
+            status=ImportBatch.Status.ACCEPTED,
+            completed_at=timezone.now(),
+            reconciliation_status=ImportBatch.ReconciliationStatus.INSUFFICIENT_DATA,
+        )
+
+        with patch.object(service, "parse_workbook") as parser:
+            conflict = self.import_content()
+
+        parser.assert_not_called()
+        self.assertEqual(conflict.status, ImportBatch.Status.FATAL)
+        self.assertEqual(conflict.failure_stage, ImportBatch.FailureStage.BOUNDARY)
+        self.assertEqual(conflict.failure_code, service.SOURCE_KIND_CONFLICT)
+        self.assertIsNone(conflict.duplicate_of_id)
+        self.assertIsNone(conflict.source_variant)
+        self.assertFalse(conflict.raw_records.exists())
+        self.assertFalse(Movement.objects.filter(raw_record__import_batch=conflict).exists())
+        canonical.refresh_from_db()
+        self.assertEqual(canonical.status, ImportBatch.Status.ACCEPTED)
 
     def test_same_artifact_materializes_independently_for_another_account(self):
         first = self.import_content()
@@ -246,6 +352,7 @@ class SantanderImportServiceTests(TransactionTestCase):
             target = ImportBatch.objects.create(
                 source_artifact=artifact,
                 account=self.account,
+                source_kind=ImportBatch.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
                 parser_version=PARSER_VERSION,
                 source_variant=service.SANTANDER_SOURCE_VARIANT_V1,
                 status=ImportBatch.Status.ACCEPTED,
@@ -263,6 +370,33 @@ class SantanderImportServiceTests(TransactionTestCase):
         self.assertEqual(duplicate.source_variant, service.SANTANDER_SOURCE_VARIANT_V1)
         self.assertFalse(duplicate.raw_records.exists())
         self.assertFalse(Movement.objects.filter(raw_record__import_batch=duplicate).exists())
+
+    def test_post_parse_other_route_race_finalizes_as_source_kind_conflict(self):
+        real_parse = service.parse_workbook
+
+        def create_other_route_winner(*args, **kwargs):
+            artifact = SourceArtifact.objects.get()
+            ImportBatch.objects.create(
+                source_artifact=artifact,
+                account=self.account,
+                source_kind=ImportBatch.SourceKind.SANTANDER_CREDIT_CARD_PDF,
+                parser_version="santander-tdc-pdf-v1.1",
+                source_variant="santander_credit_card_pdf",
+                status=ImportBatch.Status.ACCEPTED,
+                completed_at=timezone.now(),
+                reconciliation_status=ImportBatch.ReconciliationStatus.INSUFFICIENT_DATA,
+            )
+            return real_parse(*args, **kwargs)
+
+        with patch.object(service, "parse_workbook", side_effect=create_other_route_winner):
+            conflict = self.import_content()
+
+        self.assertEqual(conflict.status, ImportBatch.Status.FATAL)
+        self.assertEqual(conflict.failure_stage, ImportBatch.FailureStage.BOUNDARY)
+        self.assertEqual(conflict.failure_code, service.SOURCE_KIND_CONFLICT)
+        self.assertEqual(conflict.source_variant, service.SANTANDER_SOURCE_VARIANT_V1)
+        self.assertIsNone(conflict.duplicate_of_id)
+        self.assertFalse(conflict.raw_records.exists())
 
     def test_fatal_attempt_does_not_block_later_success(self):
         with patch.object(service, "parse_workbook", side_effect=MalformedWorkbookError("xlsx_invalid")):
@@ -540,7 +674,7 @@ class SantanderImportServiceTests(TransactionTestCase):
                 self.import_content()
         self.assertEqual(context.exception.code, "account_orientation_unsupported")
 
-    def test_existing_artifact_is_reused_but_mismatch_and_collision_fail_closed(self):
+    def test_existing_artifact_is_route_neutral_and_digest_collision_fails_closed(self):
         first = self.import_content()
         second_account = Account.objects.create(
             display_name="Second account",
@@ -550,17 +684,7 @@ class SantanderImportServiceTests(TransactionTestCase):
         )
         reused = self.import_content(account=second_account)
         self.assertEqual(reused.source_artifact_id, first.source_artifact_id)
-
-        first.source_artifact.source_kind = "OTHER_SOURCE"
-        first.source_artifact.save(update_fields=["source_kind"])
-        with self.assertRaises(service.SantanderImportServiceError) as context:
-                self.import_content(account=Account.objects.create(
-                    display_name="Third account",
-                    kind=Account.Kind.CURRENT,
-                    economic_orientation=Account.EconomicOrientation.ASSET,
-                    currency="ZZZ",
-            ))
-        self.assertEqual(context.exception.code, "artifact_source_kind_mismatch")
+        self.assertFalse(hasattr(first.source_artifact, "source_kind"))
 
         collision_content = b"different synthetic artifact bytes"
         with patch.object(service, "_content_digest", return_value=first.source_artifact.content_digest):

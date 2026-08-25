@@ -5,9 +5,16 @@ source -> ingest batch -> raw/source records -> normalize source-native meaning 
 ```
 
 Each stage should be deterministic and idempotent for the same source record
-and normalization version. In v0.1, the database permits at most one
-materialized interpretation for a source artifact and account; parser-version
-reprocessing and supersession are deferred to an explicit later design.
+and normalization version. The database permits at most one materialized
+interpretation for a source artifact and account. A different route cannot
+create a second canonical graph; it is a source-kind conflict. Failed attempts
+remain retryable through the correct route. Parser-version reprocessing and
+supersession are deferred to an explicit later design.
+
+`SourceArtifact` identifies exact bytes. `ImportBatch.source_kind` identifies
+the interpretation route. `RawRecord.record_ordinal` supplies stable identity
+within the parser result, while XLSX row data and Santander TDC geometric facts
+remain separate source-specific evidence.
 
 Source-native direction/effect belongs to the raw/source boundary. The
 normalization boundary converts it into one canonical `Movement.signed_amount`

@@ -48,8 +48,9 @@ BOUNDARY_VALIDATION_FAILED = "boundary_validation_failed"
 MATERIALIZATION_INTEGRITY_ERROR = "materialization_integrity_error"
 MATERIALIZATION_DATABASE_ERROR = "materialization_database_error"
 MATERIALIZATION_FAILED = "materialization_failed"
+SOURCE_KIND_CONFLICT = "source_kind_conflict"
 
-_SOURCE_KIND = SourceArtifact.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX
+_SOURCE_KIND = ImportBatch.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX
 _MATERIALIZED_STATUSES = (
     ImportBatch.Status.ACCEPTED,
     ImportBatch.Status.PARTIAL,
@@ -142,7 +143,7 @@ class _Registration:
     artifact_id: UUID
     account_id: UUID
     currency: str
-    duplicate: bool
+    terminal: bool
 
 
 @dataclass(frozen=True)
@@ -190,7 +191,7 @@ def import_santander_current_account_xlsx(
     except Exception:
         raise SantanderImportOperationalError("registration_failed") from None
 
-    if registration.duplicate:
+    if registration.terminal:
         return registration.batch
 
     try:
@@ -334,22 +335,29 @@ def _register_import_attempt(
             normalized_filename=normalized_filename,
             digest=digest,
         )
-        target = _find_materialized_batch(artifact_id=artifact.pk, account_id=account.pk)
+        target = _find_materialized_batch(
+            artifact_id=artifact.pk,
+            account_id=account.pk,
+        )
         batch = ImportBatch.objects.create(
             source_artifact=artifact,
             account=account,
+            source_kind=_SOURCE_KIND,
             parser_version=PARSER_VERSION,
             status=ImportBatch.Status.PROCESSING,
         )
         if target is not None:
-            _finalize_duplicate(batch=batch, target=target)
+            if target.source_kind == _SOURCE_KIND:
+                _finalize_duplicate(batch=batch, target=target)
+            else:
+                _finalize_source_kind_conflict(batch=batch, source_variant=None)
         return _Registration(
             batch=batch,
             batch_id=batch.pk,
             artifact_id=artifact.pk,
             account_id=account.pk,
             currency=account.currency,
-            duplicate=target is not None,
+            terminal=target is not None,
         )
 
 
@@ -364,7 +372,6 @@ def _resolve_source_artifact(
         try:
             with transaction.atomic():
                 artifact = SourceArtifact.objects.create(
-                    source_kind=_SOURCE_KIND,
                     original_filename=normalized_filename,
                     content_digest=digest,
                     content=content,
@@ -376,12 +383,14 @@ def _resolve_source_artifact(
 
     if bytes(artifact.content) != content:
         raise SantanderImportServiceError("content_digest_collision")
-    if artifact.source_kind != _SOURCE_KIND:
-        raise SantanderImportServiceError("artifact_source_kind_mismatch")
     return artifact
 
 
-def _find_materialized_batch(*, artifact_id: UUID, account_id: UUID) -> ImportBatch | None:
+def _find_materialized_batch(
+    *,
+    artifact_id: UUID,
+    account_id: UUID,
+) -> ImportBatch | None:
     return (
         ImportBatch.objects.filter(
             source_artifact_id=artifact_id,
@@ -434,6 +443,32 @@ def _finalize_duplicate(*, batch: ImportBatch, target: ImportBatch) -> None:
             "failure_code",
         ]
     )
+
+
+def _finalize_source_kind_conflict(
+    *,
+    batch: ImportBatch,
+    source_variant: str | None,
+) -> None:
+    batch.status = ImportBatch.Status.FATAL
+    batch.source_variant = source_variant
+    batch.duplicate_of = None
+    batch.completed_at = timezone.now()
+    batch.sheet_alias = None
+    batch.worksheet_name = None
+    batch.worksheet_ordinal = None
+    batch.period_start = None
+    batch.period_end = None
+    batch.parsed_count = 0
+    batch.ignored_count = 0
+    batch.rejected_count = 0
+    batch.reconciliation_status = None
+    batch.opening_balance = None
+    batch.ending_balance = None
+    batch.reconciliation_difference = None
+    batch.failure_stage = ImportBatch.FailureStage.BOUNDARY
+    batch.failure_code = SOURCE_KIND_CONFLICT
+    batch.save()
 
 
 def _prepare_import(
@@ -496,6 +531,7 @@ def _materialize_import(*, registration: _Registration, prepared: _PreparedImpor
             batch.status != ImportBatch.Status.PROCESSING
             or batch.source_artifact_id != registration.artifact_id
             or batch.account_id != registration.account_id
+            or batch.source_kind != _SOURCE_KIND
             or batch.parser_version != PARSER_VERSION
             or batch.source_variant is not None
         ):
@@ -506,7 +542,13 @@ def _materialize_import(*, registration: _Registration, prepared: _PreparedImpor
             account_id=registration.account_id,
         )
         if target is not None:
-            _finalize_duplicate(batch=batch, target=target)
+            if target.source_kind == _SOURCE_KIND:
+                _finalize_duplicate(batch=batch, target=target)
+            else:
+                _finalize_source_kind_conflict(
+                    batch=batch,
+                    source_variant=prepared.source_variant,
+                )
             return batch
 
         raw_records = _create_raw_records(batch=batch, rows=prepared.rows)
@@ -523,11 +565,19 @@ def _create_raw_records(
     persisted: dict[str, RawRecord] = {}
     for prepared_row in rows:
         parser_row = prepared_row.parser_row
+        amount_source_column = (
+            parser_row.movement.provenance["source_columns"][1]
+            if parser_row.movement is not None
+            else None
+        )
         raw = RawRecord.objects.create(
             import_batch=batch,
+            record_kind=RawRecord.RecordKind.SANTANDER_XLSX_ROW,
+            record_ordinal=parser_row.raw_record.row_number,
             row_number=parser_row.raw_record.row_number,
             raw_cells=prepared_row.raw_cells,
             row_class=parser_row.raw_record.row_class,
+            xlsx_amount_source_column=amount_source_column,
             parse_outcome=parser_row.outcome.value,
             parser_codes=list(parser_row.error_codes),
         )
@@ -554,7 +604,6 @@ def _create_movements(
             description=movement.description,
             source_reference=movement.source_reference,
             running_balance=movement.running_balance,
-            amount_source_column=movement.provenance["source_columns"][1],
         )
 
 

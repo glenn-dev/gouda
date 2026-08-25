@@ -2,11 +2,10 @@
 
 ## Objective
 
-Formalize the canonical signed-movement semantics needed to support both
-current-account assets and future credit-card liabilities, while preserving
-the now-frozen Santander credit-card PDF contract boundary. Do not implement
-the parser, change the frozen current-account importer, or change the
-persistence model.
+Implement Checkpoint A of the import persistence boundary: represent future
+Santander TDC PDF source evidence without implementing its application service,
+while preserving Santander current-account XLSX behavior and canonical
+movement values exactly.
 
 ## Completed
 
@@ -272,3 +271,28 @@ plus the separate 3-test concurrency suite; focused TDC coverage passes 62
 tests and focused current-account parser coverage passes 29 tests. The
 corrected observable result contract is versioned as
 `santander-tdc-pdf-v1.1`; source-contract v0.1 remains unchanged.
+
+## Current persistence checkpoint
+
+- Moved source-format identity from `SourceArtifact` to required
+  `ImportBatch.source_kind`; exact bytes remain globally digest-identified.
+- Generalized `RawRecord` with source record kind and positive batch-local
+  ordinal while retaining nullable XLSX row/cell/class evidence.
+- Moved XLSX E/F amount-column provenance from canonical `Movement` to
+  `RawRecord.xlsx_amount_source_column` without changing signed amounts.
+- Added source-specific Santander TDC batch and record evidence models for the
+  frozen parser v1.1 contract.
+- Added a strict, versioned provenance JSON serializer/validator with Decimal
+  geometry strings and no generic provenance framework.
+- Added an internal synthetic-result projector that creates TDC evidence but
+  no artifact, parser/extraction call, duplicate lifecycle, or movement.
+- Added staged, validated migrations with fail-closed reversal when PDF or
+  ambiguous route data exists.
+- Added migration, structural, provenance, TDC projection, and current-account
+  regression coverage. Full PostgreSQL validation is required before freeze.
+
+## Next action after Checkpoint A
+
+After review/freeze, implement the separately authorized Santander TDC
+application-service lifecycle and account/card binding. Do not add
+classification, transfer pairing, installment plans, or FX conversion.

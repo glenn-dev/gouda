@@ -27,12 +27,15 @@ The canonical model is the contract between ingestion and every downstream consu
 
 ## v0.1 persistence foundation
 
-The first implemented persistence slice is the `gouda.ledger` Django app. It
-contains `Account`, `SourceArtifact`, `ImportBatch`, `RawRecord`, and
-`Movement`, backed by PostgreSQL. The exact source artifact is content-addressed
-by a boundary-computed SHA-256 digest; raw records preserve every parser row
-outcome; and each canonical movement traces to exactly one raw record.
+The implemented persistence slice is the `gouda.ledger` Django app. It
+contains `Account`, route-neutral `SourceArtifact`, source-typed `ImportBatch`,
+the shared `RawRecord` identity/outcome envelope, source-specific evidence,
+and canonical `Movement`, backed by PostgreSQL. Exact artifact bytes are
+content-addressed by a boundary-computed SHA-256 digest. Each canonical
+movement traces to exactly one raw record without carrying source layout
+fields.
 
-The Santander parser remains a pure-Python component. The import service that
-will project parser results into these models is deliberately a later
-checkpoint.
+The Santander parsers remain pure-Python components. The current-account XLSX
+application service is implemented. Santander TDC has only an internal
+synthetic-result evidence projector; its artifact registration, duplicate
+lifecycle, account binding, and movement projection remain a later checkpoint.

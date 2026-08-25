@@ -2,9 +2,9 @@
 
 ## Objective
 
-Gouda checkpoint — formalize canonical movement signs across asset and
-liability accounts and preserve the frozen Santander credit-card PDF Source
-Contract v0.1 boundary.
+Gouda Checkpoint A — generalize the import persistence boundary for future
+Santander TDC PDF evidence while preserving frozen XLSX behavior and canonical
+movement semantics.
 
 ## Frozen baseline
 
@@ -15,9 +15,11 @@ variants require an explicit contract revision.
 
 ## Boundary decisions
 
-ADR-0004 separates three provenance facts:
+ADR-0006 supersedes ADR-0004's source-kind placement and separates three
+provenance facts:
 
-- source kind remains `SourceArtifact.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX`;
+- exact bytes and digest belong to route-neutral `SourceArtifact`;
+- required source kind belongs to `ImportBatch`;
 - source variant is nullable `ImportBatch.source_variant`, with approved value
   `v1` after successful recognition;
 - parser implementation version remains the frozen parser's existing constant.
@@ -366,3 +368,38 @@ migration drift check, compilation, and `git diff --check`. The disposable
 PostgreSQL container was removed. The corrected observable result contract uses
 `PARSER_VERSION = "santander-tdc-pdf-v1.1"`; the source-family evidence
 contract independently remains v0.1.
+
+## Checkpoint A: generalized persistence evidence
+
+The persistence boundary now separates exact artifact identity from source
+interpretation. `SourceArtifact` contains exact bytes/digest/receipt metadata;
+`ImportBatch.source_kind` selects Santander XLSX or TDC PDF. Materialized
+uniqueness remains artifact plus account across routes. Same-route attempts
+become duplicates; different-route attempts after canonical materialization
+become `source_kind_conflict`. Non-materialized failures do not block a later
+correct route.
+
+`RawRecord` remains the shared record identity and outcome envelope. XLSX uses
+`record_ordinal = row_number` and retains row/cell/class plus E/F amount-column
+evidence. PDF uses one-based parser-result order and has null spreadsheet
+fields. `Movement.amount_source_column` is removed; no canonical signed amount,
+currency, date, reference, description, balance, reconciliation, or lifecycle
+semantics changed for current-account imports.
+
+Dedicated one-to-one Santander TDC batch/record evidence models preserve the
+v1.1 metadata, reconciliation operands, source facts, original and billed
+money separately, source-native debt effect, installment evidence, and full
+geometric provenance. Variable provenance is strict
+`santander-tdc-field-provenance-v1` JSON with Decimal strings; stable values
+remain relational.
+
+The internal projector accepts only an already-created processing TDC batch
+and a prepared recognized v1.1 result. It neither handles bytes nor calls the
+extractor/parser, creates artifacts or movements, nor implements duplicate or
+failure lifecycle. Those responsibilities, including card/account binding,
+remain for the future TDC application-service checkpoint.
+
+Migrations 0005/0006 validate and backfill all historical XLSX rows before
+removing artifact source kind and movement E/F state. Reversal refuses TDC
+data or absent/ambiguous artifact interpretations instead of inventing old
+identity or discarding evidence.

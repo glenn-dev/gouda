@@ -22,7 +22,6 @@ class LedgerModelTests(TestCase):
         )
         content = b"synthetic artifact bytes"
         self.artifact = SourceArtifact.objects.create(
-            source_kind=SourceArtifact.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
             original_filename="synthetic-statement.xlsx",
             content_digest=hashlib.sha256(content).hexdigest(),
             content=content,
@@ -32,6 +31,7 @@ class LedgerModelTests(TestCase):
         values = {
             "source_artifact": self.artifact,
             "account": self.account,
+            "source_kind": ImportBatch.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
             "parser_version": parser_version,
             "status": status,
         }
@@ -59,10 +59,13 @@ class LedgerModelTests(TestCase):
     def make_parsed_raw(self, batch):
         return RawRecord.objects.create(
             import_batch=batch,
+            record_kind=RawRecord.RecordKind.SANTANDER_XLSX_ROW,
+            record_ordinal=22,
             row_number=22,
             raw_cells=[{"column": "A", "value_kind": "string", "value": "04/02"}],
             row_class=RawRecord.RowClass.MOVEMENT_CANDIDATE,
             parse_outcome=RawRecord.ParseOutcome.PARSED,
+            xlsx_amount_source_column="E",
             parser_codes=[],
         )
 
@@ -75,7 +78,6 @@ class LedgerModelTests(TestCase):
         )
         content = f"synthetic artifact {suffix}".encode()
         artifact = SourceArtifact.objects.create(
-            source_kind=SourceArtifact.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
             original_filename=f"synthetic-{suffix}.xlsx",
             content_digest=hashlib.sha256(content).hexdigest(),
             content=content,
@@ -142,7 +144,6 @@ class LedgerModelTests(TestCase):
             occurrence_date=date(2026, 4, 2),
             signed_amount=Decimal("-1.25"),
             currency="ZZZ",
-            amount_source_column="E",
         )
         self.account.refresh_from_db()
         movement.refresh_from_db()
@@ -165,7 +166,6 @@ class LedgerModelTests(TestCase):
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
                 SourceArtifact.objects.create(
-                    source_kind=SourceArtifact.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
                     original_filename="another-synthetic-name.xlsx",
                     content_digest=self.artifact.content_digest,
                     content=b"different synthetic bytes",
@@ -180,6 +180,7 @@ class LedgerModelTests(TestCase):
                 ImportBatch.objects.create(
                     source_artifact=self.artifact,
                     account=self.account,
+                    source_kind=ImportBatch.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
                     parser_version="santander-v0.2",
                     source_variant="v1",
                     status=ImportBatch.Status.ACCEPTED,
@@ -200,6 +201,7 @@ class LedgerModelTests(TestCase):
                 values.update(
                     source_artifact=artifact,
                     account=account,
+                    source_kind=ImportBatch.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
                     parser_version="santander-v0.2",
                 )
                 if values["status"] in {
@@ -226,6 +228,7 @@ class LedgerModelTests(TestCase):
         target = ImportBatch.objects.create(
             source_artifact=artifact,
             account=account,
+            source_kind=ImportBatch.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
             parser_version="santander-v0.2",
             status=ImportBatch.Status.ACCEPTED,
             completed_at=datetime.now(timezone.utc),
@@ -237,6 +240,7 @@ class LedgerModelTests(TestCase):
                 ImportBatch.objects.create(
                     source_artifact=artifact,
                     account=account,
+                    source_kind=ImportBatch.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
                     parser_version="santander-v0.2",
                     status=ImportBatch.Status.DUPLICATE,
                     completed_at=datetime.now(timezone.utc),
@@ -258,6 +262,17 @@ class LedgerModelTests(TestCase):
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
                 self.make_batch(status=ImportBatch.Status.PARTIAL, parser_version="future-version")
+
+    def test_one_materialized_batch_per_artifact_and_account_across_source_kinds(self):
+        self.make_batch(status=ImportBatch.Status.ACCEPTED)
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                self.make_batch(
+                    status=ImportBatch.Status.ACCEPTED,
+                    source_kind=ImportBatch.SourceKind.SANTANDER_CREDIT_CARD_PDF,
+                    parser_version="santander-tdc-pdf-v1.1",
+                    source_variant="santander_credit_card_pdf",
+                )
 
     def test_fatal_and_duplicate_attempts_can_coexist_with_materialization_rule(self):
         materialized = self.make_batch(status=ImportBatch.Status.ACCEPTED)
@@ -289,6 +304,7 @@ class LedgerModelTests(TestCase):
                     id=batch_id,
                     source_artifact=self.artifact,
                     account=self.account,
+                    source_kind=ImportBatch.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
                     parser_version="santander-v0.2",
                     status=ImportBatch.Status.DUPLICATE,
                     duplicate_of_id=batch_id,
@@ -317,6 +333,7 @@ class LedgerModelTests(TestCase):
         mismatched_account = ImportBatch(
             source_artifact=self.artifact,
             account=other_account,
+            source_kind=ImportBatch.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
             parser_version="santander-v0.2",
             source_variant="v1",
             status=ImportBatch.Status.DUPLICATE,
@@ -327,7 +344,6 @@ class LedgerModelTests(TestCase):
             mismatched_account.full_clean()
 
         other_artifact = SourceArtifact.objects.create(
-            source_kind=SourceArtifact.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
             original_filename="second-synthetic.xlsx",
             content_digest="1" * 64,
             content=b"second synthetic artifact",
@@ -335,6 +351,7 @@ class LedgerModelTests(TestCase):
         mismatched_artifact = ImportBatch(
             source_artifact=other_artifact,
             account=self.account,
+            source_kind=ImportBatch.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
             parser_version="santander-v0.2",
             source_variant="v1",
             status=ImportBatch.Status.DUPLICATE,
@@ -352,6 +369,7 @@ class LedgerModelTests(TestCase):
         duplicate_of_duplicate = ImportBatch(
             source_artifact=self.artifact,
             account=self.account,
+            source_kind=ImportBatch.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
             parser_version="santander-v0.2",
             source_variant="v1",
             status=ImportBatch.Status.DUPLICATE,
@@ -360,6 +378,19 @@ class LedgerModelTests(TestCase):
         )
         with self.assertRaises(ValidationError):
             duplicate_of_duplicate.full_clean()
+
+        mismatched_source_kind = ImportBatch(
+            source_artifact=self.artifact,
+            account=self.account,
+            source_kind=ImportBatch.SourceKind.SANTANDER_CREDIT_CARD_PDF,
+            parser_version="santander-tdc-pdf-v1.1",
+            source_variant="santander_credit_card_pdf",
+            status=ImportBatch.Status.DUPLICATE,
+            completed_at=datetime.now(timezone.utc),
+            duplicate_of=target,
+        )
+        with self.assertRaises(ValidationError):
+            mismatched_source_kind.full_clean()
 
     def test_source_variant_database_constraints(self):
         processing_without_variant = self.make_batch()
@@ -382,6 +413,7 @@ class LedgerModelTests(TestCase):
             batch = ImportBatch.objects.create(
                 source_artifact=artifact,
                 account=account,
+                source_kind=ImportBatch.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
                 parser_version="santander-v0.2",
                 source_variant="v1",
                 status=status,
@@ -395,6 +427,7 @@ class LedgerModelTests(TestCase):
         duplicate = ImportBatch.objects.create(
             source_artifact=materialized[0].source_artifact,
             account=materialized[0].account,
+            source_kind=ImportBatch.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
             parser_version="santander-v0.2",
             source_variant="v1",
             status=ImportBatch.Status.DUPLICATE,
@@ -415,6 +448,7 @@ class LedgerModelTests(TestCase):
                     ImportBatch.objects.create(
                         source_artifact=artifact,
                         account=account,
+                        source_kind=ImportBatch.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
                         parser_version="santander-v0.2",
                         source_variant=None,
                         status=status,
@@ -428,6 +462,7 @@ class LedgerModelTests(TestCase):
         target = ImportBatch.objects.create(
             source_artifact=artifact,
             account=account,
+            source_kind=ImportBatch.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
             parser_version="santander-v0.2",
             source_variant="v1",
             status=ImportBatch.Status.ACCEPTED,
@@ -439,6 +474,7 @@ class LedgerModelTests(TestCase):
                 ImportBatch.objects.create(
                     source_artifact=artifact,
                     account=account,
+                    source_kind=ImportBatch.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
                     parser_version="santander-v0.2",
                     source_variant=None,
                     status=ImportBatch.Status.DUPLICATE,
@@ -452,6 +488,7 @@ class LedgerModelTests(TestCase):
                 ImportBatch.objects.create(
                     source_artifact=artifact,
                     account=account,
+                    source_kind=ImportBatch.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
                     parser_version="santander-v0.2",
                     source_variant="",
                     status=ImportBatch.Status.PROCESSING,
@@ -469,6 +506,8 @@ class LedgerModelTests(TestCase):
             with transaction.atomic():
                 RawRecord.objects.create(
                     import_batch=batch,
+                    record_kind=RawRecord.RecordKind.SANTANDER_XLSX_ROW,
+                    record_ordinal=23,
                     row_number=23,
                     raw_cells=[],
                     row_class=RawRecord.RowClass.AUXILIARY,
@@ -476,7 +515,7 @@ class LedgerModelTests(TestCase):
                     parser_codes=[],
                 )
 
-    def test_movement_requires_nonzero_amount_and_known_source_column(self):
+    def test_movement_requires_nonzero_amount(self):
         batch = self.make_batch(status=ImportBatch.Status.ACCEPTED)
         raw = self.make_parsed_raw(batch)
         with self.assertRaises(IntegrityError):
@@ -487,7 +526,6 @@ class LedgerModelTests(TestCase):
                     occurrence_date=date(2026, 2, 4),
                     signed_amount=Decimal("0.00"),
                     currency="ZZZ",
-                    amount_source_column="E",
                 )
 
     def test_movement_is_one_to_one_with_raw_record(self):
@@ -499,7 +537,6 @@ class LedgerModelTests(TestCase):
             "occurrence_date": date(2026, 2, 4),
             "signed_amount": Decimal("-10.00"),
             "currency": "ZZZ",
-            "amount_source_column": "E",
         }
         first = Movement.objects.create(**values)
         self.assertIsNotNone(first.pk)
@@ -516,7 +553,6 @@ class LedgerModelTests(TestCase):
             occurrence_date=date(2026, 2, 4),
             signed_amount=Decimal("-10.00"),
             currency="ZZZ",
-            amount_source_column="E",
         )
         movement.full_clean()
 
@@ -528,10 +564,13 @@ class LedgerModelTests(TestCase):
         batch = self.make_batch(status=ImportBatch.Status.ACCEPTED)
         raw = RawRecord.objects.create(
             import_batch=batch,
+            record_kind=RawRecord.RecordKind.SANTANDER_XLSX_ROW,
+            record_ordinal=23,
             row_number=23,
             raw_cells=[],
             row_class=RawRecord.RowClass.AUXILIARY,
             parse_outcome=RawRecord.ParseOutcome.IGNORED,
+            xlsx_amount_source_column=None,
             parser_codes=["auxiliary_row"],
         )
         movement = Movement(
@@ -540,7 +579,6 @@ class LedgerModelTests(TestCase):
             occurrence_date=date(2026, 2, 4),
             signed_amount=Decimal("1.00"),
             currency="ZZZ",
-            amount_source_column="F",
         )
         with self.assertRaises(ValidationError):
             movement.full_clean()
@@ -570,4 +608,4 @@ class AccountOrientationMigrationTests(TransactionTestCase):
             account = new_account.objects.get(pk=account.pk)
             self.assertEqual(account.economic_orientation, "ASSET")
         finally:
-            executor.migrate(migrate_to)
+            executor.migrate([("ledger", "0006_checkpoint_a_persistence_boundary")])

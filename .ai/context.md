@@ -52,7 +52,9 @@ Santander source discovery baseline:
   `select_for_update(Account)`. The second transaction observes the committed
   canonical batch and finalizes through the normal post-parse duplicate path.
 - `one_materialized_batch_per_artifact_account` remains a database defense in
-  depth. Its violation is unreachable through the approved service lifecycle
+  depth across source kinds. Same-route retries become duplicates; a different
+  route after materialization becomes a source-kind conflict. Failed attempts
+  do not block a later correct route.
   because same-account materialization is serialized; no speculative named-
   constraint recovery exists.
 - The Santander current-account XLSX v1 backend importer is technically
@@ -61,8 +63,11 @@ Santander source discovery baseline:
 
 Canonical semantics:
 
-- positive signed amount: money enters an account;
-- negative signed amount: money leaves an account;
+- positive signed amount: the referenced account's household net-worth
+  contribution increases;
+- negative signed amount: that contribution decreases;
+- for Santander TDC liability accounts, canonical signed amount is the
+  negation of source-native `debt_effect`;
 - transfers are excluded from consolidated income and spending totals;
 - source records remain traceable after normalization.
 
@@ -83,3 +88,20 @@ evidence instead of invalid-date financial rejects. The parser remains GIR-
 only; persistence generalization is the next separate checkpoint. These
 observable corrections use parser version `santander-tdc-pdf-v1.1`; the source
 contract independently remains v0.1.
+
+## Persistence boundary Checkpoint A
+
+`SourceArtifact` now identifies exact bytes only; required
+`ImportBatch.source_kind` identifies the interpretation route. `RawRecord`
+remains the shared identity/outcome envelope with required `record_kind` and
+batch-local `record_ordinal`. Existing row/cell/class and E/F amount-column
+facts are XLSX-only raw evidence, and `Movement` contains no spreadsheet
+column state.
+
+Santander TDC batch and record evidence use dedicated one-to-one models.
+Stable source facts are relational; variable page/line/token and field
+provenance use the strict `santander-tdc-field-provenance-v1` JSON schema with
+Decimal geometry encoded as strings. An internal projector materializes only
+a prepared synthetic v1.1 parser result and deliberately creates no artifact,
+movement, duplicate lifecycle, extraction, or parser call. The TDC application
+service remains the next checkpoint.

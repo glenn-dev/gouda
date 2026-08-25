@@ -17,8 +17,10 @@ deferred.
 ### Source artifact and source record
 
 An artifact stores the exact received source bytes, a boundary-computed content
-digest, and private receipt metadata. A source record is the immutable row
-interpretation associated with an import batch.
+digest, and private receipt metadata. Source format belongs to the import
+batch, which represents one interpretation route. A raw record is the shared
+identity/outcome envelope; source-specific XLSX or Santander TDC evidence is
+kept alongside it without fabricated cross-format fields.
 
 ### Movement
 
@@ -27,7 +29,9 @@ A movement references an account and exactly one source record and contains:
 - occurrence date;
 - signed amount and currency;
 - optional description, source reference, and running balance;
-- source-column provenance.
+
+Source-column, PDF geometry, provider category, installment, original-currency,
+and provider-native amount evidence do not belong to `Movement`.
 
 `signed_amount` is canonical and source-independent: positive means the
 referenced account's contribution to household net worth increases; negative
@@ -42,7 +46,9 @@ is excluded from consolidated flow reporting when paired.
 
 ### Import batch
 
-An import batch groups one ingestion attempt, its source, validation results, and processing status. Failed records remain inspectable without becoming valid movements.
+An import batch groups one ingestion attempt, its source kind, validation
+results, and processing status. Failed and ignored records remain inspectable
+without becoming valid movements.
 
 ## Invariants
 
