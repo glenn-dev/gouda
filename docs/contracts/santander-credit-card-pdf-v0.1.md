@@ -1,6 +1,11 @@
 # Santander Credit Card PDF Source Contract v0.1
 
-## Status: v0.1 — FROZEN / APPROVED
+## Status: v0.1 — FROZEN / APPROVED (parser-contract correction applied)
+
+The source-contract version remains `v0.1`: it identifies the supported source
+family and evidence boundary. The corrected observable parser implementation
+identifies itself separately as `santander-tdc-pdf-v1.1`; the previously
+committed `santander-tdc-pdf-v1` result contract is not reused.
 
 This document defines the frozen conservative source boundary for a future
 Santander credit-card PDF parser. It does not implement a parser, define
@@ -25,9 +30,10 @@ identified here only as TDC source 1 through TDC source 7. The evidence showed:
 - recurring billed transaction areas with conditional domestic,
   international, and installment structure;
 - recurring payment/credit, financial-charge, and unbilled areas; and
-- no stable proof of posting dates, original-currency columns, total
-  installment counts, future-installment schedules, or cross-month transaction
-  identity.
+- consistent masked-card final-four evidence and conditional original USD
+  operation evidence distinct from the CLP monthly charge; and
+- no stable proof of posting dates, total installment counts, future-
+  installment schedules, or cross-month transaction identity.
 
 The frozen evidence basis is the seven consecutive January–July 2026 private
 Santander TDC PDFs, all with native text and no encryption, one observed US
@@ -58,9 +64,9 @@ following are true:
 2. Native text extraction returns usable text. OCR-only input is outside v1.
 3. The document is not encrypted or password-protected.
 4. Every page uses the observed US Letter geometry family.
-5. Provider/product context and statement metadata labels are recognized using
-   source-specific normalized label families, without depending on account,
-   card, person, merchant, or amount values.
+5. Provider/product context, statement metadata labels, and an exact recognized
+   masked-card identity context are present. The four-digit suffix is retained
+   as private structured metadata; recognition does not depend on its value.
 6. A statement-period/cutoff area and a payment-due area are structurally
    recognized.
 7. At least one transaction-table header and one billed transaction section
@@ -220,7 +226,8 @@ presence” means a recognized field is present but cannot be safely parsed.
 | `statement_period` | `REQUIRED` | Period covered by the statement | Missing or malformed: recognition failure | Context only |
 | `billing_cutoff_date` | `REQUIRED` | Provider cutoff/facturation date | Missing or malformed: recognition failure | Defines billed boundary |
 | `payment_due_date` | `REQUIRED` | Due date for the statement | Missing or malformed: recognition failure | No arithmetic role |
-| `card_product_context` | `REQUIRED` for recognition | Sanitized product/category context | Identifiers are never retained in public output; malformed context: failure | No |
+| `card_product_context` | `REQUIRED` for recognition | Sanitized product/category context | Malformed context: recognition failure | No |
+| `card_last_four` | `REQUIRED` for recognized v1 documents | Exactly four decimal characters from recognized masked-card identity contexts; all occurrences must agree | Missing: unsupported; conflict: sanitized document-fatal contradiction | No |
 | `statement_currency` | `REQUIRED` when used for monetary normalization | Currency from an explicit source label or trusted import context | Missing/ambiguous: monetary rows rejected; do not infer from symbols | Required for a complete check |
 | `previous_balance` | `OPTIONAL/CONDITIONAL` | Prior billed balance only when the label meaning is explicit | Absence: valid; malformed: reconciliation becomes `INSUFFICIENT_DATA` | Candidate input |
 | `payments_credits_total` | `OPTIONAL/CONDITIONAL` | Aggregate posted payments/credits when explicitly labeled | Absence: valid; malformed: not used | Candidate input |
@@ -252,6 +259,7 @@ are the v1 recognition vocabulary observed across the seven-source evidence:
 | Statement context | `estado` + `cuenta`, or a recognized `resumen`/`periodo` context | Metadata/summary area before detail | Document-fatal |
 | Cutoff | `fecha` near `corte` or `facturacion` | Statement metadata | Document-fatal |
 | Due date | `fecha` near `vencimiento` | Payment metadata | Document-fatal |
+| Card identity | Exact full masked-card identity line or exact `movimientos tarjeta` masked-card heading | Statement/card section context only; never arbitrary transaction text | Missing or conflicting suffixes are document-fatal |
 | Billed detail | `compras`, `cargos`, or `movimientos`, optionally qualified by `nacional`, `internacional`, or `cuotas` | Before any unbilled/future transition and paired with a valid table header | At least one billed section is required; otherwise document-fatal |
 | Unbilled/future | `no` near `facturado`/`facturada`/`facturados` or an equivalent recognized future label | After billed detail, before footer/legal content | Optional; absence is valid |
 | Payments/credits | `pagos`, `abonos`, or explicit `credito` | Recognized payment/credit section or row label | Optional; absence is valid |
@@ -286,10 +294,10 @@ The source date is called `transaction_date`. It must not be renamed to
 | `description_detail` | `OPTIONAL/CONDITIONAL` | Preserve only as private raw/provenance data; do not invent or publish text |
 | `location` | `OPTIONAL/CONDITIONAL` | Preserve only when structurally separate from description |
 | `reference_authorization` | `OPTIONAL/CONDITIONAL` | Preserve as sensitive provenance; not assumed globally unique |
-| `billed_currency` | `REQUIRED` for a monetary candidate | Use explicit row/section label; never infer solely from a symbol |
-| `billed_amount` | `REQUIRED` | Exact decimal parse; no silent sign or rounding transformation |
-| `original_currency` | `UNSUPPORTED/FAIL-CLOSED` for v1 normalization | No stable distinct field was confirmed |
-| `original_amount` | `UNSUPPORTED/FAIL-CLOSED` for v1 normalization | No stable distinct field was confirmed |
+| `billed_currency` | `REQUIRED` for a monetary candidate | Use explicit row/section/statement context; never infer solely from a symbol |
+| `billed_amount` | `REQUIRED` | Exact account-currency amount from the debt-affecting role; in the national-currency profile, parse CLP grouping separators without rounding |
+| `original_currency` | `OPTIONAL/CONDITIONAL` | Preserve only from the source-confirmed original-operation role; v1 accepts the observed `US`/USD representation as `USD` |
+| `original_amount` | `OPTIONAL/CONDITIONAL` | Preserve only from the source-confirmed original-operation amount role and only together with `original_currency` |
 | `installment_number` | `OPTIONAL/CONDITIONAL` | Preserve only when explicitly tied to the current billed row |
 | `total_installment_count` | `UNSUPPORTED/FAIL-CLOSED` | Not stable across the evidence set |
 | `installment_amount` | `OPTIONAL/CONDITIONAL` | Preserve only as a distinct source field; never add it to billed amount automatically |
@@ -299,6 +307,12 @@ If a candidate contains multiple competing amounts, an ambiguous currency, an
 ambiguous date, or no explicit direction category, it is `REJECTED`. A row
 that is recognized as future/unbilled information is `IGNORED`, not parsed as
 a current transaction.
+
+`original_amount` and `original_currency` form an inseparable pair and retain
+separate field provenance. They never compete with or replace the amount in
+the debt-affecting `Cargo del mes` role. No exchange rate is inferred or
+returned. An amount-like value in that contextual band without a supported,
+role-local currency marker does not populate either original field.
 
 ### Column geometry
 
@@ -310,6 +324,12 @@ is:
 ```text
 date -> description/detail -> optional location/reference -> currency -> amount
 ```
+
+The observed national-currency multi-line profile additionally establishes a
+source-confirmed original-operation band before contextual installment bands,
+and a distinct rightmost `Cargo del mes` band. Only the rightmost band supplies
+`billed_amount`; an original-operation currency marker is recognized only
+inside its own role band.
 
 An installment table may add an installment-number/context band and an
 installment-amount band adjacent to the detail or amount roles. A candidate
@@ -328,7 +348,7 @@ Every recognized row or row group has exactly one outcome:
 | Outcome | Meaning | Examples |
 | --- | --- | --- |
 | `PARSED` | A current billed financial row was interpreted unambiguously | Billed purchase, payment, credit, interest, fee, tax, insurance, or cash advance with date, amount, currency, category, and provenance |
-| `IGNORED` | Recognized and deliberately not a current movement | Metadata, totals, headers, section markers, page separators, legal/footer text, unbilled activity, future-installment information, and decorative rows |
+| `IGNORED` | Recognized and deliberately not a current movement | Metadata, masked-card identity context, totals, headers, section markers, page separators, legal/footer text, unbilled activity, future-installment information, and decorative rows |
 | `REJECTED` | Movement-like content could not be interpreted safely | Invalid date/amount, missing required field, ambiguous section, ambiguous currency/direction, multiple monetary interpretations, or malformed current billed row |
 
 An unrecognized document-level layout is a fatal recognition failure, not a
@@ -418,7 +438,7 @@ amount area recur. The following conservative rules are frozen for v1:
 - `installment_amount` is descriptive source data unless it is the sole
   unambiguous billed amount;
 - total installment count, future-installment schedules, outstanding future
-  amount, and original purchase amount are not v1 fields; and
+  amount, and installment-plan principal are not v1 fields; and
 - future or informational installment rows are `IGNORED` and never normalized
   as current-period charges.
 
@@ -434,11 +454,15 @@ labels or trusted import context. A currency symbol alone is insufficient.
 - A billed currency must be available for every `PARSED` monetary candidate.
 - A section-level currency may be inherited only when the section boundary and
   label are unambiguous.
-- International activity is recognized as a conditional section, but original
-  currency and original amount were not proven as stable distinct fields.
+- In the observed national-currency profile, statement/account currency is CLP
+  and `Cargo del mes` is the sole basis for `billed_amount` and `debt_effect`.
+- Conditional international rows may also expose original USD operation amount
+  and currency in a distinct source-confirmed role. Those fields are evidence,
+  not the billed amount or installment amount.
 - If multiple billed currencies appear and the source does not identify each
   row, those rows are `REJECTED`.
-- Currency conversion is outside this contract.
+- Currency conversion, exchange-rate inference, and USD-statement behavior are
+  outside this contract.
 
 ## Date semantics
 
@@ -509,6 +533,10 @@ raw provenance sufficient for later audit without emitting it publicly:
 - exact row outcome and safe reason code; and
 - raw source representation only in the private raw boundary.
 
+The structured final four digits and their field provenance are private source
+metadata. Full or masked card text remains only in GIR/source evidence and is
+never copied into parser error messages or unrestricted text fields.
+
 Raw PDF text is not required in normalized records. The authoritative source
 bytes remain in the private source-artifact boundary; deterministic locations
 are sufficient to re-open the source for audit.
@@ -536,8 +564,8 @@ PDF text must not appear in logs, fixtures, documentation, or public errors.
 - financial rows outside recognized section context;
 - unlabelled currency, ambiguous direction, malformed amounts, or malformed
   dates;
-- stable original-currency/original-amount columns not covered by this
-  contract; and
+- original-currency spellings, columns, or layouts not explicitly covered by
+  the observed national-currency profile; and
 - any new template whose section ordering cannot be proven equivalent.
 
 ## Explicit v1 exclusions
@@ -569,8 +597,11 @@ extension requires an explicit source-contract revision.
 - Billed and unbilled/future areas are structurally distinguishable.
 - Transaction date, billed amount/currency context, descriptive detail,
   location/reference context, and installment context recur.
-- Posting date, original currency/amount, total installment count, and stable
-  cross-month identity were not confirmed.
+- Masked-card final-four evidence recurs consistently, and conditional
+  international rows expose original USD operation evidence separately from
+  the CLP monthly charge.
+- Posting date, total installment count, and stable cross-month identity were
+  not confirmed.
 
 ### Out-of-v1 hypotheses
 
@@ -592,7 +623,8 @@ contract revision before they can affect parser behavior.
 - Can future cross-account evidence support reliable payment correlation and
   transfer matching?
 - Can billed/unbilled lifecycle identity be established across statements?
-- Can a later statement expose stable posting dates or original currencies?
+- Can a later source variant expose a stable posting date, a different original
+  currency representation, or a genuinely non-CLP statement currency?
 - Can installment current/total identity, future schedules, and lifecycle
   correlation be proven?
 - Can a stable provider reference correlate unbilled and later billed rows?

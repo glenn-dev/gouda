@@ -37,6 +37,8 @@ Recurring text and layout evidence was observed for:
 - statement-period and cutoff/billing-date concepts;
 - payment due date;
 - card/product context;
+- a masked card identity whose final four digits agree across the statement and
+  its card-movement headings;
 - currency context;
 - previous/current statement summary and payment-minimum concepts;
 - payments or credits and purchases/charges;
@@ -61,12 +63,15 @@ The recurring transaction-area structure provides evidence for:
 - reference or authorization context;
 - billed currency;
 - billed amount;
+- conditional original-operation currency and amount in the source-confirmed
+  international-operation role;
 - installment number/current installment context; and
 - installment amount.
 
-No separate posting-date field was confirmed. Original-currency and
-original-amount fields were not confirmed as stable distinct columns. A
-stable total-installment-count field was not confirmed.
+No separate posting-date field was confirmed. In the observed national-
+currency source, an international row may carry both original USD operation
+evidence and a distinct CLP `Cargo del mes`; the latter is the amount affecting
+card debt. A stable total-installment-count field was not confirmed.
 
 ### Sections
 
@@ -94,6 +99,8 @@ that distinction requires a future row-level review.
 - Page dimensions were invariant.
 - Statement metadata, payment information, purchase/charge areas, installment
   terminology, and summary concepts recurred across all seven.
+- Every document provided internally consistent masked-card final-four
+  evidence in recognized statement/card-movement contexts.
 - Domestic and international activity areas, fee/interest/tax terminology, and
   the broad statement-summary layout recurred across the set.
 
@@ -168,6 +175,7 @@ label semantics have not been proven across enough row-level examples.
 - installment identity, current/total counts, and future installments;
 - billed versus unbilled amounts;
 - multiple currencies and original-versus-billed amounts;
+- future source-account binding using the retained final-four evidence;
 - payments, credits, interest, commissions, taxes, and insurance as movement
   rows versus statement-level concepts; and
 - statement debt, credit limit, available credit, and reconciliation evidence.
@@ -195,7 +203,8 @@ No model or persistence change is authorized by this observation note.
 
 - Are transaction and posting dates both present under a different label or
   only one date is supplied?
-- How are original and billed currencies represented for international rows?
+- Do future source variants represent original currencies differently from
+  the confirmed `US`/USD national-currency layout?
 - How are installment principal, interest, fees, and future installments
   represented and linked across statements?
 - Which statement totals include unbilled activity and which fees or taxes?

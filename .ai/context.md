@@ -67,3 +67,19 @@ Canonical semantics:
 - source records remain traceable after normalization.
 
 When uncertain, favor explicit provenance, deterministic behavior, reversible changes, and synthetic data.
+
+## TDC parser-contract correction
+
+The observed national-currency source contract now distinguishes conditional
+original USD operation evidence from the debt-affecting CLP `Cargo del mes`.
+`SourceRecord.original_amount` and `original_currency` are an optional pair
+with independent provenance; `billed_amount`, `billed_currency`, installment
+evidence, and `debt_effect` retain separate roles. No exchange rate is inferred.
+
+`StatementMetadata.card_last_four` is required for this v1 family and comes
+only from exact masked-card identity contexts. All recognized occurrences must
+agree. Card movement headings are retained as `card_identity_context` ignored
+evidence instead of invalid-date financial rejects. The parser remains GIR-
+only; persistence generalization is the next separate checkpoint. These
+observable corrections use parser version `santander-tdc-pdf-v1.1`; the source
+contract independently remains v0.1.

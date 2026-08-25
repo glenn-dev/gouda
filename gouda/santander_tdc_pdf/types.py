@@ -97,10 +97,17 @@ class StatementMetadata:
     billing_cutoff_date: date
     payment_due_date: date
     card_product_context: str
+    card_last_four: str = field(repr=False)
     statement_currency: str | None = field(default=None, repr=False)
     fields: Mapping[str, FieldProvenance] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
+        if (
+            not isinstance(self.card_last_four, str)
+            or len(self.card_last_four) != 4
+            or any(character < "0" or character > "9" for character in self.card_last_four)
+        ):
+            raise ValueError("card_last_four must contain exactly four decimal digits")
         object.__setattr__(self, "fields", MappingProxyType(dict(self.fields)))
 
     def __repr__(self) -> str:
@@ -128,8 +135,12 @@ class SourceRecord:
     installment_number: int | None = field(default=None, repr=False)
     installment_amount: Decimal | None = field(default=None, repr=False)
     header_profile: str | None = None
+    original_amount: Decimal | None = field(default=None, repr=False)
+    original_currency: str | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
+        if (self.original_amount is None) != (self.original_currency is None):
+            raise ValueError("original amount and currency must be present together")
         object.__setattr__(self, "line_ordinals", tuple(self.line_ordinals))
         object.__setattr__(self, "token_ordinals", tuple(self.token_ordinals))
         object.__setattr__(self, "fields", MappingProxyType(dict(self.fields)))

@@ -19,7 +19,7 @@ from .types import (
 )
 
 
-PARSER_VERSION = "santander-tdc-pdf-v1"
+PARSER_VERSION = "santander-tdc-pdf-v1.1"
 SOURCE_VARIANT = "santander_credit_card_pdf"
 _EDGE_TOLERANCE = Decimal("3.00")
 _DATE_RE = re.compile(r"(?<!\d)(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?(?!\d)")
@@ -27,7 +27,11 @@ _FLEX_DATE_RE = re.compile(r"\b(\d{1,2})\s*(?:[/.-]\s*|\s+de\s+)(\d{1,2})\s*(?:[
 _SPANISH_DATE_RE = re.compile(r"\b(\d{1,2})\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\s+(?:de\s+)?(\d{2,4})\b", re.IGNORECASE)
 _SPANISH_MONTHS = {"enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6, "julio": 7, "agosto": 8, "septiembre": 9, "setiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12}
 _MONEY_RE = re.compile(r"^[($-]?[0-9][0-9. ]*(?:,[0-9]{1,2}|\.[0-9]{1,2})?[)]?$")
+_FULL_MASKED_CARD_RE = re.compile(r"(?<![A-Z0-9])X{4}\s+X{4}\s+X{4}\s+(\d{4})(?!\d)", re.IGNORECASE)
+_MOVEMENT_MASKED_CARD_RE = re.compile(r"^X{4}-(\d{4})$", re.IGNORECASE)
+_LABELED_CARD_IDENTITY_PREFIX = ("no", "de", "tarjeta", "de", "credito")
 _CURRENCY = {"clp", "usd", "eur", "ars", "brl", "mxn", "uf"}
+_ORIGINAL_CURRENCY_CODES = {"us": "USD", "usd": "USD"}
 _DATE_LABELS = {"fecha", "date", "dia"}
 _DETAIL_LABELS = {"detalle", "descripcion", "concepto", "referencia"}
 _CURRENCY_LABELS = {"moneda", "currency"}
@@ -120,6 +124,8 @@ class _HeaderProfile:
     context_amount_bands: tuple[_Band, ...] = ()
     installment_number_band: _Band | None = None
     installment_amount_band: _Band | None = None
+    original_amount_band: _Band | None = None
+    original_currency_band: _Band | None = None
 
 
 @dataclass(frozen=True)
@@ -140,7 +146,7 @@ class _OpenGroup:
 def parse_tdc_pdf_gir(gir: TdcPdfGir) -> TdcPdfParserResult:
     refs = _line_refs(gir)
     _recognize_extraction_boundary(gir)
-    metadata, metadata_indexes = _metadata(refs)
+    metadata, metadata_indexes, card_identity_indexes = _metadata(refs)
     _recognize_document_context(refs, metadata)
 
     records: list[SourceRecord] = []
@@ -176,7 +182,8 @@ def parse_tdc_pdf_gir(gir: TdcPdfGir) -> TdcPdfParserResult:
             ):
                 close_group()
         if ref.index in metadata_indexes:
-            records.append(_ignored(ref, state, "metadata"))
+            reason = "card_identity_context" if ref.index in card_identity_indexes else "metadata"
+            records.append(_ignored(ref, state, reason))
             continue
 
         try:
@@ -359,8 +366,22 @@ def _recognize_document_context(refs: list[_LineRef], metadata: StatementMetadat
         raise UnsupportedTdcPdfError("statement_context_missing")
 
 
-def _metadata(refs: list[_LineRef]) -> tuple[StatementMetadata, set[int]]:
+def _metadata(refs: list[_LineRef]) -> tuple[StatementMetadata, set[int], set[int]]:
     indexes: set[int] = set()
+    card_identity_refs: list[_LineRef] = []
+    card_last_fours: set[str] = set()
+    for ref in refs:
+        values = _card_last_fours(ref)
+        if values:
+            card_identity_refs.append(ref)
+            card_last_fours.update(values)
+    if not card_identity_refs:
+        raise UnsupportedTdcPdfError("card_identity_missing")
+    if len(card_last_fours) != 1:
+        raise ContradictoryTdcPdfError("card_identity_conflict")
+    card_last_four = next(iter(card_last_fours))
+    card_identity_indexes = {ref.index for ref in card_identity_refs}
+
     product_refs: list[_LineRef] = []
     for ref in refs:
         if _line_contains(ref, "santander") and _line_contains(ref, "tarjeta") and _line_contains(ref, "credito"):
@@ -446,10 +467,11 @@ def _metadata(refs: list[_LineRef]) -> tuple[StatementMetadata, set[int]]:
         "billing_cutoff_date": _provenance_refs((cutoff_ref,), "billing_cutoff_date"),
         "payment_due_date": _provenance_refs(tuple(dict.fromkeys((due_label_ref, due_value_ref))), "payment_due_date"),
         "card_product_context": _provenance_refs(tuple(product_refs), "card_product_context"),
+        "card_last_four": _provenance_refs(tuple(card_identity_refs), "card_last_four"),
     }
     if currency is not None:
         fields["statement_currency"] = currency.provenance
-    for ref in product_refs + [period_ref, cutoff_ref, due_label_ref, due_value_ref]:
+    for ref in product_refs + card_identity_refs + [period_ref, cutoff_ref, due_label_ref, due_value_ref]:
         indexes.add(ref.index)
     if currency_ref is not None:
         indexes.add(currency_ref.index)
@@ -463,7 +485,42 @@ def _metadata(refs: list[_LineRef]) -> tuple[StatementMetadata, set[int]]:
             or ("moneda" in labels and (bool(labels & (_CURRENCY - {"uf"})) or {"nacional", "tarjeta", "credito"} <= labels))
         ):
             indexes.add(ref.index)
-    return StatementMetadata(period_start, period_end, cutoff_date, due_values[0], "credit_card", currency.code if currency else None, fields), indexes
+    return (
+        StatementMetadata(
+            period_start,
+            period_end,
+            cutoff_date,
+            due_values[0],
+            "credit_card",
+            card_last_four,
+            currency.code if currency else None,
+            fields,
+        ),
+        indexes,
+        card_identity_indexes,
+    )
+
+
+def _card_last_fours(ref: _LineRef) -> tuple[str, ...]:
+    text = " ".join(token.text for token in ref.tokens)
+    bare_primary = _FULL_MASKED_CARD_RE.fullmatch(text)
+    if bare_primary is not None:
+        return (bare_primary.group(1),)
+    if ref.labels[:len(_LABELED_CARD_IDENTITY_PREFIX)] == _LABELED_CARD_IDENTITY_PREFIX:
+        return tuple(match.group(1) for match in _FULL_MASKED_CARD_RE.finditer(text))
+    if ref.labels[:2] != ("movimientos", "tarjeta") or len(ref.tokens) < 3:
+        return ()
+    movement_heading = _MOVEMENT_MASKED_CARD_RE.fullmatch(recognition_key(ref.tokens[2].text))
+    if movement_heading is None:
+        return ()
+    trailing = ref.tokens[3:]
+    if any(
+        token.text.strip() != "$"
+        and _MONEY_RE.fullmatch(token.text.replace("$", "")) is None
+        for token in trailing
+    ):
+        return ()
+    return (movement_heading.group(1),)
 
 
 def _nearby_date_refs(refs: list[_LineRef], index: int) -> list[tuple[_LineRef, list[date]]]:
@@ -568,7 +625,23 @@ def _build_header(ref: _LineRef, state: SectionState) -> _HeaderProfile:
         split_one = _midpoint(context_one.bbox.x1, context_two.bbox.x0)
         split_two = _midpoint(context_two.bbox.x1, amount_token.bbox.x0)
         location_right = _midpoint(ref.tokens[0].bbox.x1, date_token.bbox.x0)
-        return _HeaderProfile(kind, "installment_billed", state, ref, ref.labels, (ref,), date_band, description_band, _Band(split_two, ref.page.width), location_band=_Band(Decimal("0"), location_right), reference_band=_Band(description_band.right, context_one.bbox.x0 - _EDGE_TOLERANCE), context_amount_bands=(_Band(description_band.right, split_one), _Band(split_one, split_two)))
+        original_band = _Band(description_band.right, split_one)
+        return _HeaderProfile(
+            kind,
+            "installment_billed",
+            state,
+            ref,
+            ref.labels,
+            (ref,),
+            date_band,
+            description_band,
+            _Band(split_two, ref.page.width),
+            location_band=_Band(Decimal("0"), location_right),
+            reference_band=_Band(description_band.right, context_one.bbox.x0 - _EDGE_TOLERANCE),
+            context_amount_bands=(_Band(split_one, split_two),),
+            original_amount_band=original_band,
+            original_currency_band=original_band,
+        )
     if kind == "explicit_installment":
         date_token, detail_token, installment_token, installment_amount_token, amount_token = ref.tokens
         date_band = _between_band(ref.page, date_token, detail_token, left_edge=date_token.bbox.x0 - _EDGE_TOLERANCE)
@@ -774,7 +847,13 @@ def _parse_group(group: _OpenGroup, metadata: StatementMetadata) -> SourceRecord
     if len(primary) != 1:
         return _group_record(RowOutcome.REJECTED, "amount_ambiguous" if primary else "amount_malformed", group, fields)
     amount_ref, amount_token = primary[0]
-    amount = _parse_money(amount_token.text)
+    amount = _parse_money(
+        amount_token.text,
+        clp_integer_grouping=(
+            group.profile.family == "observed_installment"
+            and metadata.statement_currency == "CLP"
+        ),
+    )
     if amount is None:
         return _group_record(RowOutcome.REJECTED, "amount_malformed", group, fields)
     if amount <= 0:
@@ -786,6 +865,50 @@ def _parse_group(group: _OpenGroup, metadata: StatementMetadata) -> SourceRecord
         if len(members) > 1:
             return _group_record(RowOutcome.REJECTED, "amount_ambiguous", group, fields)
         allowed_context.extend(members)
+    original_amount_evidence = []
+    if group.profile.original_amount_band is not None:
+        original_amount_evidence = [
+            (ref, token)
+            for ref, token in all_money
+            if group.profile.original_amount_band.intersects(token)
+        ]
+    original_currency_evidence = []
+    unsupported_original_currency_evidence = []
+    if group.profile.original_currency_band is not None:
+        original_currency_evidence = [
+            (ref, token, _original_currency_code(token))
+            for ref in refs
+            for token in ref.tokens
+            if group.profile.original_currency_band.intersects(token)
+            and _original_currency_code(token) is not None
+        ]
+        unsupported_original_currency_evidence = [
+            (ref, token)
+            for ref in refs
+            for token in ref.tokens
+            if group.profile.original_currency_band.intersects(token)
+            and _label(token.text) in _CURRENCY
+            and _original_currency_code(token) is None
+        ]
+    if unsupported_original_currency_evidence:
+        return _group_record(RowOutcome.REJECTED, "original_currency_unsupported", group, fields)
+    if len(original_currency_evidence) > 1:
+        return _group_record(RowOutcome.REJECTED, "original_currency_ambiguous", group, fields)
+    original_amount = None
+    original_currency = None
+    if original_currency_evidence:
+        if not original_amount_evidence:
+            return _group_record(RowOutcome.REJECTED, "original_amount_missing", group, fields)
+        if len(original_amount_evidence) > 1:
+            return _group_record(RowOutcome.REJECTED, "original_amount_ambiguous", group, fields)
+        original_amount = _parse_money(original_amount_evidence[0][1].text)
+        if original_amount is None or original_amount <= 0:
+            return _group_record(RowOutcome.REJECTED, "original_amount_malformed", group, fields)
+        original_currency = original_currency_evidence[0][2]
+    else:
+        # Amounts in this contextual source column are not foreign evidence
+        # without its explicit, role-local currency marker.
+        allowed_context.extend(original_amount_evidence)
     installment_amount_evidence = []
     if group.profile.installment_amount_band is not None:
         installment_amount_evidence = [(ref, token) for ref, token in all_money if group.profile.installment_amount_band.intersects(token)]
@@ -796,7 +919,16 @@ def _parse_group(group: _OpenGroup, metadata: StatementMetadata) -> SourceRecord
         installment_number_evidence = [(ref, token) for ref, token in all_money if token.text.isdigit() and group.profile.installment_number_band.intersects(token)]
         if len(installment_number_evidence) > 1:
             return _group_record(RowOutcome.REJECTED, "unsupported_row_geometry", group, fields)
-    assigned_tokens = {id(token) for _, token in primary + allowed_context + installment_amount_evidence + installment_number_evidence}
+    assigned_tokens = {
+        id(token)
+        for _, token in (
+            primary
+            + allowed_context
+            + original_amount_evidence
+            + installment_amount_evidence
+            + installment_number_evidence
+        )
+    }
     if any(id(token) not in assigned_tokens for _, token in all_money):
         return _group_record(RowOutcome.REJECTED, "incompatible_monetary_columns", group, fields)
 
@@ -822,6 +954,12 @@ def _parse_group(group: _OpenGroup, metadata: StatementMetadata) -> SourceRecord
     fields["billed_currency"] = currency_provenance
     fields["section_category"] = _provenance_refs((group.section.source,), "section_category")
     fields["header_profile"] = _provenance_refs(group.profile.source_refs, "header_profile")
+    if original_amount is not None and original_currency is not None:
+        fields["original_amount"] = _provenance_items(original_amount_evidence, "original_amount")
+        fields["original_currency"] = _provenance_items(
+            tuple((ref, token) for ref, token, _ in original_currency_evidence),
+            "original_currency",
+        )
     description_evidence = [(ref, token) for ref in refs for token in ref.tokens if group.profile.description_band.contains(token) and not _DATE_RE.search(token.text) and not _MONEY_RE.match(token.text.replace("$", ""))]
     description = " ".join(token.text for _, token in description_evidence) or None
     fields["description_detail"] = _provenance_items(description_evidence, "description_detail") if description_evidence else _provenance_refs(refs, "description_detail", "empty_role_band")
@@ -831,9 +969,10 @@ def _parse_group(group: _OpenGroup, metadata: StatementMetadata) -> SourceRecord
     location = " ".join(token.text for _, token in location_evidence) or None
     if location_evidence:
         fields["location"] = _provenance_items(location_evidence, "location")
+    original_currency_token_ids = {id(token) for _, token, _ in original_currency_evidence}
     reference_evidence = []
     if group.profile.reference_band is not None:
-        reference_evidence = [(ref, token) for ref in refs for token in ref.tokens if group.profile.reference_band.contains(token) and not _DATE_RE.search(token.text) and (token.text.isdigit() or not _MONEY_RE.match(token.text.replace("$", "")))]
+        reference_evidence = [(ref, token) for ref in refs for token in ref.tokens if id(token) not in original_currency_token_ids and group.profile.reference_band.contains(token) and not _DATE_RE.search(token.text) and (token.text.isdigit() or not _MONEY_RE.match(token.text.replace("$", "")))]
     reference = " ".join(token.text for _, token in reference_evidence) or None
     if reference_evidence:
         fields["reference_authorization"] = _provenance_items(reference_evidence, "reference_authorization")
@@ -848,7 +987,25 @@ def _parse_group(group: _OpenGroup, metadata: StatementMetadata) -> SourceRecord
         if installment_amount is not None:
             fields["installment_amount"] = _provenance_items(installment_amount_evidence, "installment_amount")
     debt = -amount if category in (FinancialCategory.PAYMENT, FinancialCategory.CREDIT_REFUND) else amount
-    return _group_record(RowOutcome.PARSED, "parsed", group, fields, transaction_date=transaction_date, description_detail=description, location=location, reference_authorization=reference, billed_currency=currency, billed_amount=amount, section_category=category, debt_effect=debt, installment_number=installment_number, installment_amount=installment_amount, header_profile=group.profile.name)
+    return _group_record(
+        RowOutcome.PARSED,
+        "parsed",
+        group,
+        fields,
+        transaction_date=transaction_date,
+        description_detail=description,
+        location=location,
+        reference_authorization=reference,
+        billed_currency=currency,
+        billed_amount=amount,
+        section_category=category,
+        debt_effect=debt,
+        installment_number=installment_number,
+        installment_amount=installment_amount,
+        header_profile=group.profile.name,
+        original_amount=original_amount,
+        original_currency=original_currency,
+    )
 
 
 def _group_record(outcome: RowOutcome, reason: str, group: _OpenGroup, fields: dict[str, FieldProvenance], **values) -> SourceRecord:
@@ -879,11 +1036,13 @@ def _parse_row_date(value: str, metadata: StatementMetadata) -> date | None:
     return candidates[0] if len(candidates) == 1 else None
 
 
-def _parse_money(value: str) -> Decimal | None:
+def _parse_money(value: str, *, clp_integer_grouping: bool = False) -> Decimal | None:
     value = value.strip().replace("$", "").replace(" ", "")
     negative = value.startswith("-") or (value.startswith("(") and value.endswith(")"))
     value = value.strip("()-")
-    if "," in value and "." in value:
+    if clp_integer_grouping and "," not in value and re.fullmatch(r"\d{1,3}(?:\.\d{3})+", value):
+        value = value.replace(".", "")
+    elif "," in value and "." in value:
         value = value.replace(".", "").replace(",", ".")
     elif "," in value:
         value = value.replace(",", ".")
@@ -896,6 +1055,10 @@ def _parse_money(value: str) -> Decimal | None:
 
 def _money_tokens(tokens: Iterable[Token]) -> list[Token]:
     return [token for token in tokens if _MONEY_RE.match(token.text.replace("$", ""))]
+
+
+def _original_currency_code(token: Token) -> str | None:
+    return _ORIGINAL_CURRENCY_CODES.get(_label(token.text))
 
 
 def _numeric_location_or_reference(token: Token, profile: _HeaderProfile) -> bool:

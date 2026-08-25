@@ -15,11 +15,15 @@ from gouda.santander_tdc_pdf import (
 )
 
 
+SYNTHETIC_CARD_IDENTITY = "XXXX XXXX XXXX 0001"
+
+
 def statement_pdf(*, rows: tuple[str, ...] = (), pages: int = 1, currency: bool = True) -> bytes:
     output = BytesIO()
     document = canvas.Canvas(output, pagesize=LETTER)
     content = (
         "Santander Tarjeta Crédito - Estado de cuenta",
+        SYNTHETIC_CARD_IDENTITY,
         "Periodo: 01/01/2026 - 31/01/2026",
         "Fecha corte: 31/01/2026",
         "Fecha vencimiento: 15/02/2026",
@@ -43,6 +47,7 @@ def positioned_statement_pdf(
     body: tuple[tuple[tuple[str, int], ...] | str | int | None, ...],
     currency_label: bool = True,
     font_size: int = 12,
+    card_identity: str | None = SYNTHETIC_CARD_IDENTITY,
 ) -> bytes:
     """Build a synthetic statement with deterministic role-band geometry."""
     output = BytesIO()
@@ -50,6 +55,7 @@ def positioned_statement_pdf(
     document.setFont("Helvetica", font_size)
     metadata = (
         "Santander Tarjeta Crédito - Estado de cuenta",
+        *((card_identity,) if card_identity is not None else ()),
         "Periodo: 01/01/2026 - 31/01/2026",
         "Fecha corte: 31/01/2026",
         "Fecha vencimiento: 15/02/2026",
@@ -79,6 +85,19 @@ def positioned_statement_pdf(
 
 
 STANDARD_HEADER = (("Fecha", 40), ("Detalle", 110), ("Moneda", 420), ("Monto", 500))
+OBSERVED_HEADER = (
+    ("Lugar", 40), ("de", 66), ("Fecha", 103), ("de", 129),
+    ("Descripcion", 152), ("operacion", 203), ("o", 247),
+    ("cobro", 254), ("Monto", 395), ("Monto", 450),
+    ("Cargo", 515), ("del", 543), ("mes", 559),
+)
+OBSERVED_HEADER_CONTINUATIONS = (
+    (("operacion", 40), ("operacion", 103), ("origen", 395), ("total", 450), ("a", 475)),
+    (("NoCuota", 502), ("Valor", 542), ("cuota", 568)),
+    (("operacion", 395), ("pagar", 450)),
+    (("mensual", 551),),
+    (("o", 395), ("cobro", 402)),
+)
 
 
 def positioned_row(day: str, detail: str, amount: str, *, currency: str | None = "CLP"):
@@ -103,10 +122,13 @@ class SantanderTdcPdfParserTests(unittest.TestCase):
         self.assertEqual(record.fields["row"].page_ordinal, 1)
         self.assertEqual(result.gir_version, "TDC-PDF-GIR-v1")
         self.assertTrue(result.extraction_profile_version)
+        self.assertEqual(result.parser_version, "santander-tdc-pdf-v1.1")
         self.assertEqual(record.fields["billed_amount"].page_width, Decimal("612.00"))
         self.assertEqual(record.fields["billed_amount"].page_height, Decimal("792.00"))
         self.assertIsNotNone(record.fields["billed_amount"].normalized_bbox)
         self.assertGreater(record.row_group_ordinal, 0)
+        self.assertEqual(result.metadata.card_last_four, "0001")
+        self.assertEqual(result.metadata.fields["card_last_four"].role, "card_last_four")
 
     def test_payment_and_future_activity_have_distinct_semantics(self):
         result = parse_tdc_pdf(statement_pdf(rows=(
@@ -145,6 +167,7 @@ class SantanderTdcPdfParserTests(unittest.TestCase):
         output = BytesIO()
         document = canvas.Canvas(output, pagesize=LETTER)
         document.drawString(40, 750, "Santander Tarjeta Crédito")
+        document.drawString(40, 734, SYNTHETIC_CARD_IDENTITY)
         document.save()
         with self.assertRaises(UnsupportedTdcPdfError) as context:
             parse_tdc_pdf(output.getvalue())
@@ -334,6 +357,25 @@ class SantanderTdcPdfParserTests(unittest.TestCase):
         source_fields["injected"] = provenance
         self.assertEqual(tuple(record.fields), ("row",))
 
+    def test_source_record_requires_original_amount_and_currency_as_a_pair(self):
+        from gouda.santander_tdc_pdf import FieldProvenance, SourceRecord
+
+        provenance = FieldProvenance(1, (1,), (1,), object(), "row")
+        common = dict(
+            outcome=RowOutcome.PARSED,
+            reason_code="parsed",
+            page_ordinal=1,
+            section=SectionState.BILLED_INSTALLMENT,
+            row_group_ordinal=1,
+            line_ordinals=(1,),
+            token_ordinals=(1,),
+            fields={"row": provenance},
+        )
+        with self.assertRaises(ValueError):
+            SourceRecord(**common, original_amount=Decimal("1.00"))
+        with self.assertRaises(ValueError):
+            SourceRecord(**common, original_currency="USD")
+
     def test_header_profile_provenance_points_to_actual_header(self):
         gir = extract_tdc_pdf(positioned_statement_pdf(body=(
             "Compras nacionales", STANDARD_HEADER,
@@ -437,15 +479,16 @@ class SantanderTdcPdfParserTests(unittest.TestCase):
         self.assertEqual(record.fields["row"].additional_page_spans[0].page_width, Decimal("612.00"))
         self.assertIsNotNone(record.fields["row"].additional_page_spans[0].normalized_bbox)
 
-    def test_international_profile_accepts_explicit_row_currency(self):
-        result = parse_tdc_pdf(positioned_statement_pdf(currency_label=False, body=(
-            "Compras internacionales", STANDARD_HEADER,
-            positioned_row("05/01", "Synthetic international", "10,00", currency="USD"),
+    def test_unrelated_us_token_outside_original_operation_role_is_not_currency_evidence(self):
+        result = parse_tdc_pdf(positioned_statement_pdf(body=(
+            "Compras nacionales", STANDARD_HEADER,
+            positioned_row("05/01", "Synthetic US note", "10,00", currency="CLP"),
         )))
         record = result.parsed_records[0]
-        self.assertEqual(record.header_profile, "international_billed")
-        self.assertEqual(record.billed_currency, "USD")
-        self.assertEqual(record.section_category, FinancialCategory.PURCHASE_CHARGE)
+        self.assertEqual(record.billed_currency, "CLP")
+        self.assertIsNone(record.original_amount)
+        self.assertIsNone(record.original_currency)
+        self.assertNotIn("original_currency", record.fields)
 
     def test_explicit_installment_profile_preserves_only_proven_fields(self):
         installment_header = (
@@ -478,7 +521,7 @@ class SantanderTdcPdfParserTests(unittest.TestCase):
         reconciliation_fields = {"previous_balance": provenance}
         metadata = StatementMetadata(
             date(2026, 1, 1), date(2026, 1, 31), date(2026, 1, 31),
-            date(2026, 2, 15), "credit_card", "CLP", metadata_fields,
+            date(2026, 2, 15), "credit_card", "0001", "CLP", metadata_fields,
         )
         evidence = ReconciliationEvidence(
             ReconciliationStatus.INSUFFICIENT_DATA, operands,
@@ -492,26 +535,13 @@ class SantanderTdcPdfParserTests(unittest.TestCase):
         self.assertNotIn("injected", evidence.fields)
 
     def test_observed_current_installment_profile_uses_explicit_primary_charge_band(self):
-        observed_header = (
-            ("Lugar", 40), ("de", 66), ("Fecha", 103), ("de", 129),
-            ("Descripcion", 152), ("operacion", 203), ("o", 247),
-            ("cobro", 254), ("Monto", 395), ("Monto", 450),
-            ("Cargo", 515), ("del", 543), ("mes", 559),
-        )
-        header_continuations = (
-            (("operacion", 40), ("operacion", 103), ("origen", 395), ("total", 450), ("a", 475)),
-            (("NoCuota", 502), ("Valor", 542), ("cuota", 568)),
-            (("operacion", 395), ("pagar", 450)),
-            (("mensual", 551),),
-            (("o", 395), ("cobro", 402)),
-        )
         row = (
             ("12345678901", 40), ("05/01", 119), ("Synthetic", 152),
             ("SYN", 324), ("4,00", 414), ("10,00", 570),
         )
         result = parse_tdc_pdf(positioned_statement_pdf(currency_label=False, font_size=7, body=(
             "Estado de cuenta en moneda nacional de tarjeta de credito",
-            "2.Periodo actual", observed_header, *header_continuations, row,
+            "2.Periodo actual", OBSERVED_HEADER, *OBSERVED_HEADER_CONTINUATIONS, row,
         )))
         record = result.parsed_records[0]
         self.assertEqual(record.header_profile, "installment_billed")
@@ -521,6 +551,165 @@ class SantanderTdcPdfParserTests(unittest.TestCase):
         self.assertEqual(record.reference_authorization, "SYN")
         self.assertEqual(len(record.fields["header_profile"].line_ordinals), 6)
         self.assertNotIn("installment_amount", record.fields)
+        self.assertIsNone(record.original_amount)
+        self.assertIsNone(record.original_currency)
+
+    def test_observed_foreign_operation_preserves_original_usd_and_billed_clp(self):
+        row = (
+            ("12345678901", 40), ("05/01", 119), ("Synthetic", 152),
+            ("SYN", 324), ("US", 375), ("23,80", 425), ("$22.303", 570),
+        )
+        result = parse_tdc_pdf(positioned_statement_pdf(currency_label=False, font_size=7, body=(
+            "Estado de cuenta en moneda nacional de tarjeta de credito",
+            "2.Periodo actual", OBSERVED_HEADER, *OBSERVED_HEADER_CONTINUATIONS, row,
+        )))
+        record = result.parsed_records[0]
+        self.assertEqual(record.original_amount, Decimal("23.80"))
+        self.assertEqual(record.original_currency, "USD")
+        self.assertEqual(record.billed_amount, Decimal("22303"))
+        self.assertEqual(record.billed_currency, "CLP")
+        self.assertEqual(record.debt_effect, Decimal("22303"))
+        self.assertIsNone(record.installment_amount)
+        self.assertFalse(hasattr(record, "exchange_rate"))
+        self.assertEqual(record.fields["original_amount"].role, "original_amount")
+        self.assertEqual(record.fields["original_currency"].role, "original_currency")
+        self.assertNotEqual(
+            record.fields["original_amount"].token_ordinals,
+            record.fields["billed_amount"].token_ordinals,
+        )
+
+    def test_clp_thousands_grouping_is_limited_to_trusted_cargo_role(self):
+        cargo_row = (
+            ("12345678901", 40), ("05/01", 119), ("Synthetic", 152),
+            ("SYN", 324), ("$22.303", 570),
+        )
+        trusted = parse_tdc_pdf(positioned_statement_pdf(currency_label=False, font_size=7, body=(
+            "Estado de cuenta en moneda nacional de tarjeta de credito",
+            "2.Periodo actual", OBSERVED_HEADER, *OBSERVED_HEADER_CONTINUATIONS,
+            cargo_row,
+        )))
+        self.assertEqual(trusted.parsed_records[0].billed_amount, Decimal("22303"))
+
+        generic = parse_tdc_pdf(positioned_statement_pdf(body=(
+            "Compras nacionales", STANDARD_HEADER,
+            positioned_row("05/01", "Synthetic", "22.303"),
+        )))
+        self.assertEqual(generic.parsed_records[0].billed_amount, Decimal("22.303"))
+
+    def test_original_currency_without_amount_is_rejected(self):
+        row = (
+            ("12345678901", 40), ("05/01", 119), ("Synthetic", 152),
+            ("SYN", 324), ("US", 375), ("22.303", 570),
+        )
+        result = parse_tdc_pdf(positioned_statement_pdf(currency_label=False, font_size=7, body=(
+            "Estado de cuenta en moneda nacional de tarjeta de credito",
+            "2.Periodo actual", OBSERVED_HEADER, *OBSERVED_HEADER_CONTINUATIONS, row,
+        )))
+        rejected = [record for record in result.records if record.outcome is RowOutcome.REJECTED]
+        self.assertEqual([record.reason_code for record in rejected], ["original_amount_missing"])
+
+    def test_unconfirmed_currency_in_original_operation_role_is_rejected(self):
+        row = (
+            ("12345678901", 40), ("05/01", 119), ("Synthetic", 152),
+            ("SYN", 324), ("EUR", 375), ("23,80", 425), ("22.303", 570),
+        )
+        result = parse_tdc_pdf(positioned_statement_pdf(currency_label=False, font_size=7, body=(
+            "Estado de cuenta en moneda nacional de tarjeta de credito",
+            "2.Periodo actual", OBSERVED_HEADER, *OBSERVED_HEADER_CONTINUATIONS, row,
+        )))
+        rejected = [record for record in result.records if record.outcome is RowOutcome.REJECTED]
+        self.assertEqual(
+            [record.reason_code for record in rejected],
+            ["original_currency_unsupported"],
+        )
+
+    def test_competing_original_operation_amounts_are_rejected(self):
+        row = (
+            ("12345678901", 40), ("05/01", 119), ("Synthetic", 152),
+            ("SYN", 324), ("US", 375), ("23,80", 405), ("24,80", 430),
+            ("22.303", 570),
+        )
+        result = parse_tdc_pdf(positioned_statement_pdf(currency_label=False, font_size=7, body=(
+            "Estado de cuenta en moneda nacional de tarjeta de credito",
+            "2.Periodo actual", OBSERVED_HEADER, *OBSERVED_HEADER_CONTINUATIONS, row,
+        )))
+        rejected = [record for record in result.records if record.outcome is RowOutcome.REJECTED]
+        self.assertEqual([record.reason_code for record in rejected], ["original_amount_ambiguous"])
+
+    def test_card_identity_context_is_structured_and_not_a_financial_reject(self):
+        result = parse_tdc_pdf(positioned_statement_pdf(body=(
+            "MOVIMIENTOS TARJETA XXXX-0001 $ 10.000",
+            "Compras nacionales", STANDARD_HEADER,
+            positioned_row("05/01", "Synthetic alpha", "10,00"),
+        )))
+        self.assertEqual(result.metadata.card_last_four, "0001")
+        self.assertTrue(any(record.reason_code == "card_identity_context" for record in result.records))
+        self.assertFalse(any(record.reason_code == "date_invalid" for record in result.records))
+        provenance = result.metadata.fields["card_last_four"]
+        self.assertGreaterEqual(len(provenance.line_ordinals), 2)
+
+    def test_labeled_primary_card_identity_is_recognized(self):
+        result = parse_tdc_pdf(positioned_statement_pdf(
+            card_identity="No de tarjeta de credito XXXX XXXX XXXX 0001 Synthetic Product",
+            body=(
+                "Compras nacionales", STANDARD_HEADER,
+                positioned_row("05/01", "Synthetic alpha", "10,00"),
+            ),
+        ))
+        self.assertEqual(result.metadata.card_last_four, "0001")
+
+    def test_recognized_v1_document_requires_masked_card_identity(self):
+        source = positioned_statement_pdf(
+            card_identity=None,
+            body=(
+                "Compras nacionales", STANDARD_HEADER,
+                positioned_row("05/01", "Synthetic alpha", "10,00"),
+            ),
+        )
+        with self.assertRaises(UnsupportedTdcPdfError) as context:
+            parse_tdc_pdf(source)
+        self.assertEqual(context.exception.code, "card_identity_missing")
+
+    def test_repeated_card_identity_across_pages_must_agree(self):
+        result = parse_tdc_pdf(positioned_statement_pdf(body=(
+            "Compras nacionales", STANDARD_HEADER,
+            positioned_row("05/01", "Synthetic alpha", "10,00"),
+            None,
+            SYNTHETIC_CARD_IDENTITY,
+        )))
+        self.assertEqual(result.metadata.card_last_four, "0001")
+        self.assertEqual(len(result.metadata.fields["card_last_four"].additional_page_spans), 1)
+
+    def test_conflicting_card_identity_is_document_fatal_without_private_values(self):
+        source = positioned_statement_pdf(body=(
+            "XXXX XXXX XXXX 0002",
+            "Compras nacionales", STANDARD_HEADER,
+            positioned_row("05/01", "Synthetic alpha", "10,00"),
+        ))
+        with self.assertRaises(ContradictoryTdcPdfError) as context:
+            parse_tdc_pdf(source)
+        self.assertEqual(context.exception.code, "card_identity_conflict")
+        self.assertNotIn("0001", str(context.exception))
+        self.assertNotIn("0002", str(context.exception))
+
+    def test_random_four_digit_reference_is_not_card_identity(self):
+        result = parse_tdc_pdf(positioned_statement_pdf(body=(
+            "Compras nacionales", STANDARD_HEADER,
+            positioned_row("05/01", "Synthetic reference 9876", "10,00"),
+        )))
+        self.assertEqual(result.metadata.card_last_four, "0001")
+        self.assertNotIn("9876", repr(result.metadata))
+
+    def test_masked_pattern_inside_transaction_description_is_not_card_identity(self):
+        result = parse_tdc_pdf(positioned_statement_pdf(body=(
+            "Compras nacionales", STANDARD_HEADER,
+            positioned_row(
+                "05/01",
+                "Synthetic XXXX XXXX XXXX 9876 reference",
+                "10,00",
+            ),
+        )))
+        self.assertEqual(result.metadata.card_last_four, "0001")
 
     def test_stable_page_bottom_boundary_closes_group_before_footer_content(self):
         result = parse_tdc_pdf(positioned_statement_pdf(body=(

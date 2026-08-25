@@ -249,3 +249,26 @@ explicit concurrency suite 3 tests, system check, migration drift, compilation,
 and diff check. The disposable container was removed. The parser remains GIR-
 only and has no Django, account/domain, persistence, transfer, classification,
 BCI, or generic parser dependency.
+
+## Completed: TDC parser-contract correction before persistence
+
+- Extend `SourceRecord` with a paired `original_amount` / `original_currency`
+  contract and role-specific provenance.
+- Keep the national-currency statement's CLP `Cargo del mes` as the only billed
+  amount and `debt_effect` basis; do not infer FX or reuse installment fields.
+- Require structured `StatementMetadata.card_last_four` from exact masked-card
+  identity contexts, with document-wide agreement and sanitized failure.
+- Treat recognized movement-card headings as ignored context rather than
+  `date_invalid` financial candidates.
+- Validate synthetically, against all seven ignored PDFs, and through the full
+  current-account/Django regression gate without adding persistence work.
+
+All seven PDFs remain recognized and deterministic. Sanitized parsed/ignored/
+rejected tuples are `(50,95,6)`, `(21,87,6)`, `(27,87,6)`, `(36,87,5)`,
+`(41,95,7)`, `(32,87,8)`, and `(44,95,5)`. Ten rows expose paired original
+USD evidence with complete provenance, and each document has two recognized
+card-identity context records. The final PostgreSQL 16 gate passes 170 tests
+plus the separate 3-test concurrency suite; focused TDC coverage passes 62
+tests and focused current-account parser coverage passes 29 tests. The
+corrected observable result contract is versioned as
+`santander-tdc-pdf-v1.1`; source-contract v0.1 remains unchanged.

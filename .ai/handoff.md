@@ -324,3 +324,45 @@ separate 3-test concurrency suite, system check, migration drift, compilation,
 and diff check. The container was removed. No ORM, domain, persistence,
 application-service, transfer, classification, BCI, or generic parser work was
 introduced.
+
+## TDC parser-contract correction before persistence
+
+The parser contract now retains conditional original USD operation amount and
+currency separately from the national-currency statement's CLP `Cargo del
+mes`. Only the latter supplies `billed_amount` and `debt_effect`; installment
+amount remains independent and no exchange rate is inferred. Each new source
+field has its own immutable provenance.
+
+Structured statement metadata now includes an exactly four-character card
+suffix sourced only from exact masked-card identity lines and exact movement-
+card headings. Every recognized occurrence must agree; conflicts fail with the
+sanitized `card_identity_conflict` code. Recognized card headings are ignored
+with `card_identity_context` rather than rejected as invalid dates.
+
+Privacy-safe comparison of the seven ignored PDFs is recorded in the task's
+final report. The implementation remains parser-only: no ORM, migration,
+persistence, import service, classification, transfer, FX, BCI, or generic
+provider work was added.
+
+All seven private PDFs remain recognized and deterministic. Sanitized parsed/
+ignored/rejected tuples are `(50,95,6)`, `(21,87,6)`, `(27,87,6)`,
+`(36,87,5)`, `(41,95,7)`, `(32,87,8)`, and `(44,95,5)`. Ten rows expose paired
+original USD evidence with complete provenance; each document has two trusted
+card-identity context records. Aggregate rejects changed from `date_invalid`
+36, `amount_malformed` 12, `zero_amount_unsupported` 4 to `date_invalid` 29,
+`amount_malformed` 10, `zero_amount_unsupported` 4.
+
+The private comparison also exposed the pre-existing interpretation of CLP
+period grouping as decimal fractions. Correcting the required `22.303` to
+`22303` semantics changed 232 previously parsed billed/debt magnitudes by the
+exact factor of 1000 and admitted two formerly malformed multi-group CLP rows;
+source role, currency, category, and debt direction remained unchanged. This
+is disclosed rather than hidden as an unchanged-value regression.
+
+Final gates pass: 62 focused TDC parser/extraction tests, 29 focused current-
+account parser tests, 52 focused current-account import/helper tests, the 170-
+test PostgreSQL 16 suite, separate 3-test concurrency suite, system check,
+migration drift check, compilation, and `git diff --check`. The disposable
+PostgreSQL container was removed. The corrected observable result contract uses
+`PARSER_VERSION = "santander-tdc-pdf-v1.1"`; the source-family evidence
+contract independently remains v0.1.
