@@ -14,7 +14,7 @@ for the application services.
 AWS and Kubernetes are later deployment and operations targets. They are not
 part of Sprint 0 and must not be implemented as part of the initial slice.
 
-Gouda is organized as a pipeline with clear boundaries:
+The implemented deterministic pipeline has clear boundaries:
 
 1. **Ingest** accepts a source file or connector payload.
 2. **Normalize** maps source fields into the canonical movement model.
@@ -25,6 +25,19 @@ Gouda is organized as a pipeline with clear boundaries:
 
 The canonical model is the contract between ingestion and every downstream consumer. Derived totals must be reproducible from persisted movements and must retain enough references to explain their inputs.
 
+The accepted target evolution inserts observation and resolution before the
+canonical ledger so heterogeneous or provisional evidence does not become
+financial truth merely because it was extracted:
+
+```text
+Artifact -> identify/route -> extract/interpret -> observation candidate
+         -> deterministic validation -> resolution -> canonical Movement
+         -> classify/relate -> summaries
+```
+
+See [Evidence and resolution architecture](evidence-resolution.md). The
+observation boundary is conceptual and has no implemented schema.
+
 ## v0.1 persistence foundation
 
 The implemented persistence slice is the `gouda.ledger` Django app. It
@@ -33,7 +46,9 @@ the shared `RawRecord` identity/outcome envelope, source-specific evidence,
 and canonical `Movement`, backed by PostgreSQL. Exact artifact bytes are
 content-addressed by a boundary-computed SHA-256 digest. Each canonical
 movement traces to exactly one raw record without carrying source layout
-fields.
+fields. That relationship describes the current Santander implementation, not
+a permanent claim that one piece of evidence must always equal one financial
+fact.
 
 The Santander parsers remain pure-Python components. Synchronous application
 services now support current-account XLSX and Santander TDC PDF. The TDC route

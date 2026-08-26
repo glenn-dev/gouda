@@ -11,10 +11,16 @@ deferred until after Sprint 0.
 ## Project status
 
 The repository contains the product and architecture baseline, the first
-Django/PostgreSQL persistence foundation, and the synchronous Santander
-current-account XLSX import lifecycle. Simultaneous-finalization race recovery
-is the next checkpoint; implementation work should follow the MVP scope and
-the security rules in `docs/security/financial-data-handling.md`.
+Django/PostgreSQL persistence foundation, and validated synchronous Santander
+current-account XLSX and Santander credit-card PDF import lifecycles. Their
+deterministic source contracts, evidence persistence, canonical signed
+movements, and concurrency behavior are implemented.
+
+The next architectural boundary is evidence-first ingestion: preserving
+heterogeneous or provisional evidence, interpreting it as an observation, and
+resolving it before canonical ledger acceptance. The responsibility boundary
+is documented, but Observation/Resolution persistence and AI execution are not
+implemented.
 
 ## Local persistence setup
 
@@ -27,9 +33,12 @@ password, then start PostgreSQL with `docker compose up -d postgres`. The
 - Product: `docs/product/`
 - Architecture: `docs/architecture/`
 - Decisions: `docs/decisions/`
+- Deterministic source contracts: `docs/contracts/`
+- Sanitized source observations: `docs/sources/`
 - Security: `docs/security/`
-- Current AI context and work: `.ai/`
+- Current operational context and handoff: `.ai/`
 
 ## Working agreement
 
-Read `AGENTS.md` before making changes. Keep domain terminology aligned with `docs/product/glossary.md`, and record material architectural choices as ADRs.
+Read `AGENTS.md` before making changes. Keep domain terminology aligned with
+`docs/product/glossary.md`, and record material architectural choices as ADRs.
