@@ -2,24 +2,25 @@
 
 ## Objective
 
-Implement the smallest durable Observation/Resolution persistence and service
-boundary before BCI multi-source ingestion.
+Freeze the deterministic design, source contract, and synthetic test plan for
+BCI historical current-account PDFs before implementing an adapter.
 
 ## Completed scope
 
-- Added immutable `FinancialObservation` claims with explicit creation
-  idempotency and a mutable current lifecycle projection.
-- Added append-only `ObservationResolution` transition history.
-- Added deterministic confirm-new, match-existing, reject, conflict, reopen,
-  and interpretation-supersession services.
-- Added Account-scoped locking, strict support matching, candidate collision
-  abstention, database constraints, and PostgreSQL concurrency coverage.
-- Accepted ADR-0009 and updated canonical architecture documentation.
+- Re-verified two private historical PDFs structurally without copying private
+  financial or identity values into tracked files.
+- Defined fail-closed native-text recognition, metadata and row semantics,
+  exact money/date rules, and independent reconciliation checks.
+- Defined unresolved observation creation and a conservative Historical-only
+  resolution policy without cross-source matching.
+- Defined privacy-safe synthetic fixtures and application, persistence,
+  concurrency, failure, and regression test requirements.
 
 ## Constraints preserved
 
-- No AI, BCI parser, workflow, generic ingestion framework, or fuzzy matching
-  was implemented.
+- No production BCI parser, adapter, model, migration, or fixture was
+  implemented.
+- No AI, workflow, generic ingestion framework, or fuzzy matching was added.
 - No canonical Movement correction or retraction was implemented.
 - Existing deterministic Santander production services and historical values
   remain unchanged.
@@ -28,12 +29,13 @@ boundary before BCI multi-source ingestion.
 
 ## Validation
 
-The deterministic Django/PostgreSQL suite, observation concurrency tests,
-migration drift, system checks, compilation, link checks, and diff hygiene are
-the completion gates for this checkpoint.
+Markdown relative links, private-data leakage checks, and diff hygiene are the
+completion gates for this documentation-only checkpoint.
 
 ## Next action
 
-Design a concrete BCI source contract and adapter only after validating source
-roles and rollover evidence. Keep Recent and Current unresolved by default;
-defer canonical Movement correction until real corrected-source evidence.
+Implement the BCI Historical v0.1 extraction/parser, narrow evidence
+persistence, observation creation, reconciliation gating, and synthetic tests
+exactly as defined in
+`docs/contracts/bci-historical-current-account-pdf-v0.1.md`. Keep Recent and
+Current out of scope and leave Santander production behavior unchanged.

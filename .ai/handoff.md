@@ -75,10 +75,28 @@ adapter or source strategy.
 
 ## Next checkpoint
 
-Define a concrete BCI source contract and adapter without freezing universal
-transaction identity. Recent and Current observations remain unresolved by
-default; Historical may create or uniquely match only after contract
-validation. Do not add canonical correction without corrected-source evidence.
+Implement the frozen design in
+`docs/contracts/bci-historical-current-account-pdf-v0.1.md` for BCI Historical
+only. The parser must fail closed on unsupported native-text geometry, preserve
+source-specific provenance, compute independent exact reconciliation checks,
+and create unresolved observations before any resolution step.
+
+The initial Historical policy may resolve only contract-valid reconciled
+statements. Cross-batch exact collisions abstain. A same-batch collision may
+use the existing explicit collision override only when distinct ordered rows
+in the same reconciled running-balance chain independently prove separate
+statement entries. V0.1 performs no automatic `MATCH_EXISTING`.
+
+The likely additive persistence scope is one BCI source kind, one raw-record
+kind, and narrow protected batch/record evidence models. Reuse
+`SourceArtifact`, `ImportBatch`, `RawRecord`, `FinancialObservation`,
+`ObservationResolution`, and `Movement`; do not change their generic domain
+semantics. A trusted expected source-account identifier remains explicit
+protected caller context for v0.1 rather than a new binding model.
+
+Do not implement Current Cartola, Recent Movements, universal transaction
+identity, canonical Movement correction, overdraft models, AI, or a generic
+provider framework.
 
 Read `AGENTS.md`, the README documentation map, product principles,
 architecture, active ADRs/contracts, and only then this operational handoff.

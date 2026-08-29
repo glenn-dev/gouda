@@ -50,10 +50,16 @@ or generic provider framework is implemented.
 
 ## Current direction
 
-The next source-driven checkpoint may define a concrete BCI contract and
-adapter while keeping Recent and Current observations unresolved by default.
-Do not finalize permanent BCI identity or canonical correction rules without
-direct rollover or corrected-source evidence.
+The BCI Historical current-account PDF v0.1 design contract is now the next
+implementation boundary. It requires native-text fail-closed recognition,
+exact row and statement reconciliation, unresolved observation persistence,
+and a separate conservative historical resolution policy. Recent and Current
+remain unimplemented and no permanent cross-source identity rule is frozen.
+
+Implementation will require only BCI-specific source/evidence registration and
+an additive migration; the generic Observation/Resolution and Movement models
+remain unchanged. Do not finalize cross-source identity or canonical
+correction rules without direct rollover or corrected-source evidence.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.
