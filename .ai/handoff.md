@@ -12,24 +12,30 @@ the existing test suite.
 Canonical movement sign follows ADR-0005. `Movement` represents accepted
 source-neutral financial truth; provider-native fields remain in evidence.
 
-## Documentation checkpoint
+The observation boundary is now implemented. `FinancialObservation` stores an
+immutable interpreted claim and mutable current lifecycle projection.
+`ObservationResolution` stores append-only transition history. Deterministic
+services support confirm-new, match-existing, reject, conflict, reopen, and
+interpretation supersession with Account-scoped concurrency control.
 
-This checkpoint establishes the accepted future ingestion boundary:
+## Observation/resolution checkpoint
+
+This checkpoint implements the accepted ingestion boundary:
 
 ```text
 Artifact
 -> identification / routing
 -> deterministic extraction and/or AI interpretation
--> Financial Observation Candidate
+-> FinancialObservation
 -> deterministic validation
 -> auditable resolution
 -> canonical Movement
 ```
 
-Resolution may leave evidence unresolved, reject it, confirm a new movement,
-match it as support for an existing movement, or retain supersession/correction
-history. `FinancialObservation` remains conceptual; no schema or implementation
-was added.
+Resolution may reject evidence, confirm a new movement, match it as support for
+an existing movement, mark conflict, reopen review, or retain interpretation
+supersession history. Canonical Movement correction remains explicitly
+deferred.
 
 Canonical references:
 
@@ -37,6 +43,7 @@ Canonical references:
 - `docs/architecture/evidence-resolution.md`
 - `docs/architecture/testing-and-ai-evals.md`
 - `docs/decisions/ADR-0008-separate-observations-from-canonical-movements.md`
+- `docs/decisions/ADR-0009-implement-observation-resolution-boundary.md`
 - `docs/sources/bci-current-account-lifecycle.md`
 
 ## BCI stress test
@@ -68,10 +75,10 @@ adapter or source strategy.
 
 ## Next checkpoint
 
-Design the smallest compatible Observation/Resolution persistence and service
-boundary before BCI multi-source canonical ingestion. Determine lifecycle,
-evidence-to-observation, observation-to-movement, idempotency, correction, and
-concurrency responsibilities without implementing AI or a generic framework.
+Define a concrete BCI source contract and adapter without freezing universal
+transaction identity. Recent and Current observations remain unresolved by
+default; Historical may create or uniquely match only after contract
+validation. Do not add canonical correction without corrected-source evidence.
 
 Read `AGENTS.md`, the README documentation map, product principles,
 architecture, active ADRs/contracts, and only then this operational handoff.

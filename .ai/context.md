@@ -9,7 +9,8 @@ semantics live in:
 - `docs/product/ingestion-evidence-principles.md`;
 - `docs/product/glossary.md`;
 - `docs/architecture/evidence-resolution.md`; and
-- `docs/decisions/ADR-0008-separate-observations-from-canonical-movements.md`.
+- `docs/decisions/ADR-0008-separate-observations-from-canonical-movements.md`;
+- `docs/decisions/ADR-0009-implement-observation-resolution-boundary.md`.
 
 Read `AGENTS.md` and the README documentation map before using this operational
 context. `.ai/` is not canonical product documentation.
@@ -30,26 +31,29 @@ context. `.ai/` is not canonical product documentation.
 - Current Santander services parse outside transactions and atomically persist
   evidence plus canonical movements with tested duplicate, failure, and
   concurrency behavior.
+- `FinancialObservation` and append-only `ObservationResolution` implement the
+  pre-canonical interpretation and resolution boundary. Observation claims are
+  immutable; only their current lifecycle projection changes.
+- Deterministic services support confirm-new, match-existing, reject, conflict,
+  reopen, and interpretation supersession under Account-scoped locking.
 - Private source corpora remain ignored, untracked, and outside committed test
   fixtures.
 
-## Accepted target evolution
+## Implemented target evolution
 
-ADR-0008 keeps `Movement` canonical-only and establishes a conceptual
-Financial Observation Candidate plus auditable resolution before canonical
-acceptance. The boundary supports future provisional and heterogeneous
-evidence without making probabilistic interpretation accounting truth.
+ADR-0008 keeps `Movement` canonical-only. ADR-0009 implements an immutable
+FinancialObservation claim, mutable current resolution projection, and
+append-only resolution history before canonical acceptance.
 
-No Observation/Resolution schema, AI execution, BCI parser, workflow engine,
+No AI execution, BCI parser, canonical Movement correction, workflow engine,
 or generic provider framework is implemented.
 
 ## Current direction
 
-The next implementation-design checkpoint should determine the smallest model
-and application-service boundary needed for multiple evidence items to support
-one movement, using the BCI current-account lifecycle as a concrete stress
-test. It must preserve existing Santander behavior and avoid finalizing a
-permanent BCI source strategy without direct rollover evidence.
+The next source-driven checkpoint may define a concrete BCI contract and
+adapter while keeping Recent and Current observations unresolved by default.
+Do not finalize permanent BCI identity or canonical correction rules without
+direct rollover or corrected-source evidence.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.

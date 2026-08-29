@@ -2,13 +2,16 @@
 
 ## Status
 
-This document records accepted target evolution around the current ingestion
-architecture. `FinancialObservation` is a conceptual boundary. No concrete
-Django model, migration, API, background workflow, or AI implementation is
-defined here.
+This document records the implemented observation and resolution boundary
+around the current ingestion architecture. `FinancialObservation` and
+`ObservationResolution` are implemented as Django/PostgreSQL models with a
+deterministic synchronous application service. No BCI adapter, provisional
+view, background workflow, or AI implementation is defined here.
 
-The decision is recorded in
-[ADR-0008](../decisions/ADR-0008-separate-observations-from-canonical-movements.md).
+The separation decision is recorded in
+[ADR-0008](../decisions/ADR-0008-separate-observations-from-canonical-movements.md),
+and its concrete persistence boundary in
+[ADR-0009](../decisions/ADR-0009-implement-observation-resolution-boundary.md).
 
 ## Architectural goal
 
@@ -78,42 +81,60 @@ source-specific structures. A photo region, email span, message, or model
 interpretation should not be forced into spreadsheet-row fields or a
 permissive universal evidence object.
 
-## Financial Observation Candidate
+## Financial observation
 
-A financial observation candidate is an interpreted claim that may eventually
-support a canonical movement. Its conceptual responsibilities are:
+A financial observation is one immutable interpreted claim derived from one
+parsed `RawRecord`. It:
 
-- link to one or more pieces of source evidence;
-- propose an account;
-- propose an amount, currency, and relevant date semantics;
-- retain proposed description or source reference when supported;
-- record the deterministic or probabilistic interpretation method and version;
-- retain field-level provenance and uncertainty where meaningful;
-- expose a resolution state; and
-- permit a relationship to an eventual canonical movement.
+- links to its RawRecord and trusted Account;
+- records an exact nonzero signed amount and trusted currency;
+- records transaction and accounting date candidates, with at least one
+  required;
+- retains optional normalized description and source reference;
+- records interpretation method and version;
+- starts unresolved; and
+- may resolve to a canonical Movement.
 
-An observation is not a movement. It may be incomplete, provisional,
-ambiguous, rejected, superseded, or ultimately shown to describe an existing
-movement. This checkpoint does not define final fields, cardinalities, state
-names, or database constraints.
+An observation is not a movement. The supported application service and
+ordinary model-save boundary reject claim-field changes after creation;
+direct SQL, `QuerySet.update()`, and `bulk_update()` are outside that boundary.
+Interpretation correction creates a successor observation. Only state, current
+Movement, and state version form the mutable current projection. Creation uses
+an explicit UUID idempotency key rather than treating parser method/version as
+economic or interpretation identity.
 
 ## Resolution boundary
 
-Resolution determines how validated observations affect canonical truth. It
-must support:
+Resolution determines how validated observations affect canonical truth. The
+implemented commands support:
 
 - confirming an observation as a new movement;
 - matching multiple observations as support for one movement;
 - retaining provisional evidence when authoritative evidence arrives;
 - rejecting mistaken interpretations;
-- recording supersession and correction without erasing prior evidence; and
+- recording interpretation supersession without erasing prior evidence; and
 - preserving an auditable decision history.
 
-Durable resolution state and history are domain responsibilities. Application
-services should perform transitions transactionally and apply deterministic
-rules. AI may propose candidates or matches, but cannot perform a canonical
-write without the same validation and lifecycle controls as deterministic
-code.
+The current states are `UNRESOLVED`, `RESOLVED`, `REJECTED`, `CONFLICT`, and
+terminal `SUPERSEDED`. `ObservationResolution` is append-only audit history;
+the observation carries only its mutable current projection. Application
+services perform transitions transactionally under Account-scoped locks.
+Resolution idempotency uses an explicit unique UUID command key.
+`CONFLICT` means conflict with a known canonical Movement; generic ambiguity
+without a known Movement remains `UNRESOLVED`.
+
+`CONFIRM_NEW` accepts a caller-selected exact observation date and abstains if
+an exact same-account date/amount/currency Movement candidate already exists.
+This is a collision guard, not universal identity. A caller that independently
+establishes a distinct event may explicitly override the guard after Account
+locking and candidate re-evaluation; doing so creates a second Movement and
+never attaches the observation to the colliding Movement.
+
+`MATCH_EXISTING` validates an explicitly selected target using exact Account,
+currency, and signed amount compatibility. It does not select a candidate or
+determine economic identity. Dates, descriptions, references, periods, and
+other source evidence belong to source-specific policy. No fuzzy matching is
+implemented.
 
 Resolution authority is contextual. A source may be authoritative for posted
 account effect but not for purchase time, merchant details, classification, or
@@ -138,11 +159,14 @@ Those facts describe evidence, interpretation, or resolution. Mixing them
 into `Movement` would make canonical queries depend on ingestion mechanics and
 would allow probabilistic state to contaminate accounting truth.
 
-The current one-to-one raw-record relationship describes the implemented
-Santander persistence graph. A later implementation checkpoint must determine
-the smallest compatible evidence/resolution relationship needed for multiple
-evidence to support one movement. The canonical financial semantics do not
-need to be rewritten.
+The required one-to-one `Movement.raw_record` is the RawRecord from which the
+Movement was originally materialized. It is not necessarily the only evidence
+supporting that Movement. Additional supporting evidence is represented by
+observations resolved to it; no separate Movement evidence join exists.
+
+Canonical Movement correction is explicitly deferred. Conflict resolution in
+this checkpoint never changes, retracts, deletes, zeroes, or supersedes a
+Movement.
 
 ## Provisional views
 
@@ -152,6 +176,12 @@ distinguish those layers and must not reuse authoritative totals or reconciled
 period labels without qualification.
 
 Canonical ledger queries should continue to use accepted movements only.
+
+For a later BCI adapter, the intended initial policy is conservative: Recent
+Movements and Current Cartola observations remain unresolved by default;
+validated Historical Cartola observations may later create or uniquely match
+a Movement. This is future source-policy behavior, not a generic observation
+state or model invariant.
 
 ## Agent and deterministic cooperation
 
@@ -230,6 +260,5 @@ The following are not justified by current evidence:
 - a multi-agent orchestration framework; and
 - full double-entry accounting.
 
-The next design checkpoint should specify only the smallest persistence and
-service changes needed for observation and resolution in the first concrete
-multi-source lifecycle.
+BCI adapters, permanent identity policy, provisional product views, and
+canonical Movement correction remain later source-driven checkpoints.

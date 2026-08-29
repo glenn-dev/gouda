@@ -423,6 +423,13 @@ class RawRecord(models.Model):
 
 
 class Movement(models.Model):
+    """Canonical account effect and the RawRecord that originally materialized it.
+
+    Additional evidence may support this Movement through resolved financial
+    observations. ``raw_record`` remains the required originating record, not
+    a claim that it is the only supporting evidence.
+    """
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     raw_record = models.OneToOneField(RawRecord, on_delete=models.PROTECT, related_name="movement")
     account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name="movements")
@@ -460,6 +467,350 @@ class Movement(models.Model):
                 errors["currency"] = ["Movement currency must match the trusted account currency."]
         if errors:
             raise ValidationError(errors)
+
+
+class FinancialObservation(models.Model):
+    """One claim immutable through supported service and model-save writes."""
+
+    class State(models.TextChoices):
+        UNRESOLVED = "UNRESOLVED", "Unresolved"
+        RESOLVED = "RESOLVED", "Resolved"
+        REJECTED = "REJECTED", "Rejected"
+        CONFLICT = "CONFLICT", "Conflict"
+        SUPERSEDED = "SUPERSEDED", "Superseded"
+
+    IMMUTABLE_FIELD_ATTNAMES = (
+        "raw_record_id",
+        "account_id",
+        "transaction_date",
+        "accounting_date",
+        "signed_amount",
+        "currency",
+        "description",
+        "source_reference",
+        "interpretation_method",
+        "interpretation_version",
+        "idempotency_key",
+        "created_at",
+    )
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    raw_record = models.ForeignKey(
+        RawRecord,
+        on_delete=models.PROTECT,
+        related_name="financial_observations",
+    )
+    account = models.ForeignKey(
+        Account,
+        on_delete=models.PROTECT,
+        related_name="financial_observations",
+    )
+    transaction_date = models.DateField(null=True, blank=True)
+    accounting_date = models.DateField(null=True, blank=True)
+    signed_amount = models.DecimalField(max_digits=20, decimal_places=2)
+    currency = models.CharField(max_length=3)
+    description = models.TextField(null=True, blank=True)
+    source_reference = models.TextField(null=True, blank=True)
+    interpretation_method = models.CharField(max_length=64)
+    interpretation_version = models.CharField(max_length=64)
+    idempotency_key = models.UUIDField(unique=True)
+    state = models.CharField(
+        max_length=12,
+        choices=State.choices,
+        default=State.UNRESOLVED,
+    )
+    current_movement = models.ForeignKey(
+        Movement,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="supporting_observations",
+    )
+    state_version = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                check=~Q(signed_amount=0),
+                name="observation_signed_amount_nonzero",
+            ),
+            models.CheckConstraint(
+                check=Q(currency__regex=r"^[A-Z]{3}$"),
+                name="observation_currency_iso_like",
+            ),
+            models.CheckConstraint(
+                check=Q(transaction_date__isnull=False) | Q(accounting_date__isnull=False),
+                name="observation_financial_date_present",
+            ),
+            models.CheckConstraint(
+                check=Q(
+                    state__in=[
+                        "UNRESOLVED",
+                        "RESOLVED",
+                        "REJECTED",
+                        "CONFLICT",
+                        "SUPERSEDED",
+                    ]
+                ),
+                name="observation_state_known",
+            ),
+            models.CheckConstraint(
+                check=~Q(interpretation_method="") & ~Q(interpretation_version=""),
+                name="observation_interpreter_nonempty",
+            ),
+            models.CheckConstraint(
+                check=(
+                    Q(state__in=["RESOLVED", "CONFLICT"], current_movement__isnull=False)
+                    | Q(
+                        state__in=["UNRESOLVED", "REJECTED", "SUPERSEDED"],
+                        current_movement__isnull=True,
+                    )
+                ),
+                name="observation_state_movement_shape",
+            ),
+            models.CheckConstraint(
+                check=Q(state_version__gte=0),
+                name="observation_state_version_nonnegative",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["account", "transaction_date"],
+                name="observation_account_tx_idx",
+            ),
+            models.Index(
+                fields=["account", "accounting_date"],
+                name="observation_account_acct_idx",
+            ),
+        ]
+
+    def clean(self) -> None:
+        super().clean()
+        errors: dict[str, list[str]] = {}
+        try:
+            validate_exact_money(self.signed_amount, field_name="signed_amount")
+        except ValidationError as exc:
+            errors["signed_amount"] = exc.messages
+        if self.signed_amount == 0:
+            errors["signed_amount"] = ["Observation signed amount must be nonzero."]
+        if self.transaction_date is None and self.accounting_date is None:
+            errors["transaction_date"] = ["At least one financial date is required."]
+        if self.raw_record_id:
+            raw_record = self.raw_record
+            if raw_record.parse_outcome != RawRecord.ParseOutcome.PARSED:
+                errors["raw_record"] = ["Only parsed raw records may produce observations."]
+            elif raw_record.import_batch.account_id != self.account_id:
+                errors["account"] = ["Observation account must match its import batch."]
+        if self.account_id and self.currency != self.account.currency:
+            errors["currency"] = ["Observation currency must match the trusted account currency."]
+        state_requires_movement = self.state in {self.State.RESOLVED, self.State.CONFLICT}
+        if state_requires_movement != bool(self.current_movement_id):
+            errors["current_movement"] = ["Observation state and current Movement are inconsistent."]
+        if self.current_movement_id:
+            movement = self.current_movement
+            if movement.account_id != self.account_id:
+                errors["current_movement"] = ["Observation and Movement accounts must match."]
+            elif movement.currency != self.currency:
+                errors["current_movement"] = ["Observation and Movement currencies must match."]
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs) -> None:
+        if not self._state.adding and self.pk:
+            persisted = type(self).objects.filter(pk=self.pk).values(
+                *self.IMMUTABLE_FIELD_ATTNAMES
+            ).first()
+            if persisted is not None:
+                changed = [
+                    field
+                    for field in self.IMMUTABLE_FIELD_ATTNAMES
+                    if getattr(self, field) != persisted[field]
+                ]
+                if changed:
+                    raise ValidationError(
+                        {"__all__": ["Financial observation claim fields are immutable."]},
+                        code="observation_claim_immutable",
+                    )
+        super().save(*args, **kwargs)
+
+
+class ObservationResolution(models.Model):
+    """Append-only audit of one accepted observation lifecycle transition."""
+
+    class Action(models.TextChoices):
+        CONFIRM_NEW = "CONFIRM_NEW", "Confirm as new Movement"
+        MATCH_EXISTING = "MATCH_EXISTING", "Match existing Movement"
+        REJECT = "REJECT", "Reject"
+        MARK_CONFLICT = "MARK_CONFLICT", "Mark conflict"
+        REOPEN = "REOPEN", "Reopen"
+        SUPERSEDE = "SUPERSEDE", "Supersede"
+
+    class DecisionSource(models.TextChoices):
+        DETERMINISTIC_POLICY = "DETERMINISTIC_POLICY", "Deterministic policy"
+        HUMAN = "HUMAN", "Human"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    observation = models.ForeignKey(
+        FinancialObservation,
+        on_delete=models.PROTECT,
+        related_name="resolutions",
+    )
+    sequence = models.PositiveIntegerField()
+    action = models.CharField(max_length=16, choices=Action.choices)
+    from_state = models.CharField(max_length=12, choices=FinancialObservation.State.choices)
+    to_state = models.CharField(max_length=12, choices=FinancialObservation.State.choices)
+    movement = models.ForeignKey(
+        Movement,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="observation_resolutions",
+    )
+    successor_observation = models.ForeignKey(
+        FinancialObservation,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="superseding_resolutions",
+    )
+    decision_source = models.CharField(max_length=24, choices=DecisionSource.choices)
+    policy_name = models.CharField(max_length=64)
+    policy_version = models.CharField(max_length=64)
+    reason_code = models.CharField(max_length=64)
+    idempotency_key = models.UUIDField(unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["observation", "sequence"],
+                name="one_resolution_per_observation_sequence",
+            ),
+            models.CheckConstraint(
+                check=Q(sequence__gt=0),
+                name="resolution_sequence_positive",
+            ),
+            models.CheckConstraint(
+                check=Q(
+                    action__in=[
+                        "CONFIRM_NEW",
+                        "MATCH_EXISTING",
+                        "REJECT",
+                        "MARK_CONFLICT",
+                        "REOPEN",
+                        "SUPERSEDE",
+                    ]
+                ),
+                name="resolution_action_known",
+            ),
+            models.CheckConstraint(
+                check=Q(
+                    decision_source__in=["DETERMINISTIC_POLICY", "HUMAN"]
+                ),
+                name="resolution_decision_source_known",
+            ),
+            models.CheckConstraint(
+                check=(
+                    ~Q(policy_name="")
+                    & ~Q(policy_version="")
+                    & ~Q(reason_code="")
+                ),
+                name="resolution_required_text_nonempty",
+            ),
+            models.CheckConstraint(
+                check=(
+                    Q(
+                        action__in=["CONFIRM_NEW", "MATCH_EXISTING"],
+                        from_state="UNRESOLVED",
+                        to_state="RESOLVED",
+                        movement__isnull=False,
+                        successor_observation__isnull=True,
+                    )
+                    | Q(
+                        action="REJECT",
+                        from_state="UNRESOLVED",
+                        to_state="REJECTED",
+                        movement__isnull=True,
+                        successor_observation__isnull=True,
+                    )
+                    | Q(
+                        action="MARK_CONFLICT",
+                        from_state__in=["UNRESOLVED", "RESOLVED"],
+                        to_state="CONFLICT",
+                        movement__isnull=False,
+                        successor_observation__isnull=True,
+                    )
+                    | Q(
+                        action="REOPEN",
+                        from_state="REJECTED",
+                        to_state="UNRESOLVED",
+                        movement__isnull=True,
+                        successor_observation__isnull=True,
+                    )
+                    | Q(
+                        action="REOPEN",
+                        from_state="CONFLICT",
+                        to_state="UNRESOLVED",
+                        movement__isnull=False,
+                        successor_observation__isnull=True,
+                    )
+                    | Q(
+                        action="SUPERSEDE",
+                        from_state__in=["UNRESOLVED", "REJECTED"],
+                        to_state="SUPERSEDED",
+                        movement__isnull=True,
+                        successor_observation__isnull=False,
+                    )
+                    | Q(
+                        action="SUPERSEDE",
+                        from_state__in=["RESOLVED", "CONFLICT"],
+                        to_state="SUPERSEDED",
+                        movement__isnull=False,
+                        successor_observation__isnull=False,
+                    )
+                ),
+                name="resolution_transition_shape",
+            ),
+            models.CheckConstraint(
+                check=Q(successor_observation__isnull=True)
+                | ~Q(successor_observation=F("observation")),
+                name="resolution_successor_not_self",
+            ),
+        ]
+
+    def clean(self) -> None:
+        super().clean()
+        errors: dict[str, list[str]] = {}
+        if self.movement_id:
+            if self.movement.account_id != self.observation.account_id:
+                errors["movement"] = ["Resolution Movement account must match the observation."]
+            elif self.movement.currency != self.observation.currency:
+                errors["movement"] = ["Resolution Movement currency must match the observation."]
+        if self.successor_observation_id:
+            successor = self.successor_observation
+            if successor.pk == self.observation_id:
+                errors["successor_observation"] = ["An observation cannot supersede itself."]
+            elif successor.raw_record_id != self.observation.raw_record_id:
+                errors["successor_observation"] = ["A corrected interpretation must use the same raw record."]
+            elif successor.account_id != self.observation.account_id:
+                errors["successor_observation"] = ["Superseded observations must use the same account."]
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs) -> None:
+        if not self._state.adding and self.pk and type(self).objects.filter(pk=self.pk).exists():
+            raise ValidationError(
+                {"__all__": ["Observation resolution history is append-only."]},
+                code="observation_resolution_append_only",
+            )
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError(
+            {"__all__": ["Observation resolution history is append-only."]},
+            code="observation_resolution_append_only",
+        )
 
 
 class SantanderTdcPdfBatchEvidence(models.Model):

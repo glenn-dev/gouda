@@ -16,11 +16,10 @@ current-account XLSX and Santander credit-card PDF import lifecycles. Their
 deterministic source contracts, evidence persistence, canonical signed
 movements, and concurrency behavior are implemented.
 
-The next architectural boundary is evidence-first ingestion: preserving
-heterogeneous or provisional evidence, interpreting it as an observation, and
-resolving it before canonical ledger acceptance. The responsibility boundary
-is documented, but Observation/Resolution persistence and AI execution are not
-implemented.
+The evidence-first boundary is implemented for durable immutable financial
+observations and auditable deterministic resolution before canonical ledger
+acceptance. BCI ingestion, provisional product views, AI execution, and
+canonical Movement correction are not implemented.
 
 ## Local persistence setup
 

@@ -22,8 +22,9 @@ Artifact
 
 Resolution may leave an observation unresolved, reject it, confirm a new
 movement, match it as support for an existing movement, or preserve
-supersession/correction history. No Observation/Resolution schema is
-implemented.
+interpretation-supersession history. `FinancialObservation` and append-only
+`ObservationResolution` persistence are implemented. Canonical Movement
+correction is not.
 
 Each stage should be deterministic and idempotent for the same source record
 and normalization version where a stable deterministic contract exists. The
@@ -48,6 +49,16 @@ For future heterogeneous sources, extracted values become untrusted
 observation proposals. Deterministic validation and resolution decide whether
 they can affect the canonical ledger. Provisional views may display unresolved
 evidence only when they remain explicitly separate from authoritative totals.
+
+Observation creation and resolution use explicit UUID idempotency keys.
+Resolution locks Account, observation, and any target Movement in that order,
+then re-reads state. `CONFIRM_NEW` uses an exact candidate collision guard and
+abstains by default; an explicit independently justified distinct-event
+override may create a second Movement after the same lock and re-evaluation.
+`MATCH_EXISTING` validates exact Account, currency, and amount compatibility
+for a caller-selected Movement. Dates, descriptions, and references remain
+source-policy evidence. Neither command establishes universal economic-event
+identity.
 
 The persistence schema rejects invalid materialized batch/count combinations.
 Exact monetary representability and cross-row duplicate identity remain
@@ -76,6 +87,10 @@ Normalization changes must be versioned. Reprocessing creates a new derived repr
 
 Future observation reprocessing and resolution changes must likewise preserve
 prior evidence and auditable decisions.
+
+Interpretation correction creates a new observation and supersedes the prior
+claim. It does not update a canonical Movement. Movement correction and
+retraction require a later source-driven decision.
 
 ## Observability
 

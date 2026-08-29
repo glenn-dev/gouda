@@ -2,42 +2,38 @@
 
 ## Objective
 
-Establish the documentation-only AI-native, evidence-first ingestion
-architecture and correct stale repository guidance.
+Implement the smallest durable Observation/Resolution persistence and service
+boundary before BCI multi-source ingestion.
 
 ## Completed scope
 
-- Added the ten stable ingestion and evidence product principles.
-- Added the accepted artifact-to-observation-to-resolution-to-movement target
-  architecture without defining a Django schema.
-- Added deterministic testing and future AI-eval requirements.
-- Accepted ADR-0008, keeping canonical movements separate from interpreted
-  observations.
-- Added sanitized BCI current-account lifecycle observations without freezing
-  a parser contract or permanent source strategy.
-- Updated README, agent guidance, product, architecture, glossary, and security
-  documentation consistently.
-- Condensed `.ai/` into operational pointers to canonical documentation.
+- Added immutable `FinancialObservation` claims with explicit creation
+  idempotency and a mutable current lifecycle projection.
+- Added append-only `ObservationResolution` transition history.
+- Added deterministic confirm-new, match-existing, reject, conflict, reopen,
+  and interpretation-supersession services.
+- Added Account-scoped locking, strict support matching, candidate collision
+  abstention, database constraints, and PostgreSQL concurrency coverage.
+- Accepted ADR-0009 and updated canonical architecture documentation.
 
 ## Constraints preserved
 
-- No production code, model, migration, test, parser, or fixture changed.
-- No Observation/Resolution persistence was implemented.
-- No AI, agent, BCI parser, workflow, or generic ingestion framework was
-  implemented.
-- Existing deterministic Santander application-service behavior remains valid.
-- `Movement` remains canonical-only and source-neutral.
+- No AI, BCI parser, workflow, generic ingestion framework, or fuzzy matching
+  was implemented.
+- No canonical Movement correction or retraction was implemented.
+- Existing deterministic Santander production services and historical values
+  remain unchanged.
+- `Movement` remains canonical-only and `Movement.raw_record` remains its
+  required one-to-one originating record.
 
 ## Validation
 
-Relative Markdown links and required file/ADR references were checked. Stale
-and adversarial terminology was reviewed, new files were checked for trailing
-whitespace, `git diff --check` passed, and the repository diff contains only
-documentation, `AGENTS.md`, and `.ai/` operational files.
+The deterministic Django/PostgreSQL suite, observation concurrency tests,
+migration drift, system checks, compilation, link checks, and diff hygiene are
+the completion gates for this checkpoint.
 
 ## Next action
 
-Design the smallest Observation/Resolution persistence and application-service
-boundary required before BCI multi-source canonical ingestion. Freeze
-responsibilities and lifecycle invariants before fields or migrations. Do not
-implement AI or a generic framework in that checkpoint.
+Design a concrete BCI source contract and adapter only after validating source
+roles and rollover evidence. Keep Recent and Current unresolved by default;
+defer canonical Movement correction until real corrected-source evidence.

@@ -8,8 +8,9 @@ from django.test import TransactionTestCase
 
 
 MIGRATE_FROM = [("ledger", "0004_account_economic_orientation")]
-MIGRATE_TO = [("ledger", "0007_santander_tdc_account_binding")]
+MIGRATE_TO = [("ledger", "0008_observation_resolution_boundary")]
 MIGRATE_BINDING_FROM = [("ledger", "0006_checkpoint_a_persistence_boundary")]
+MIGRATE_OBSERVATION_FROM = [("ledger", "0007_santander_tdc_account_binding")]
 XLSX_SOURCE_KIND = "SANTANDER_CURRENT_ACCOUNT_XLSX"
 
 
@@ -234,5 +235,78 @@ class CheckpointAMigrationTests(TransactionTestCase):
                 self.migrate(MIGRATE_BINDING_FROM)
         finally:
             Binding.objects.filter(pk=binding.pk).delete()
+            self.migrate(MIGRATE_TO)
             Account.objects.filter(pk=account.pk).delete()
+
+    def test_observation_boundary_adds_empty_tables_without_rewriting_santander(self):
+        old_apps = self.migrate(MIGRATE_OBSERVATION_FROM)
+        try:
+            Account = old_apps.get_model("ledger", "Account")
+            SourceArtifact = old_apps.get_model("ledger", "SourceArtifact")
+            ImportBatch = old_apps.get_model("ledger", "ImportBatch")
+            RawRecord = old_apps.get_model("ledger", "RawRecord")
+            Movement = old_apps.get_model("ledger", "Movement")
+            account = Account.objects.create(
+                display_name="Pre-observation synthetic account",
+                kind="CURRENT",
+                economic_orientation="ASSET",
+                currency="CLP",
+            )
+            content = b"pre-observation synthetic artifact"
+            artifact = SourceArtifact.objects.create(
+                original_filename="pre-observation.xlsx",
+                content_digest=hashlib.sha256(content).hexdigest(),
+                content=content,
+            )
+            batch = ImportBatch.objects.create(
+                source_artifact=artifact,
+                account=account,
+                source_kind=XLSX_SOURCE_KIND,
+                parser_version="santander-v0.2",
+                source_variant="v1",
+                status="ACCEPTED",
+                completed_at=datetime.now(timezone.utc),
+                parsed_count=1,
+                reconciliation_status="RECONCILED",
+                opening_balance=Decimal("100.00"),
+                ending_balance=Decimal("90.00"),
+                reconciliation_difference=Decimal("0.00"),
+            )
+            raw = RawRecord.objects.create(
+                import_batch=batch,
+                record_kind="SANTANDER_XLSX_ROW",
+                record_ordinal=7,
+                row_number=7,
+                raw_cells={"schema": "santander-source-row-v1", "cells": []},
+                row_class="movement_candidate",
+                xlsx_amount_source_column="E",
+                parse_outcome="PARSED",
+                parser_codes=[],
+            )
+            movement = Movement.objects.create(
+                raw_record=raw,
+                account=account,
+                occurrence_date=date(2026, 6, 15),
+                signed_amount=Decimal("-10.00"),
+                currency="CLP",
+                description="Synthetic movement",
+                source_reference="SYN-OBS-MIGRATION",
+                running_balance=Decimal("90.00"),
+            )
+
+            new_apps = self.migrate(MIGRATE_TO)
+            NewMovement = new_apps.get_model("ledger", "Movement")
+            Observation = new_apps.get_model("ledger", "FinancialObservation")
+            Resolution = new_apps.get_model("ledger", "ObservationResolution")
+            migrated = NewMovement.objects.get(pk=movement.pk)
+
+            self.assertEqual(migrated.raw_record_id, raw.pk)
+            self.assertEqual(migrated.signed_amount, Decimal("-10.00"))
+            self.assertEqual(migrated.currency, "CLP")
+            self.assertEqual(migrated.occurrence_date, date(2026, 6, 15))
+            self.assertEqual(migrated.running_balance, Decimal("90.00"))
+            self.assertEqual(migrated.source_reference, "SYN-OBS-MIGRATION")
+            self.assertFalse(Observation.objects.exists())
+            self.assertFalse(Resolution.objects.exists())
+        finally:
             self.migrate(MIGRATE_TO)

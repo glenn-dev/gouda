@@ -30,13 +30,14 @@ canonical ledger so heterogeneous or provisional evidence does not become
 financial truth merely because it was extracted:
 
 ```text
-Artifact -> identify/route -> extract/interpret -> observation candidate
+Artifact -> identify/route -> extract/interpret -> FinancialObservation
          -> deterministic validation -> resolution -> canonical Movement
          -> classify/relate -> summaries
 ```
 
 See [Evidence and resolution architecture](evidence-resolution.md). The
-observation boundary is conceptual and has no implemented schema.
+observation and resolution persistence/service boundary is implemented; BCI
+ingestion, AI interpretation, and provisional product views are not.
 
 ## v0.1 persistence foundation
 

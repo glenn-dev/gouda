@@ -8,9 +8,11 @@ from whether it can be identified, interpreted, or accepted.
 **Evidence** — Source material and provenance that may support, contradict, or
 remain unrelated to an interpreted or canonical financial fact.
 
-**Financial observation candidate** — A conceptual interpreted financial claim
-derived from evidence before canonical acceptance. It may remain unresolved,
-be rejected, support an existing movement, or be confirmed as a new movement.
+**Financial observation** — An interpreted financial claim derived from one
+source record before or alongside canonical acceptance. Its claim fields are
+immutable through supported application-service and ordinary model-save
+writes. It may remain unresolved, be rejected, conflict with a known canonical
+movement, support a movement, or be superseded by a corrected interpretation.
 
 **Movement** — A canonical financial change accepted by Gouda for an account.
 Its signed amount is positive when the account's contribution to household net
@@ -24,9 +26,11 @@ worth increases and negative when it decreases. A movement is not provisional.
 movements with unresolved recent evidence. It is not an authoritative or
 reconciled ledger total.
 
-**Resolution** — The auditable decision that leaves an observation unresolved,
-rejects it, confirms a new movement, links it as support for an existing
-movement, or records supersession or correction.
+**Resolution** — An append-only auditable decision that rejects an observation,
+confirms a new movement, links support to an existing movement, records a
+conflict with a known canonical movement, reopens review, or supersedes an
+interpretation. Generic ambiguity remains unresolved. Canonical movement
+correction is a separate deferred lifecycle.
 
 **Source authority** — The contextual strength of evidence for a particular
 field or use. It is not one universal numeric score.

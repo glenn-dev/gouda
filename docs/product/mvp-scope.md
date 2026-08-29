@@ -23,5 +23,5 @@ probabilistic canonical writes.
 - Multi-user sharing and collaborative editing.
 - Irreversible deletion of source records.
 - AI interpretation or agent execution.
-- Observation/Resolution persistence or provisional product views.
+- BCI ingestion or provisional product views.
 - Generic provider, plugin, workflow, or document frameworks.

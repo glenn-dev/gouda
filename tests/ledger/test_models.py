@@ -681,4 +681,4 @@ class AccountOrientationMigrationTests(TransactionTestCase):
             account = new_account.objects.get(pk=account.pk)
             self.assertEqual(account.economic_orientation, "ASSET")
         finally:
-            executor.migrate([("ledger", "0007_santander_tdc_account_binding")])
+            executor.migrate([("ledger", "0008_observation_resolution_boundary")])
