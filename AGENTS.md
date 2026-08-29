@@ -2,6 +2,11 @@
 
 ## Before changing the project
 
+For the full resume, implementation, validation, and handoff lifecycle, read
+[`docs/development/agent-workflow.md`](docs/development/agent-workflow.md).
+Fresh sessions must verify repository state before work, and operational
+handoff files must describe current reality before a checkpoint is complete.
+
 Start with this file, then discover authoritative context in this order:
 
 1. Follow the documentation map in `README.md`.

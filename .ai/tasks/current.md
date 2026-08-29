@@ -2,38 +2,27 @@
 
 ## Objective
 
-Implement the frozen BCI Historical current-account PDF v0.1 contract end to
-end without changing the generic domain model.
+Determine the next BCI Current Cartola checkpoint from existing source
+evidence without freezing unsupported cross-source identity semantics.
 
-## Completed scope
+Implementation has not started.
 
-- Re-verified two private historical PDFs structurally without copying private
-  financial or identity values into tracked files.
-- Defined fail-closed native-text recognition, metadata and row semantics,
-  exact money/date rules, and independent reconciliation checks.
-- Defined unresolved observation creation and a conservative Historical-only
-  resolution policy without cross-source matching.
-- Defined privacy-safe synthetic fixtures and application, persistence,
-  concurrency, failure, and regression test requirements.
+## Current state
 
-## Constraints preserved
+BCI Historical Current Account PDF v0.1 is implemented and validated. BCI
+Current and BCI Recent remain unimplemented. No stable cross-source identity
+rule or canonical Movement correction has been frozen. Recent Movements work
+is not authorized by this task.
 
-- The production BCI parser, narrow evidence models, additive migrations,
-  import service, Historical policy, and synthetic fixtures are implemented.
-- No AI, workflow, generic ingestion framework, or fuzzy matching was added.
-- No canonical Movement correction or retraction was implemented.
-- Existing deterministic Santander production services and historical values
-  remain unchanged.
-- `Movement` remains canonical-only and `Movement.raw_record` remains its
-  required one-to-one originating record.
+## Constraints
 
-## Validation
-
-Markdown relative links, private-data leakage checks, and diff hygiene are the
-completion gates for this documentation-only checkpoint.
+Inspect sanitized source observations and private evidence safely before
+defining behavior. Preserve private evidence outside tracked files, use
+synthetic fixtures only, keep the generic observation/resolution and Movement
+semantics unchanged, and fail closed on unsupported source assumptions.
 
 ## Next action
 
-Complete focused and full validation, privacy review, and adversarial review.
-Keep Recent and Current out of scope and leave Santander production behavior
-unchanged.
+Review the BCI source lifecycle and available private evidence, identify what
+can be proven for Current Cartola, and propose a bounded contract/design
+checkpoint. Do not implement BCI Current until a contract is approved.

@@ -18,6 +18,17 @@ immutable interpreted claim and mutable current lifecycle projection.
 services support confirm-new, match-existing, reject, conflict, reopen, and
 interpretation supersession with Account-scoped concurrency control.
 
+BCI Historical Current Account PDF v0.1 is implemented and validated. Its
+evidence-first route preserves unresolved observations and uses a conservative
+reconciled Historical-only resolution policy.
+
+## Functional checkpoint
+
+The latest completed functional checkpoint is commit
+`463e715ff1e424d8e5bea03a00d03f8da4046071` (`feat: implement BCI historical
+current account import`). This is the functional checkpoint being handed off;
+Git commands at cold start determine the current HEAD.
+
 ## Observation/resolution checkpoint
 
 This checkpoint implements the accepted ingestion boundary:
@@ -54,8 +65,9 @@ strongly reconciled closed-period source. The sources overlap, descriptions
 are unstable, and no universal transaction identity is proven. Direct
 Current-to-Historical rollover overlap has not yet been observed.
 
-This supports an observation/resolution boundary but does not freeze a BCI
-adapter or source strategy.
+This supports an observation/resolution boundary. Historical is now the
+implemented BCI slice; it does not freeze a permanent cross-source identity
+rule or authorize Current/Recent ingestion.
 
 ## Guardrails
 
@@ -73,13 +85,14 @@ adapter or source strategy.
 - Keep financial-domain truth owned by Gouda; a future Atlas may orchestrate
   only through Gouda application boundaries.
 
-## Next checkpoint
+## BCI Historical implementation record
 
 The frozen design in
-`docs/contracts/bci-historical-current-account-pdf-v0.1.md` is implemented for
-BCI Historical only. The parser fails closed on unsupported native-text
-geometry, preserves source-specific provenance, computes independent exact
-reconciliation checks, and creates unresolved observations before resolution.
+`docs/contracts/bci-historical-current-account-pdf-v0.1.md` is implemented and
+validated for BCI Historical only. The parser fails closed on unsupported
+native-text geometry, preserves source-specific provenance, computes
+independent exact reconciliation checks, and creates unresolved observations
+before resolution.
 
 The initial Historical policy may resolve only contract-valid reconciled
 statements. Cross-batch exact collisions abstain. A same-batch collision may
@@ -87,16 +100,24 @@ use the existing explicit collision override only when distinct ordered rows
 in the same reconciled running-balance chain independently prove separate
 statement entries. V0.1 performs no automatic `MATCH_EXISTING`.
 
-The likely additive persistence scope is one BCI source kind, one raw-record
-kind, and narrow protected batch/record evidence models. Reuse
-`SourceArtifact`, `ImportBatch`, `RawRecord`, `FinancialObservation`,
-`ObservationResolution`, and `Movement`; do not change their generic domain
-semantics. A trusted expected source-account identifier remains explicit
-protected caller context for v0.1 rather than a new binding model.
+The implementation reuses `SourceArtifact`, `ImportBatch`, `RawRecord`,
+`FinancialObservation`, `ObservationResolution`, and `Movement` without
+changing their generic domain semantics. A trusted expected source-account
+identifier remains explicit protected caller context for v0.1 rather than a
+new binding model.
 
-Do not implement Current Cartola, Recent Movements, universal transaction
-identity, canonical Movement correction, overdraft models, AI, or a generic
-provider framework.
+## Next discovery slice
 
-Read `AGENTS.md`, the README documentation map, product principles,
-architecture, active ADRs/contracts, and only then this operational handoff.
+The likely next discovery slice is BCI Current Cartola. Determine its bounded
+contract from existing source evidence before implementation; do not freeze
+unsupported cross-source identity semantics. Do not implement Current Cartola
+yet, Recent Movements, universal transaction identity, canonical Movement
+correction, overdraft models, AI, or a generic provider framework.
+
+## Cold-start reading order
+
+Read `AGENTS.md`, the README documentation map,
+`docs/product/ingestion-evidence-principles.md`,
+`docs/architecture/evidence-resolution.md`, relevant ADRs and contracts,
+`docs/sources/bci-current-account-lifecycle.md`, then
+`.ai/context.md`, `.ai/tasks/current.md`, and this handoff.

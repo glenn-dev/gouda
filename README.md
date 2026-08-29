@@ -36,6 +36,7 @@ password, then start PostgreSQL with `docker compose up -d postgres`. The
 - Deterministic source contracts: `docs/contracts/`
 - Sanitized source observations: `docs/sources/`
 - Security: `docs/security/`
+- Agent/session workflow: `docs/development/agent-workflow.md`
 - Current operational context and handoff: `.ai/`
 
 ## Working agreement

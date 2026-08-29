@@ -45,21 +45,18 @@ ADR-0008 keeps `Movement` canonical-only. ADR-0009 implements an immutable
 FinancialObservation claim, mutable current resolution projection, and
 append-only resolution history before canonical acceptance.
 
-No AI execution, canonical Movement correction, workflow engine, or generic
-provider framework is implemented. The BCI Historical current-account PDF v0.1
+No AI interpretation runtime, canonical Movement correction, workflow engine,
+or generic provider framework is implemented. The BCI Historical current-account PDF v0.1
 parser, narrow evidence persistence, unresolved observation import, and
-conservative reconciled Historical policy are implemented.
+conservative reconciled Historical policy are implemented and validated.
 
 ## Current direction
 
-The BCI Historical current-account PDF v0.1 design contract is implemented.
-Recent and Current remain unimplemented and no permanent cross-source identity
-rule is frozen.
-
-Implementation will require only BCI-specific source/evidence registration and
-an additive migration; the generic Observation/Resolution and Movement models
-remain unchanged. Do not finalize cross-source identity or canonical
-correction rules without direct rollover or corrected-source evidence.
+BCI Historical Current Account PDF v0.1 is implemented and validated. BCI
+Current and BCI Recent remain unimplemented, no stable cross-source identity
+rule is frozen, and no canonical Movement correction is implemented. Do not
+finalize cross-source identity or canonical correction rules without direct
+rollover or corrected-source evidence.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.
