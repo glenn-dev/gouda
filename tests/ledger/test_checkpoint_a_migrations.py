@@ -171,14 +171,12 @@ class CheckpointAMigrationTests(TransactionTestCase):
             with self.assertRaisesRegex(RuntimeError, "non-XLSX batches"):
                 self.migrate(MIGRATE_FROM)
         finally:
-            ImportBatch.objects.filter(pk=batch.pk).delete()
-            SourceArtifact.objects.filter(pk=artifact.pk).delete()
-            historical_apps = MigrationExecutor(connection).loader.project_state(
-                MIGRATE_BINDING_FROM
-            ).apps
-            historical_apps.get_model("ledger", "Account").objects.filter(
-                pk=account.pk
-            ).delete()
+            # The failed reverse leaves the schema before the uncommitted BCI
+            # migration. Raw-delete these isolated synthetic rows so Django's
+            # live-model collector does not query absent BCI relations.
+            ImportBatch.objects.filter(pk=batch.pk)._raw_delete(using="default")
+            SourceArtifact.objects.filter(pk=artifact.pk)._raw_delete(using="default")
+            Account.objects.filter(pk=account.pk)._raw_delete(using="default")
             self.migrate(MIGRATE_TO)
 
     def test_binding_migration_adds_only_empty_binding_table(self):

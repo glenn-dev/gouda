@@ -173,6 +173,7 @@ def confirm_new(
     reason_code: str,
     idempotency_key: UUID,
     allow_exact_collision: bool = False,
+    allowed_collision_raw_record_ids: frozenset[UUID] | None = None,
 ) -> ObservationResolution:
     """Confirm one unresolved observation as one new canonical Movement.
 
@@ -198,6 +199,7 @@ def confirm_new(
         reason_code=reason_code,
         idempotency_key=idempotency_key,
         allow_exact_collision=allow_exact_collision,
+        allowed_collision_raw_record_ids=allowed_collision_raw_record_ids,
     )
 
 
@@ -351,6 +353,7 @@ def _execute_transition(
     reason_code: str,
     idempotency_key: UUID,
     allow_exact_collision: bool,
+    allowed_collision_raw_record_ids: frozenset[UUID] | None = None,
 ) -> ObservationResolution:
     _require_outside_transaction()
     observation_id = _require_uuid(observation_id, "observation_id_invalid")
@@ -426,13 +429,18 @@ def _execute_transition(
                 _require_observation_date(observation, occurrence_date)
                 if Movement.objects.filter(raw_record_id=observation.raw_record_id).exists():
                     _fail("origin_movement_exists")
-                if Movement.objects.filter(
+                candidates = Movement.objects.filter(
                     account=account,
                     occurrence_date=occurrence_date,
                     signed_amount=observation.signed_amount,
                     currency=observation.currency,
-                ).exists() and not allow_exact_collision:
-                    _fail("movement_candidate_exists")
+                )
+                candidate_ids = frozenset(candidates.values_list("raw_record_id", flat=True))
+                if candidate_ids:
+                    if not allow_exact_collision:
+                        _fail("movement_candidate_exists")
+                    if allowed_collision_raw_record_ids is not None and candidate_ids != allowed_collision_raw_record_ids:
+                        _fail("movement_candidate_exists")
                 movement = Movement(
                     raw_record=observation.raw_record,
                     account=account,

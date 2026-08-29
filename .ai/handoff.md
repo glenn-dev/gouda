@@ -75,11 +75,11 @@ adapter or source strategy.
 
 ## Next checkpoint
 
-Implement the frozen design in
-`docs/contracts/bci-historical-current-account-pdf-v0.1.md` for BCI Historical
-only. The parser must fail closed on unsupported native-text geometry, preserve
-source-specific provenance, compute independent exact reconciliation checks,
-and create unresolved observations before any resolution step.
+The frozen design in
+`docs/contracts/bci-historical-current-account-pdf-v0.1.md` is implemented for
+BCI Historical only. The parser fails closed on unsupported native-text
+geometry, preserves source-specific provenance, computes independent exact
+reconciliation checks, and creates unresolved observations before resolution.
 
 The initial Historical policy may resolve only contract-valid reconciled
 statements. Cross-batch exact collisions abstain. A same-batch collision may

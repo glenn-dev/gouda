@@ -2,8 +2,8 @@
 
 ## Objective
 
-Freeze the deterministic design, source contract, and synthetic test plan for
-BCI historical current-account PDFs before implementing an adapter.
+Implement the frozen BCI Historical current-account PDF v0.1 contract end to
+end without changing the generic domain model.
 
 ## Completed scope
 
@@ -18,8 +18,8 @@ BCI historical current-account PDFs before implementing an adapter.
 
 ## Constraints preserved
 
-- No production BCI parser, adapter, model, migration, or fixture was
-  implemented.
+- The production BCI parser, narrow evidence models, additive migrations,
+  import service, Historical policy, and synthetic fixtures are implemented.
 - No AI, workflow, generic ingestion framework, or fuzzy matching was added.
 - No canonical Movement correction or retraction was implemented.
 - Existing deterministic Santander production services and historical values
@@ -34,8 +34,6 @@ completion gates for this documentation-only checkpoint.
 
 ## Next action
 
-Implement the BCI Historical v0.1 extraction/parser, narrow evidence
-persistence, observation creation, reconciliation gating, and synthetic tests
-exactly as defined in
-`docs/contracts/bci-historical-current-account-pdf-v0.1.md`. Keep Recent and
-Current out of scope and leave Santander production behavior unchanged.
+Complete focused and full validation, privacy review, and adversarial review.
+Keep Recent and Current out of scope and leave Santander production behavior
+unchanged.

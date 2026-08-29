@@ -12,6 +12,12 @@ Historical source now has a narrow deterministic design contract in
 This lifecycle note still does not freeze a permanent multi-source strategy or
 transaction identity algorithm.
 
+The v0.1 Historical route is implemented as a native-text, geometry-aware
+evidence-first import. It creates unresolved observations from reconciled or
+non-reconciled parsed rows; only the separate conservative Historical policy
+may confirm a reconciled row as a new canonical Movement. Recent and Current
+remain outside this route.
+
 ## Observed source roles
 
 ### Recent Movements

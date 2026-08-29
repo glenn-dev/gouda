@@ -87,8 +87,10 @@ A document is recognized as v0.1 only when all of the following hold:
    `Cheques/Otros Cargos`, `Depositos/Abonos`, and `Saldo Diario`.
 7. Every continuation page repeats compatible table-header geometry before
    transaction content.
-8. Page numbering is internally complete and ordered from the first through
-   the declared final page.
+8. The PDF container/extractor exposes a complete ordered sequence of physical
+   pages. If usable source-declared page numbering is present, it must be
+   internally consistent with that sequence; absence of usable source-declared
+   numbering is not itself a recognition failure.
 9. The final page contains exactly one recognized period-summary block with
    period, opening balance, total debits, total credits, and final accounting
    balance.
@@ -118,9 +120,17 @@ semantics. It must never be mistaken for a transaction row.
 Recognition fails closed for a non-PDF, corrupt or encrypted PDF, image-only
 or scanned pages, wrong provider or product, absent or contradictory required
 metadata, ambiguous account or currency evidence, missing or reordered table
-columns, inconsistent continuation headers, missing or contradictory page
-numbers, missing or repeated summary blocks, truncated content, or financial-
+columns, inconsistent continuation headers, broken physical page ordering,
+contradictory usable source-declared page numbers, missing or repeated summary
+blocks, truncated content, or financial-
 looking text outside a recognized transaction-table state.
+
+This corrects an unsupported assumption in the initial checkpoint: the
+observed source family provides deterministic physical PDF page order and
+repeated continuation-header geometry, but no usable source-declared page
+number field. It does not relax the continuation or truncation requirements.
+If a usable declared page number is present, it remains subject to internal
+consistency validation; no fixed page count is inferred.
 
 A valid BCI PDF from an unobserved layout or column geometry is
 `source_variant_unsupported`, not a best-effort v0.1 parse. A future extraction

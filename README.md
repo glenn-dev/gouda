@@ -11,15 +11,16 @@ deferred until after Sprint 0.
 ## Project status
 
 The repository contains the product and architecture baseline, the first
-Django/PostgreSQL persistence foundation, and validated synchronous Santander
-current-account XLSX and Santander credit-card PDF import lifecycles. Their
-deterministic source contracts, evidence persistence, canonical signed
-movements, and concurrency behavior are implemented.
+Django/PostgreSQL persistence foundation, validated synchronous Santander
+current-account XLSX and Santander credit-card PDF import lifecycles, and the
+BCI Historical current-account PDF evidence-first import boundary. The BCI
+route preserves unresolved observations and requires a separate reconciled
+Historical policy before canonical signed movements are created.
 
 The evidence-first boundary is implemented for durable immutable financial
 observations and auditable deterministic resolution before canonical ledger
-acceptance. BCI ingestion, provisional product views, AI execution, and
-canonical Movement correction are not implemented.
+acceptance. Provisional product views, AI execution, and canonical Movement
+correction are not implemented.
 
 ## Local persistence setup
 

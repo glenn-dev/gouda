@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 
 from django.core.exceptions import ValidationError
@@ -13,6 +14,12 @@ from gouda.santander_tdc_pdf.provenance import (
     SantanderTdcProvenanceError,
     validate_field_provenance_payload,
     validate_positive_ordinal_list,
+)
+from gouda.bci_historical_pdf.provenance import (
+    BciHistoricalProvenanceError,
+    PROVENANCE_SCHEMA_VERSION as BCI_PROVENANCE_SCHEMA_VERSION,
+    validate_field_provenance_payload as validate_bci_field_provenance_payload,
+    validate_positive_ordinal_list as validate_bci_positive_ordinal_list,
 )
 
 from .validation import validate_exact_money
@@ -114,6 +121,10 @@ class ImportBatch(models.Model):
             "SANTANDER_CREDIT_CARD_PDF",
             "Santander credit-card PDF",
         )
+        BCI_HISTORICAL_CURRENT_ACCOUNT_PDF = (
+            "BCI_HISTORICAL_CURRENT_ACCOUNT_PDF",
+            "BCI historical current-account PDF",
+        )
 
     class Status(models.TextChoices):
         PROCESSING = "PROCESSING", "Processing"
@@ -139,7 +150,7 @@ class ImportBatch(models.Model):
     account = models.ForeignKey(Account, on_delete=models.PROTECT)
     source_kind = models.CharField(max_length=64, choices=SourceKind.choices)
     parser_version = models.CharField(max_length=64)
-    source_variant = models.CharField(max_length=32, null=True, blank=True)
+    source_variant = models.CharField(max_length=64, null=True, blank=True)
     status = models.CharField(max_length=16, choices=Status.choices)
     duplicate_of = models.ForeignKey(
         "self",
@@ -181,6 +192,7 @@ class ImportBatch(models.Model):
                     source_kind__in=[
                         "SANTANDER_CURRENT_ACCOUNT_XLSX",
                         "SANTANDER_CREDIT_CARD_PDF",
+                        "BCI_HISTORICAL_CURRENT_ACCOUNT_PDF",
                     ]
                 ),
                 name="batch_source_kind_known",
@@ -190,6 +202,12 @@ class ImportBatch(models.Model):
                     Q(source_kind="SANTANDER_CURRENT_ACCOUNT_XLSX")
                     | Q(
                         source_kind="SANTANDER_CREDIT_CARD_PDF",
+                        sheet_alias__isnull=True,
+                        worksheet_name__isnull=True,
+                        worksheet_ordinal__isnull=True,
+                    )
+                    | Q(
+                        source_kind="BCI_HISTORICAL_CURRENT_ACCOUNT_PDF",
                         sheet_alias__isnull=True,
                         worksheet_name__isnull=True,
                         worksheet_ordinal__isnull=True,
@@ -317,6 +335,10 @@ class RawRecord(models.Model):
             "SANTANDER_TDC_PDF_RECORD",
             "Santander TDC PDF record",
         )
+        BCI_HISTORICAL_PDF_RECORD = (
+            "BCI_HISTORICAL_PDF_RECORD",
+            "BCI historical PDF record",
+        )
 
     class RowClass(models.TextChoices):
         METADATA = "metadata", "Metadata"
@@ -361,6 +383,7 @@ class RawRecord(models.Model):
                     record_kind__in=[
                         "SANTANDER_XLSX_ROW",
                         "SANTANDER_TDC_PDF_RECORD",
+                        "BCI_HISTORICAL_PDF_RECORD",
                     ]
                 ),
                 name="raw_record_kind_known",
@@ -375,6 +398,13 @@ class RawRecord(models.Model):
                     )
                     | Q(
                         record_kind="SANTANDER_TDC_PDF_RECORD",
+                        row_number__isnull=True,
+                        raw_cells__isnull=True,
+                        row_class__isnull=True,
+                        xlsx_amount_source_column__isnull=True,
+                    )
+                    | Q(
+                        record_kind="BCI_HISTORICAL_PDF_RECORD",
                         row_number__isnull=True,
                         raw_cells__isnull=True,
                         row_class__isnull=True,
@@ -399,6 +429,10 @@ class RawRecord(models.Model):
                         record_kind="SANTANDER_TDC_PDF_RECORD",
                         xlsx_amount_source_column__isnull=True,
                     )
+                    | Q(
+                        record_kind="BCI_HISTORICAL_PDF_RECORD",
+                        xlsx_amount_source_column__isnull=True,
+                    )
                 ),
                 name="raw_record_xlsx_amount_shape",
             ),
@@ -415,6 +449,7 @@ class RawRecord(models.Model):
             expected_source_kind = {
                 self.RecordKind.SANTANDER_XLSX_ROW: ImportBatch.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
                 self.RecordKind.SANTANDER_TDC_PDF_RECORD: ImportBatch.SourceKind.SANTANDER_CREDIT_CARD_PDF,
+                self.RecordKind.BCI_HISTORICAL_PDF_RECORD: ImportBatch.SourceKind.BCI_HISTORICAL_CURRENT_ACCOUNT_PDF,
             }.get(self.record_kind)
             if expected_source_kind and self.import_batch.source_kind != expected_source_kind:
                 errors["record_kind"] = ["Raw record kind must match its import batch source kind."]
@@ -1015,6 +1050,139 @@ class SantanderTdcPdfRecordEvidence(models.Model):
         try:
             validate_field_provenance_payload(self.field_provenance)
         except SantanderTdcProvenanceError as exc:
+            errors["field_provenance"] = [exc.code]
+        if errors:
+            raise ValidationError(errors)
+
+
+class BciHistoricalPdfBatchEvidence(models.Model):
+    """Narrow immutable source evidence for one BCI Historical statement."""
+
+    import_batch = models.OneToOneField(
+        ImportBatch,
+        on_delete=models.PROTECT,
+        related_name="bci_historical_pdf_evidence",
+    )
+    statement_id = models.CharField(max_length=64)
+    source_account_id = models.CharField(max_length=64)
+    statement_currency = models.CharField(max_length=3)
+    gir_version = models.CharField(max_length=64)
+    extraction_profile_version = models.CharField(max_length=64)
+    provenance_schema_version = models.CharField(
+        max_length=64,
+        choices=[(BCI_PROVENANCE_SCHEMA_VERSION, BCI_PROVENANCE_SCHEMA_VERSION)],
+    )
+    metadata_provenance = models.JSONField()
+    reconciliation_provenance = models.JSONField()
+    reconciliation_checks = models.JSONField()
+    reconciliation_missing_operands = models.JSONField(default=list, blank=True)
+    printed_total_debits = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    printed_total_credits = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                check=Q(statement_id__regex=r"^[0-9]+$"),
+                name="bci_batch_statement_id_shape",
+            ),
+            models.CheckConstraint(
+                check=Q(source_account_id__regex=r"^[0-9]+$"),
+                name="bci_batch_source_account_shape",
+            ),
+            models.CheckConstraint(
+                check=Q(statement_currency="CLP"),
+                name="bci_batch_currency_clp",
+            ),
+            models.CheckConstraint(
+                check=(
+                    ~Q(gir_version="")
+                    & ~Q(extraction_profile_version="")
+                ),
+                name="bci_batch_versions_nonempty",
+            ),
+        ]
+
+    def clean(self) -> None:
+        super().clean()
+        errors: dict[str, list[str]] = {}
+        if self.import_batch_id and self.import_batch.source_kind != ImportBatch.SourceKind.BCI_HISTORICAL_CURRENT_ACCOUNT_PDF:
+            errors["import_batch"] = ["BCI evidence requires a BCI Historical PDF batch."]
+        if not isinstance(self.statement_id, str) or re.fullmatch(r"[0-9]+", self.statement_id) is None:
+            errors["statement_id"] = ["Invalid BCI statement identifier."]
+        if not isinstance(self.source_account_id, str) or re.fullmatch(r"[0-9]+", self.source_account_id) is None:
+            errors["source_account_id"] = ["Invalid BCI source account identifier."]
+        for field_name in ("printed_total_debits", "printed_total_credits"):
+            value = getattr(self, field_name)
+            if value is not None:
+                try:
+                    validate_exact_money(value, field_name=field_name)
+                except ValidationError as exc:
+                    errors[field_name] = exc.messages
+        for field_name in ("metadata_provenance", "reconciliation_provenance"):
+            try:
+                validate_bci_field_provenance_payload(getattr(self, field_name))
+            except BciHistoricalProvenanceError as exc:
+                errors[field_name] = [exc.code]
+        if not isinstance(self.reconciliation_checks, dict):
+            errors["reconciliation_checks"] = ["Invalid reconciliation checks."]
+        if not isinstance(self.reconciliation_missing_operands, list) or any(not isinstance(item, str) for item in self.reconciliation_missing_operands):
+            errors["reconciliation_missing_operands"] = ["Invalid reconciliation operand list."]
+        if errors:
+            raise ValidationError(errors)
+
+
+class BciHistoricalPdfRecordEvidence(models.Model):
+    """Narrow source-native row evidence retaining exact field provenance."""
+
+    raw_record = models.OneToOneField(
+        RawRecord,
+        on_delete=models.PROTECT,
+        related_name="bci_historical_pdf_evidence",
+    )
+    page_ordinal = models.PositiveIntegerField()
+    source_row_ordinal = models.PositiveIntegerField(null=True, blank=True)
+    line_ordinals = models.JSONField()
+    token_ordinals = models.JSONField()
+    field_provenance = models.JSONField()
+    source_date_text = models.TextField(null=True, blank=True)
+    accounting_date = models.DateField(null=True, blank=True)
+    transaction_date = models.DateField(null=True, blank=True)
+    branch = models.TextField(null=True, blank=True)
+    description = models.TextField(null=True, blank=True)
+    source_reference = models.TextField(null=True, blank=True)
+    debit = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    credit = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    signed_amount = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    running_balance = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    currency = models.CharField(max_length=3, null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(check=Q(page_ordinal__gt=0), name="bci_record_page_positive"),
+            models.CheckConstraint(check=Q(source_row_ordinal__isnull=True) | Q(source_row_ordinal__gt=0), name="bci_record_row_positive"),
+            models.CheckConstraint(check=Q(currency__isnull=True) | Q(currency="CLP"), name="bci_record_currency_clp"),
+        ]
+
+    def clean(self) -> None:
+        super().clean()
+        errors: dict[str, list[str]] = {}
+        if self.raw_record_id and self.raw_record.record_kind != RawRecord.RecordKind.BCI_HISTORICAL_PDF_RECORD:
+            errors["raw_record"] = ["BCI evidence requires a BCI Historical PDF raw record."]
+        for field_name in ("debit", "credit", "signed_amount", "running_balance"):
+            value = getattr(self, field_name)
+            if value is not None:
+                try:
+                    validate_exact_money(value, field_name=field_name)
+                except ValidationError as exc:
+                    errors[field_name] = exc.messages
+        for field_name in ("line_ordinals", "token_ordinals"):
+            try:
+                validate_bci_positive_ordinal_list(getattr(self, field_name))
+            except BciHistoricalProvenanceError as exc:
+                errors[field_name] = [exc.code]
+        try:
+            validate_bci_field_provenance_payload(self.field_provenance)
+        except BciHistoricalProvenanceError as exc:
             errors["field_provenance"] = [exc.code]
         if errors:
             raise ValidationError(errors)
