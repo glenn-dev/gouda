@@ -25,10 +25,10 @@ reconciled Historical-only resolution policy.
 ## Functional checkpoint
 
 The latest committed functional checkpoint is
-`dc645a4a45e043987de1e891f3111bb1a3c02adf` (`feat: implement BCI recent
-movements XLSX parser`). The Current Cartola parser checkpoint is implemented
-but uncommitted; Git commands at cold start determine the current HEAD and
-working-tree state.
+`5c9553c1f038dcb9051c4a6a1fdd27309c87860b` (`feat: implement BCI current
+cartola XLS parser`). The narrow Current/Recent provenance-conformance
+correction is implemented but uncommitted; Git commands at cold start
+determine the current working-tree state.
 
 ## Observation/resolution checkpoint
 
@@ -144,6 +144,14 @@ masquerade as source text. Both implementations have no persistence,
 observation resolution, cross-source identity, deduplication, or Movement
 behavior.
 
+The joint source-boundary review found one narrow provenance gap. The current
+working tree corrects it by requiring explicit nonblank trusted artifact
+identity for both current-source parsers, preserving that identity at record
+and field level, and recording Recent's selected Cargo or Abono header and
+cell coordinate. Frozen recognition and source-native semantics are unchanged.
+Historical provenance remains intentionally linked to immutable artifacts at
+the `SourceArtifact` / `ImportBatch` / `RawRecord` persistence boundary.
+
 ## Current Cartola implementation checkpoint
 
 `bci_current_cartola_v0.1` is implemented as a pure source parser. A thin
@@ -154,10 +162,11 @@ available private artifact is recognized read-only with no rejected rows.
 
 ## Next checkpoint
 
-Perform a joint BCI current-account source-boundary checkpoint across
-Historical, Current Cartola, and Recent Movements. Confirm contract/parser
-consistency and identify the next bounded lifecycle evidence task; do not
-immediately implement lifecycle or canonical semantics.
+After review and commit of the provenance-only correction, acquire a
+same-account Historical statement whose intrinsic printed period covers the
+existing Current Cartola source dates. Use it only for a read-only rollover
+evidence checkpoint; do not define identity, deduplication, lifecycle policy,
+or canonical semantics prematurely.
 
 ## Cold-start reading order
 

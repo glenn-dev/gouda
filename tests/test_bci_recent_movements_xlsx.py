@@ -11,12 +11,43 @@ from gouda.bci_recent_movements_xlsx import (
     MalformedWorkbookError,
     RowOutcome,
     UnsupportedWorkbookError,
-    parse_bci_recent_movements_xlsx,
+    parse_bci_recent_movements_xlsx as _parse_bci_recent_movements_xlsx,
 )
 from tests.fixtures.bci_recent_movements import synthetic_recent_movements_xlsx
 
 
+_SYNTHETIC_ARTIFACT_IDENTITY = "synthetic-artifact"
+
+
+def parse_bci_recent_movements_xlsx(source):
+    return _parse_bci_recent_movements_xlsx(
+        source,
+        artifact_identity=_SYNTHETIC_ARTIFACT_IDENTITY,
+    )
+
+
 class BciRecentMovementsParserTests(unittest.TestCase):
+    def test_trusted_artifact_identity_is_required_and_not_derived_from_source(self):
+        workbook = synthetic_recent_movements_xlsx()
+
+        with self.assertRaises(TypeError):
+            _parse_bci_recent_movements_xlsx(workbook)
+        for invalid in (None, "", " "):
+            with self.subTest(invalid=invalid):
+                with self.assertRaisesRegex(ValueError, "artifact_identity_required"):
+                    _parse_bci_recent_movements_xlsx(
+                        workbook,
+                        artifact_identity=invalid,
+                    )
+
+        supplied = "trusted-outer-identity"
+        result = _parse_bci_recent_movements_xlsx(
+            workbook,
+            artifact_identity=supplied,
+        )
+        self.assertEqual(result.parsed_records[0].provenance["artifact_identity"], supplied)
+        self.assertNotIn("filename", result.parsed_records[0].provenance)
+
     def test_valid_workbook_recognizes_exact_structure_and_source_fields(self):
         result = parse_bci_recent_movements_xlsx(synthetic_recent_movements_xlsx())
 
@@ -265,13 +296,38 @@ class BciRecentMovementsParserTests(unittest.TestCase):
         result = parse_bci_recent_movements_xlsx(synthetic_recent_movements_xlsx())
         provenance = result.parsed_records[0].provenance
 
+        self.assertEqual(provenance["artifact_identity"], _SYNTHETIC_ARTIFACT_IDENTITY)
         self.assertEqual(provenance["source_variant"], "bci_recent_movements_xlsx")
         self.assertEqual(provenance["contract_version"], "bci_recent_movements_v0.1")
         self.assertEqual(provenance["worksheet_name"], "movimientos")
         self.assertEqual(provenance["worksheet_ordinal"], 1)
         self.assertEqual(provenance["row_number"], 9)
-        self.assertEqual(provenance["source_fields"]["description"]["columns"], ("C", "D", "E", "F"))
-        self.assertEqual(provenance["source_fields"]["description"]["merged_range"], "C9:F9")
+        fields = provenance["source_fields"]
+        self.assertEqual(fields["transaction_date"]["source_field_name"], "Fecha Transacción")
+        self.assertEqual(
+            fields["transaction_date"]["artifact_identity"],
+            _SYNTHETIC_ARTIFACT_IDENTITY,
+        )
+        self.assertEqual(fields["transaction_date"]["coordinate"], "A9")
+        self.assertEqual(fields["accounting_date"]["source_field_name"], "Fecha Contable")
+        self.assertEqual(fields["source_description"]["source_field_name"], "Descripción")
+        self.assertEqual(fields["source_description"]["columns"], ("C", "D", "E", "F"))
+        self.assertEqual(fields["source_description"]["merged_range"], "C9:F9")
+
+    def test_amount_provenance_identifies_selected_cargo_or_abono_cell(self):
+        cargo, abono = parse_bci_recent_movements_xlsx(
+            synthetic_recent_movements_xlsx()
+        ).parsed_records
+
+        cargo_fields = cargo.provenance["source_fields"]
+        self.assertEqual(cargo_fields["source_direction"]["source_field_name"], "Cargo $")
+        self.assertEqual(cargo_fields["source_amount"]["coordinate"], "G9")
+        self.assertEqual(cargo_fields["source_amount"]["source_field_name"], "Cargo $")
+
+        abono_fields = abono.provenance["source_fields"]
+        self.assertEqual(abono_fields["source_direction"]["source_field_name"], "Abono $")
+        self.assertEqual(abono_fields["source_amount"]["coordinate"], "H10")
+        self.assertEqual(abono_fields["source_amount"]["source_field_name"], "Abono $")
 
     def test_sensitive_values_are_absent_from_representations(self):
         result = parse_bci_recent_movements_xlsx(

@@ -89,9 +89,12 @@ class _Sheet:
 
 def parse_bci_recent_movements_xlsx(
     source: Path | str | bytes | BinaryIO,
+    *,
+    artifact_identity: str,
 ) -> ParseResult:
     """Parse one Recent Movements workbook without trusting worksheet dimensions."""
 
+    _validate_artifact_identity(artifact_identity)
     try:
         data = _read_source(source)
         with ZipFile(BytesIO(data)) as package:
@@ -101,11 +104,16 @@ def parse_bci_recent_movements_xlsx(
                 raise UnsupportedWorkbookError("movement_header_not_found")
             if len(candidates) > 1:
                 raise AmbiguousWorksheetError("ambiguous_statement_worksheets")
-            return _parse_sheet(candidates[0])
+            return _parse_sheet(candidates[0], artifact_identity=artifact_identity)
     except (BadZipFile, ET.ParseError, KeyError, OSError, ValueError, IndexError) as error:
         if isinstance(error, BciRecentMovementsParserError):
             raise
         raise MalformedWorkbookError("xlsx_invalid") from error
+
+
+def _validate_artifact_identity(artifact_identity: str) -> None:
+    if not isinstance(artifact_identity, str) or not artifact_identity.strip():
+        raise ValueError("artifact_identity_required")
 
 
 def _read_source(source: Path | str | bytes | BinaryIO) -> bytes:
@@ -261,11 +269,11 @@ def _normalize_label(value: object) -> str:
     return re.sub(r"\s+", " ", text).strip().casefold()
 
 
-def _parse_sheet(sheet: _Sheet) -> ParseResult:
+def _parse_sheet(sheet: _Sheet, *, artifact_identity: str) -> ParseResult:
     _validate_static_structure(sheet)
     records: list[SourceRecord] = []
     for row_number in range(1, sheet.actual_max_row + 1):
-        raw = _raw_record(sheet, row_number)
+        raw = _raw_record(sheet, row_number, artifact_identity=artifact_identity)
         if row_number < 8:
             records.append(_ignored(raw, "metadata_row"))
         elif row_number == 8:
@@ -299,7 +307,12 @@ def _validate_static_structure(sheet: _Sheet) -> None:
                 raise UnsupportedWorkbookError("cell_type_unsupported")
 
 
-def _raw_record(sheet: _Sheet, row_number: int) -> SourceRecord:
+def _raw_record(
+    sheet: _Sheet,
+    row_number: int,
+    *,
+    artifact_identity: str,
+) -> SourceRecord:
     raw_cells = {
         column: sheet.cells.get(f"{column}{row_number}", _Cell(
             f"{column}{row_number}", column, row_number, SourceCell()
@@ -314,12 +327,65 @@ def _raw_record(sheet: _Sheet, row_number: int) -> SourceRecord:
         row_number=row_number,
         raw_cells=raw_cells,
         outcome=RowOutcome.IGNORED,
-        provenance=_provenance(sheet, row_number),
+        provenance=_provenance(
+            sheet,
+            row_number,
+            raw_cells,
+            artifact_identity=artifact_identity,
+        ),
     )
 
 
-def _provenance(sheet: _Sheet, row_number: int) -> dict[str, object]:
+def _provenance(
+    sheet: _Sheet,
+    row_number: int,
+    cells: Mapping[str, SourceCell],
+    *,
+    artifact_identity: str,
+) -> dict[str, object]:
+    cargo_present = _present(cells["G"])
+    abono_present = _present(cells["H"])
+    selected_column = "G" if cargo_present and not abono_present else "H" if abono_present and not cargo_present else None
+    selected_field_name = _source_field_name(selected_column) if selected_column else None
+    source_fields: dict[str, object] = {
+        "transaction_date": _field_provenance(
+            cells,
+            row_number,
+            "A",
+            "Fecha Transacción",
+            artifact_identity=artifact_identity,
+        ),
+        "accounting_date": _field_provenance(
+            cells,
+            row_number,
+            "B",
+            "Fecha Contable",
+            artifact_identity=artifact_identity,
+        ),
+        "source_description": {
+            "artifact_identity": artifact_identity,
+            "source_field_name": "Descripción",
+            "columns": ("C", "D", "E", "F"),
+            "coordinates": tuple(f"{column}{row_number}" for column in ("C", "D", "E", "F")),
+            "merged_range": f"C{row_number}:F{row_number}",
+            "cell_types": {
+                column: cells[column].cell_type for column in ("C", "D", "E", "F")
+            },
+            "text_provenance": cells["C"].cell_type == "inlineStr",
+        },
+    }
+    if selected_column is not None and selected_field_name is not None:
+        selected = _field_provenance(
+            cells,
+            row_number,
+            selected_column,
+            selected_field_name,
+            artifact_identity=artifact_identity,
+        )
+        source_fields["source_direction"] = dict(selected)
+        source_fields["source_amount"] = dict(selected)
     return {
+        "artifact_identity": artifact_identity,
         "source_variant": SOURCE_VARIANT,
         "contract_version": CONTRACT_VERSION,
         "parser_version": PARSER_VERSION,
@@ -327,28 +393,30 @@ def _provenance(sheet: _Sheet, row_number: int) -> dict[str, object]:
         "worksheet_name": sheet.name,
         "worksheet_ordinal": sheet.ordinal,
         "row_number": row_number,
-        "source_fields": {
-            "transaction_date": {"column": "A", "cell_type": _cell_type(sheet, f"A{row_number}")},
-            "accounting_date": {"column": "B", "cell_type": _cell_type(sheet, f"B{row_number}")},
-            "description": {
-                "columns": ("C", "D", "E", "F"),
-                "merged_range": f"C{row_number}:F{row_number}",
-                "cell_type": _cell_type(sheet, f"C{row_number}"),
-            },
-            "amount": {
-                "columns": ("G", "H"),
-                "cell_types": {
-                    "G": _cell_type(sheet, f"G{row_number}"),
-                    "H": _cell_type(sheet, f"H{row_number}"),
-                },
-            },
-        },
+        "source_fields": source_fields,
     }
 
 
-def _cell_type(sheet: _Sheet, ref: str) -> str | None:
-    cell = sheet.cells.get(ref)
-    return cell.source.cell_type if cell is not None else None
+def _field_provenance(
+    cells: Mapping[str, SourceCell],
+    row_number: int,
+    column: str,
+    source_field_name: str,
+    *,
+    artifact_identity: str,
+) -> dict[str, object]:
+    return {
+        "artifact_identity": artifact_identity,
+        "source_field_name": source_field_name,
+        "column": column,
+        "coordinate": f"{column}{row_number}",
+        "cell_type": cells[column].cell_type,
+        "text_provenance": cells[column].cell_type == "inlineStr",
+    }
+
+
+def _source_field_name(column: str) -> str:
+    return "Cargo $" if column == "G" else "Abono $"
 
 
 def _ignored(raw: SourceRecord, reason: str) -> SourceRecord:

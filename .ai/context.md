@@ -48,6 +48,10 @@ context. `.ai/` is not canonical product documentation.
 - The pure source-only BCI Current Cartola legacy-XLS parser is implemented
   through the pinned `xlrd==2.0.1` boundary and validated with synthetic sheet
   snapshots, synthetic BIFF formula records, and read-only private validation.
+- Both BCI current-source parsers require an explicit nonblank trusted artifact
+  identity before source reading and preserve it in record and field-level
+  provenance. Recent Movements also records the selected Cargo or Abono header
+  and cell coordinate for source direction and amount.
 
 ## Implemented target evolution
 
@@ -65,11 +69,13 @@ The source-only contracts `bci_current_cartola_v0.1` and
 ## Current direction
 
 BCI Historical Current Account PDF v0.1 and both current-source parsers are
-implemented and validated. The next checkpoint is a joint source-boundary
-review across Historical, Current Cartola, and Recent Movements. No stable
-cross-source identity rule is frozen, and no canonical Movement correction is
-implemented. Do not finalize cross-source identity or canonical correction
-rules without direct rollover or corrected-source evidence.
+implemented and validated. Their joint source-boundary review and narrow
+provenance-conformance correction are complete. The next bounded task is
+evidence acquisition: obtain a same-account Historical statement whose
+intrinsic printed period covers the existing Current Cartola source dates. No
+stable cross-source identity rule is frozen, and no canonical Movement
+correction is implemented. Do not finalize cross-source identity or canonical
+correction rules without direct rollover or corrected-source evidence.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.

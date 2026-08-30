@@ -89,10 +89,11 @@ class _Sheet:
 def parse_bci_current_cartola_xls(
     source: Path | str | bytes | BinaryIO,
     *,
-    artifact_identity: str | None = None,
+    artifact_identity: str,
 ) -> ParseResult:
     """Parse one legacy XLS without converting or rewriting the source."""
 
+    _validate_artifact_identity(artifact_identity)
     try:
         data = _read_source(source)
     except (OSError, TypeError, ValueError) as error:
@@ -104,6 +105,11 @@ def parse_bci_current_cartola_xls(
     except (xlrd.XLRDError, OSError, ValueError, IndexError, KeyError, TypeError, StructError) as error:
         raise MalformedWorkbookError("xls_invalid") from error
     return _parse_sheets(sheets, artifact_identity=artifact_identity)
+
+
+def _validate_artifact_identity(artifact_identity: str) -> None:
+    if not isinstance(artifact_identity, str) or not artifact_identity.strip():
+        raise ValueError("artifact_identity_required")
 
 
 def _read_source(source: Path | str | bytes | BinaryIO) -> bytes:
@@ -227,8 +233,9 @@ def _column_name(number: int) -> str:
 def _parse_sheets(
     sheets: tuple[_Sheet, ...],
     *,
-    artifact_identity: str | None = None,
+    artifact_identity: str,
 ) -> ParseResult:
+    _validate_artifact_identity(artifact_identity)
     visible_matches = [sheet for sheet in sheets if sheet.visible and _matches_candidate(sheet)]
     if not visible_matches:
         raise UnsupportedWorkbookError("current_cartola_header_not_found")
@@ -268,7 +275,7 @@ def _parse_sheet(
     sheet: _Sheet,
     *,
     sheet_count: int,
-    artifact_identity: str | None,
+    artifact_identity: str,
 ) -> ParseResult:
     _validate_static_structure(sheet)
     records: list[SourceRecord] = []
@@ -317,7 +324,7 @@ def _raw_record(
     sheet: _Sheet,
     row_number: int,
     *,
-    artifact_identity: str | None,
+    artifact_identity: str,
 ) -> SourceRecord:
     raw_cells = {
         column: sheet.rows.get(row_number, {}).get(column, SourceCell())
@@ -345,14 +352,32 @@ def _provenance(
     row_number: int,
     cells: Mapping[str, SourceCell],
     *,
-    artifact_identity: str | None,
+    artifact_identity: str,
 ) -> dict[str, object]:
     fields = {
-        "source_date": _field_provenance(cells, row_number, "A", "Fecha"),
-        "source_description": _field_provenance(cells, row_number, "B", "Descripción"),
-        "source_series": _field_provenance(cells, row_number, "C", "Serie"),
-        "source_signed_amount": _field_provenance(cells, row_number, "D", "Monto $"),
-        "source_balance": _field_provenance(cells, row_number, "E", "Saldo Contable $"),
+        "source_date": _field_provenance(
+            cells, row_number, "A", "Fecha", artifact_identity=artifact_identity
+        ),
+        "source_description": _field_provenance(
+            cells,
+            row_number,
+            "B",
+            "Descripción",
+            artifact_identity=artifact_identity,
+        ),
+        "source_series": _field_provenance(
+            cells, row_number, "C", "Serie", artifact_identity=artifact_identity
+        ),
+        "source_signed_amount": _field_provenance(
+            cells, row_number, "D", "Monto $", artifact_identity=artifact_identity
+        ),
+        "source_balance": _field_provenance(
+            cells,
+            row_number,
+            "E",
+            "Saldo Contable $",
+            artifact_identity=artifact_identity,
+        ),
     }
     return {
         "artifact_identity": artifact_identity,
@@ -372,8 +397,11 @@ def _field_provenance(
     row_number: int,
     column: str,
     source_field_name: str,
+    *,
+    artifact_identity: str,
 ) -> dict[str, object]:
     return {
+        "artifact_identity": artifact_identity,
         "source_field_name": source_field_name,
         "column": column,
         "coordinate": f"{column}{row_number}",

@@ -217,13 +217,36 @@ class BciCurrentCartolaParserTests(unittest.TestCase):
 
     def test_public_parser_rejects_non_cfb_input(self):
         with self.assertRaises(MalformedWorkbookError) as context:
-            parse_bci_current_cartola_xls(b"not-a-legacy-xls")
+            parse_bci_current_cartola_xls(
+                b"not-a-legacy-xls",
+                artifact_identity="synthetic-artifact",
+            )
         self.assertEqual(context.exception.code, "xls_invalid")
 
     def test_public_parser_maps_unreadable_source_to_sanitized_failure(self):
         with self.assertRaises(MalformedWorkbookError) as context:
-            parse_bci_current_cartola_xls("synthetic-missing-current-cartola.xls")
+            parse_bci_current_cartola_xls(
+                "synthetic-missing-current-cartola.xls",
+                artifact_identity="synthetic-artifact",
+            )
         self.assertEqual(context.exception.code, "xls_invalid")
+
+    def test_trusted_artifact_identity_is_required_and_not_derived_from_source(self):
+        with self.assertRaises(TypeError):
+            parse_bci_current_cartola_xls(_CFB_SIGNATURE)
+        for invalid in (None, "", " "):
+            with self.subTest(invalid=invalid):
+                with self.assertRaisesRegex(ValueError, "artifact_identity_required"):
+                    parse_bci_current_cartola_xls(
+                        _CFB_SIGNATURE,
+                        artifact_identity=invalid,
+                    )
+
+        with self.assertRaisesRegex(ValueError, "artifact_identity_required"):
+            _parse_sheets(
+                (synthetic_current_cartola_sheet(),),
+                artifact_identity="",
+            )
 
     def test_public_parser_routes_cfb_bytes_through_thin_xlrd_adapter(self):
         sheet = synthetic_current_cartola_sheet()
@@ -280,6 +303,10 @@ class BciCurrentCartolaParserTests(unittest.TestCase):
         self.assertEqual(provenance["worksheet_ordinal"], 1)
         self.assertEqual(provenance["row_number"], 10)
         self.assertEqual(provenance["source_fields"]["source_series"]["coordinate"], "C10")
+        self.assertEqual(
+            provenance["source_fields"]["source_series"]["artifact_identity"],
+            "synthetic-artifact",
+        )
         self.assertEqual(provenance["source_fields"]["source_signed_amount"]["cell_type"], "text")
 
     def test_repeated_parsing_is_deterministic(self):

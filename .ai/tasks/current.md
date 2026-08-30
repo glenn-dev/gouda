@@ -2,9 +2,8 @@
 
 ## Objective
 
-Perform a joint BCI current-account source-boundary checkpoint across
-Historical, Current Cartola, and Recent Movements, confirming contract/parser
-consistency and identifying the next bounded lifecycle evidence task.
+Complete the narrow provenance-conformance correction identified by the joint
+BCI current-account source-boundary checkpoint.
 
 The source-only contract checkpoint is complete. Legacy XLS inspection tooling
 is available through the pinned `xlrd==2.0.1` dependency.
@@ -14,8 +13,11 @@ is available through the pinned `xlrd==2.0.1` dependency.
 BCI Historical Current Account PDF v0.1 is implemented and validated. The
 source-only contracts `bci_current_cartola_v0.1` and
 `bci_recent_movements_v0.1` are frozen and implemented as pure source parsers
-with synthetic tests and sanitized private validation. No stable cross-source
-identity rule or canonical Movement correction has been frozen.
+with synthetic tests and sanitized private validation. Current and Recent now
+require trusted nonblank artifact identity and preserve it in field
+provenance; Recent also records the selected Cargo or Abono source header and
+coordinate. No stable cross-source identity rule or canonical Movement
+correction has been frozen.
 
 ## Constraints
 
@@ -26,6 +28,7 @@ from parser outputs.
 
 ## Next action
 
-Compare all three frozen BCI boundaries and implementations for consistency,
-then identify the smallest evidence-gathering checkpoint needed before any
-lifecycle policy is designed or implemented.
+After review and commit of this provenance-only correction, acquire a
+same-account Historical statement whose intrinsic printed period covers the
+existing Current Cartola source dates. Compare it read-only as candidate
+evidence without defining identity, deduplication, or canonical semantics.
