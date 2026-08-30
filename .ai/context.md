@@ -71,11 +71,14 @@ The source-only contracts `bci_current_cartola_v0.1` and
 BCI Historical Current Account PDF v0.1 and both current-source parsers are
 implemented and validated. Their joint source-boundary review and narrow
 provenance-conformance correction are complete. The next bounded task is
-evidence acquisition: obtain a same-account Historical statement whose
-intrinsic printed period covers the existing Current Cartola source dates. No
-stable cross-source identity rule is frozen, and no canonical Movement
-correction is implemented. Do not finalize cross-source identity or canonical
-correction rules without direct rollover or corrected-source evidence.
+evidence acquisition. Existing Historical coverage contains no Current rows
+and only a partial Recent subset. If the first Current period is still open,
+capture one more same-account Current/Recent pair before closure; then retain
+the Historical statement whose intrinsic printed period covers the existing
+Current dates and uncovered Recent accounting-date tail. No stable cross-source
+identity rule is frozen, and no canonical Movement correction is implemented.
+Do not finalize cross-source identity or canonical correction rules without
+direct rollover or corrected-source evidence.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.

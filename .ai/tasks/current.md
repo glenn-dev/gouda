@@ -2,8 +2,8 @@
 
 ## Objective
 
-Complete the narrow provenance-conformance correction identified by the joint
-BCI current-account source-boundary checkpoint.
+Acquire the minimum same-account BCI evidence chain needed to observe one open
+Current/Recent period rolling into its Historical statement.
 
 The source-only contract checkpoint is complete. Legacy XLS inspection tooling
 is available through the pinned `xlrd==2.0.1` dependency.
@@ -19,6 +19,10 @@ provenance; Recent also records the selected Cargo or Abono source header and
 coordinate. No stable cross-source identity rule or canonical Movement
 correction has been frozen.
 
+The existing two Historical statements cover none of the Current capture and
+only a partial Recent subset. No available statement covers the complete open
+capture.
+
 ## Constraints
 
 Preserve private evidence outside tracked files, keep generic
@@ -28,7 +32,9 @@ from parser outputs.
 
 ## Next action
 
-After review and commit of this provenance-only correction, acquire a
-same-account Historical statement whose intrinsic printed period covers the
-existing Current Cartola source dates. Compare it read-only as candidate
-evidence without defining identity, deduplication, or canonical semantics.
+If the existing Current period is still open, capture one additional
+same-account Current Cartola and Recent Movements pair before closure. Then
+retain the Historical statement whose intrinsic printed period covers all
+existing Current source dates and the uncovered Recent accounting-date tail.
+If the statement is already available, capture it now and record that a second
+pre-close snapshot is unavailable. Do not begin identity or lifecycle design.

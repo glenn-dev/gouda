@@ -69,6 +69,106 @@ These facts prevent a permanent automatic identity or supersession rule from
 being frozen today. Exact byte identity and source-local references do not by
 themselves establish cross-variant economic identity.
 
+## Historical coverage checkpoint
+
+A read-only intrinsic-date comparison was performed without using filename
+dates. The private corpus contains two recognized, exactly reconciled
+Historical statements:
+
+- neither printed Historical period contains any of the 23 Current Cartola
+  rows or any of its 10 distinct source dates;
+- the newer Historical period contains 27 of the 50 Recent Movements rows by
+  `Fecha Contable`, spanning 10 distinct accounting dates;
+- the same period contains 27 Recent rows by `Fecha Transacción`, spanning 13
+  distinct transaction dates;
+- the remaining 23 Recent rows, including 10 distinct accounting dates, fall
+  after the latest available Historical period; and
+- no available Historical statement covers the complete Current or Recent
+  capture.
+
+The partial Recent-to-Historical coverage can test candidate behavior for that
+subset. It cannot test Current-to-Historical rollover, the uncovered Recent
+tail, or changes between an open period and its final statement.
+
+## Minimum rollover evidence protocol
+
+The smallest useful evidence set is one same-account capture chain:
+
+1. Retain the existing Current Cartola and Recent Movements artifacts as the
+   first open-period snapshot. Treat their exact bytes as evidence and their
+   filenames as non-evidence.
+2. If Current Cartola still contains source dates from that first snapshot,
+   capture one additional Current Cartola and Recent Movements pair as close
+   to period closure as practical. Download them consecutively from the same
+   trusted account context.
+3. After closure, download the Historical statement whose own printed period
+   contains all source dates from the first Current capture and the uncovered
+   Recent accounting-date tail. Verify coverage from parsed statement metadata,
+   not from its filename.
+4. If that Historical statement is already available, retain it immediately.
+   A missed second open-period snapshot must be recorded as an evidence gap;
+   it cannot be reconstructed from the closed statement.
+
+For every capture, keep a private acquisition note outside tracked fixtures
+and documentation containing:
+
+- an opaque trusted same-account context;
+- capture timestamp and timezone;
+- source variant and download order;
+- an immutable exact-byte artifact identity or digest; and
+- whether the Current capture still overlapped the first capture's source
+  dates.
+
+The protocol does not require a persistence change. It preserves evidence for
+a later read-only experiment only.
+
+## Candidate-analysis method
+
+The later experiment should validate each artifact independently with its
+frozen parser, preserve source order, and compare candidate sets rather than
+forcing one-to-one matches.
+
+Primary candidate dimensions are:
+
+- Current `source_date`, source-sign category, and amount magnitude;
+- Recent `accounting_date`, `source_direction`, and `source_amount`;
+- Historical `accounting_date`, debit/credit side, and magnitude; and
+- artifact-local row order and provenance.
+
+Recent `transaction_date` is a separate comparison dimension, not a substitute
+for `accounting_date`. Repeated date/direction/magnitude keys remain ambiguous.
+Zero Current amounts have no supported Recent or Historical counterpart and
+must remain unmatched rather than being coerced.
+
+For each candidate set, report only sanitized counts and equality results for:
+
+- exact and differing dates across source-native date fields;
+- direction and magnitude continuity;
+- exact and whitespace-only-normalized descriptions;
+- exact, blank, repeated, or changed Current series and Historical references;
+- Current row-balance continuity, Current/Recent snapshot-balance equality,
+  and exact balance endpoints visible in Historical;
+- source row counts and source order; and
+- candidates unmatched, newly appearing, changed, or participating in a
+  possible one-to-many or many-to-one amount grouping.
+
+One-to-many and many-to-one analysis may enumerate only bounded same-direction
+groups whose exact magnitudes sum and whose source dates are within the
+observed candidate window. Such groups are hypotheses, not split/merge facts.
+Description or reference similarity may rank inspection candidates but may
+not establish identity.
+
+Directly observable facts are source fields, parser outcomes, provenance,
+printed period containment, exact equality, row order, row counts, and balance
+equations within one artifact. Candidate signatures and bounded sum groups are
+analysis heuristics. Current `Fecha` becoming Historical accounting date,
+Cargo/Abono or Current sign continuity, series/reference persistence, and
+open-row rollover are hypotheses until the missing capture chain is observed.
+
+The evidence available today is insufficient to freeze cross-source identity,
+deduplication, disappearance, change, split/merge, balance supersession,
+lifecycle resolution, or canonical Movement rules.
+
 ## Architectural implication
 
 Recent and open-period evidence may eventually support an explicitly
@@ -89,3 +189,7 @@ select one permanent production source, or define final matching rules.
   required?
 - Which provisional product views are useful without implying closed-period
   authority?
+- Does one additional pre-close snapshot show rows disappearing or changing
+  before the closed statement is produced?
+- Does the closed statement preserve, split, merge, or omit open-period rows,
+  and can any such behavior be distinguished from candidate ambiguity?

@@ -25,10 +25,10 @@ reconciled Historical-only resolution policy.
 ## Functional checkpoint
 
 The latest committed functional checkpoint is
-`5c9553c1f038dcb9051c4a6a1fdd27309c87860b` (`feat: implement BCI current
-cartola XLS parser`). The narrow Current/Recent provenance-conformance
-correction is implemented but uncommitted; Git commands at cold start
-determine the current working-tree state.
+`d9bc5823cd4caa37d691242deae8547f673c4c64` (`fix: enforce BCI source
+provenance identity`). The lifecycle evidence-acquisition plan is documented
+but uncommitted; Git commands at cold start determine the current working-tree
+state.
 
 ## Observation/resolution checkpoint
 
@@ -144,13 +144,34 @@ masquerade as source text. Both implementations have no persistence,
 observation resolution, cross-source identity, deduplication, or Movement
 behavior.
 
-The joint source-boundary review found one narrow provenance gap. The current
-working tree corrects it by requiring explicit nonblank trusted artifact
-identity for both current-source parsers, preserving that identity at record
-and field level, and recording Recent's selected Cargo or Abono header and
-cell coordinate. Frozen recognition and source-native semantics are unchanged.
+The joint source-boundary review found one narrow provenance gap. The committed
+provenance checkpoint corrected it by requiring explicit nonblank trusted
+artifact identity for both current-source parsers, preserving that identity at
+record and field level, and recording Recent's selected Cargo or Abono header
+and cell coordinate. Frozen recognition and source-native semantics are
+unchanged.
 Historical provenance remains intentionally linked to immutable artifacts at
 the `SourceArtifact` / `ImportBatch` / `RawRecord` persistence boundary.
+
+## Lifecycle evidence-acquisition checkpoint
+
+Intrinsic parser dates, not filenames, show that neither available Historical
+statement covers any Current row. The newer Historical period covers a partial
+Recent subset, while no available statement covers the complete Recent
+capture. Existing evidence therefore cannot test Current rollover or the
+uncovered Recent tail.
+
+The minimum next capture chain is conditional and time-sensitive: if the first
+Current period remains open, retain one more consecutive same-account Current
+and Recent pair before closure. Then retain the Historical statement whose own
+printed period covers all first-capture Current dates and the uncovered Recent
+accounting dates. If Historical is already available, capture it immediately
+and preserve the missing second open snapshot as an explicit evidence gap.
+
+Later analysis must use source-native candidate sets and sanitized counts only.
+Repeated keys stay ambiguous; descriptions and references are hints; bounded
+sum groups are split/merge hypotheses. No identity, deduplication, lifecycle,
+or canonical rule is authorized by this plan.
 
 ## Current Cartola implementation checkpoint
 
@@ -162,11 +183,11 @@ available private artifact is recognized read-only with no rejected rows.
 
 ## Next checkpoint
 
-After review and commit of the provenance-only correction, acquire a
-same-account Historical statement whose intrinsic printed period covers the
-existing Current Cartola source dates. Use it only for a read-only rollover
-evidence checkpoint; do not define identity, deduplication, lifecycle policy,
-or canonical semantics prematurely.
+If the existing Current period remains open, capture one additional
+same-account Current/Recent pair before closure. Then acquire the Historical
+statement whose intrinsic printed period covers the existing Current dates and
+uncovered Recent accounting dates. If closure has already occurred, acquire
+Historical now and record the unavailable second snapshot as an evidence gap.
 
 ## Cold-start reading order
 
