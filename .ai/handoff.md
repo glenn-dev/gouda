@@ -24,11 +24,10 @@ reconciled Historical-only resolution policy.
 
 ## Functional checkpoint
 
-The latest committed functional checkpoint is
-`d9bc5823cd4caa37d691242deae8547f673c4c64` (`fix: enforce BCI source
-provenance identity`). The lifecycle evidence-acquisition plan is documented
-but uncommitted; Git commands at cold start determine the current working-tree
-state.
+The latest committed checkpoint is
+`0ce69c05eddb341b17e238ef2c229d40ece4271e` (`docs: define BCI
+current-account lifecycle evidence plan`). Git commands at cold start
+determine whether the open-source strategy reassessment remains uncommitted.
 
 ## Observation/resolution checkpoint
 
@@ -173,6 +172,32 @@ Repeated keys stay ambiguous; descriptions and references are hints; bounded
 sum groups are split/merge hypotheses. No identity, deduplication, lifecycle,
 or canonical rule is authorized by this plan.
 
+## Open-period source strategy checkpoint
+
+Current Cartola is the preferred normal open-period source strategy. Recent
+Movements is retained as research and diagnostic support, not as a parallel
+operational pipeline. In the same-capture sample, all 23 Current rows have one
+unique Recent candidate using accounting date, source-native direction, and
+magnitude. Recent's remaining 27 rows fall inside the newer available
+Historical period, so its deeper rolling window does not add uncovered
+open-period coverage in this sample. These are candidate observations, not
+identity.
+
+Current is preferred because it is period-scoped and preserves a source-signed
+amount, opaque series, and per-row accounting balance. All 22 adjacent balance
+equations hold in the observed artifact. Recent provides dual dates and is
+easier to maintain as OOXML, but those advantages do not outweigh Current's
+row-level validation evidence under the fidelity-first priority. The exact
+50-row Recent extent is not proof of a service cap, and one Current capture is
+not proof of universal completeness.
+
+The selection must be revisited if later evidence shows Current omitting
+same-period rows, truncating or becoming unreliable, failing its balance
+chain, or rolling into Historical less usefully than Recent accounting dates.
+No parser is deleted or deprecated. An ADR should precede operational
+integration after a one-time selection challenge or direct rollover evidence
+is available.
+
 ## Current Cartola implementation checkpoint
 
 `bci_current_cartola_v0.1` is implemented as a pure source parser. A thin
@@ -184,10 +209,12 @@ available private artifact is recognized read-only with no rejected rows.
 ## Next checkpoint
 
 If the existing Current period remains open, capture one additional
-same-account Current/Recent pair before closure. Then acquire the Historical
-statement whose intrinsic printed period covers the existing Current dates and
-uncovered Recent accounting dates. If closure has already occurred, acquire
-Historical now and record the unavailable second snapshot as an evidence gap.
+same-account Current snapshot before closure. A consecutively downloaded
+Recent snapshot remains useful only once as a challenge to the selection, not
+as a normal input. Then acquire the Historical statement whose intrinsic
+printed period covers the Current dates. If closure has already occurred,
+acquire Historical now and record the unavailable second snapshot as an
+evidence gap.
 
 ## Cold-start reading order
 

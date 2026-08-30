@@ -70,15 +70,22 @@ The source-only contracts `bci_current_cartola_v0.1` and
 
 BCI Historical Current Account PDF v0.1 and both current-source parsers are
 implemented and validated. Their joint source-boundary review and narrow
-provenance-conformance correction are complete. The next bounded task is
-evidence acquisition. Existing Historical coverage contains no Current rows
-and only a partial Recent subset. If the first Current period is still open,
-capture one more same-account Current/Recent pair before closure; then retain
-the Historical statement whose intrinsic printed period covers the existing
-Current dates and uncovered Recent accounting-date tail. No stable cross-source
-identity rule is frozen, and no canonical Movement correction is implemented.
-Do not finalize cross-source identity or canonical correction rules without
-direct rollover or corrected-source evidence.
+provenance-conformance correction are complete. Current Cartola is now the
+preferred normal open-period source strategy; Recent Movements remains
+research and diagnostic support rather than a parallel pipeline. This choice
+prioritizes Current's period-scoped coverage, per-row balance chain, and opaque
+series evidence over Recent's lower-maintenance OOXML format and dual dates.
+
+The next bounded task is evidence acquisition. Existing Historical coverage
+contains no Current rows. If the first Current period is still open, capture
+one more same-account Current snapshot before closure, then retain the
+Historical statement whose intrinsic printed period covers the Current dates.
+One final consecutively downloaded Current/Recent pair is useful only as a
+one-time challenge to the source selection; it is not an operational
+requirement. No stable cross-source identity rule is frozen, and no canonical
+Movement correction is implemented. Do not finalize cross-source identity or
+canonical correction rules without direct rollover or corrected-source
+evidence.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.
