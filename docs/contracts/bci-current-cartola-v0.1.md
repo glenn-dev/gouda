@@ -17,7 +17,7 @@ This contract covers the observed BCI Current Cartola legacy XLS profile:
 - one readable legacy Microsoft Excel CFB/XLS workbook;
 - one visible worksheet;
 - a merged title region;
-- seven metadata rows, one blank separator, one transaction header row, and
+- six metadata rows, one blank separator, one transaction header row, and
   a contiguous transaction region;
 - five source columns;
 - dates and monetary values stored as text; and

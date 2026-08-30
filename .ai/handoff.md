@@ -24,10 +24,11 @@ reconciled Historical-only resolution policy.
 
 ## Functional checkpoint
 
-The latest completed functional checkpoint is commit
-`463e715ff1e424d8e5bea03a00d03f8da4046071` (`feat: implement BCI historical
-current account import`). This is the functional checkpoint being handed off;
-Git commands at cold start determine the current HEAD.
+The latest committed functional checkpoint is
+`dc645a4a45e043987de1e891f3111bb1a3c02adf` (`feat: implement BCI recent
+movements XLSX parser`). The Current Cartola parser checkpoint is implemented
+but uncommitted; Git commands at cold start determine the current HEAD and
+working-tree state.
 
 ## Observation/resolution checkpoint
 
@@ -137,15 +138,26 @@ extraction only. Current preserves `source_date`, `source_series`,
 Recent preserves distinct transaction/accounting dates, merged `C:F`
 descriptions, and Cargo/Abono XOR direction without canonical sign meaning.
 The Recent worksheet dimension anomaly is an explicit parser requirement and
-is handled by direct OOXML cell discovery. Recent's implementation has no
-persistence, observation resolution, cross-source identity, deduplication, or
-Movement behavior.
+is handled by direct OOXML cell discovery. Current uses the pinned legacy-XLS
+reader plus a narrow BIFF formula-record check so cached formula values cannot
+masquerade as source text. Both implementations have no persistence,
+observation resolution, cross-source identity, deduplication, or Movement
+behavior.
 
-## Next implementation slice
+## Current Cartola implementation checkpoint
 
-Implement `bci_current_cartola_v0.1` next with synthetic fixtures and
-deterministic tests. Keep both parser boundaries pure and source-native; do
-not add persistence or lifecycle semantics.
+`bci_current_cartola_v0.1` is implemented as a pure source parser. A thin
+`xlrd==2.0.1` adapter produces immutable source-cell snapshots; synthetic
+tests exercise recognition, parsing, provenance, formula/type rejection, and
+money/date validation without adding an XLS writer or binary fixture. The
+available private artifact is recognized read-only with no rejected rows.
+
+## Next checkpoint
+
+Perform a joint BCI current-account source-boundary checkpoint across
+Historical, Current Cartola, and Recent Movements. Confirm contract/parser
+consistency and identify the next bounded lifecycle evidence task; do not
+immediately implement lifecycle or canonical semantics.
 
 ## Cold-start reading order
 
