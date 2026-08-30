@@ -38,6 +38,9 @@ context. `.ai/` is not canonical product documentation.
   reopen, and interpretation supersession under Account-scoped locking.
 - Private source corpora remain ignored, untracked, and outside committed test
   fixtures.
+- Pinned `xlrd==2.0.1` now enables read-only inspection of legacy XLS
+  artifacts; the available BCI Current Cartola XLS has been structurally
+  inspected, but no Current parser or semantic contract exists.
 
 ## Implemented target evolution
 

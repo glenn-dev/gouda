@@ -114,6 +114,14 @@ unsupported cross-source identity semantics. Do not implement Current Cartola
 yet, Recent Movements, universal transaction identity, canonical Movement
 correction, overdraft models, AI, or a generic provider framework.
 
+## Legacy XLS tooling checkpoint
+
+`requirements.txt` pins `xlrd==2.0.1` for read-only legacy XLS inspection.
+`tests/test_legacy_xls_dependency.py` verifies the pinned reader dependency;
+no synthetic XLS fixture was added because the existing toolchain has no XLS
+writer. The available Current Cartola XLS is structurally readable with
+`xlrd`; its semantic review and any Current contract remain pending.
+
 ## Cold-start reading order
 
 Read `AGENTS.md`, the README documentation map,

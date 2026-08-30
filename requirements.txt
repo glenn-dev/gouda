@@ -1,4 +1,5 @@
 openpyxl>=3.1,<4
+xlrd==2.0.1
 Django>=4.2,<5
 psycopg[binary]>=3.1,<4
 pdfplumber==0.11.8
