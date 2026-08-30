@@ -66,8 +66,9 @@ are unstable, and no universal transaction identity is proven. Direct
 Current-to-Historical rollover overlap has not yet been observed.
 
 This supports an observation/resolution boundary. Historical is now the
-implemented BCI slice; it does not freeze a permanent cross-source identity
-rule or authorize Current/Recent ingestion.
+implemented BCI slice. Current and Recent source-only parser contracts are
+now frozen, but they do not freeze a permanent cross-source identity rule or
+authorize lifecycle/canonical interpretation.
 
 ## Guardrails
 
@@ -106,13 +107,13 @@ changing their generic domain semantics. A trusted expected source-account
 identifier remains explicit protected caller context for v0.1 rather than a
 new binding model.
 
-## Next discovery slice
+## Completed source discovery slice
 
-The likely next discovery slice is BCI Current Cartola. Determine its bounded
-contract from existing source evidence before implementation; do not freeze
-unsupported cross-source identity semantics. Do not implement Current Cartola
-yet, Recent Movements, universal transaction identity, canonical Movement
-correction, overdraft models, AI, or a generic provider framework.
+The BCI Current Cartola and Recent Movements source discovery slice is
+complete. Their bounded source-only contracts are frozen; unsupported
+cross-source identity semantics remain deferred. Universal transaction
+identity, canonical Movement correction, overdraft models, AI, and a generic
+provider framework remain out of scope.
 
 ## Legacy XLS tooling checkpoint
 
@@ -120,7 +121,31 @@ correction, overdraft models, AI, or a generic provider framework.
 `tests/test_legacy_xls_dependency.py` verifies the pinned reader dependency;
 no synthetic XLS fixture was added because the existing toolchain has no XLS
 writer. The available Current Cartola XLS is structurally readable with
-`xlrd`; its semantic review and any Current contract remain pending.
+`xlrd`; its semantic review is complete and its source-only contract is now
+frozen.
+
+## Frozen BCI source-parser contracts
+
+The source-only contracts are frozen at:
+
+- `docs/contracts/bci-current-cartola-v0.1.md`
+- `docs/contracts/bci-recent-movements-v0.1.md`
+
+They define deterministic, fail-closed recognition and source-native
+extraction only. Current preserves `source_date`, `source_series`,
+`source_signed_amount`, and `source_balance` without broader semantics.
+Recent preserves distinct transaction/accounting dates, merged `C:F`
+descriptions, and Cargo/Abono XOR direction without canonical sign meaning.
+The Recent worksheet dimension anomaly is an explicit parser requirement.
+No production parser, persistence, observation resolution, cross-source
+identity, deduplication, or Movement behavior is implemented.
+
+## Next implementation slice
+
+Implement `bci_recent_movements_v0.1` first with synthetic fixtures and
+deterministic tests, then `bci_current_cartola_v0.1`. Keep both parser
+boundaries pure and source-native; do not add persistence or lifecycle
+semantics.
 
 ## Cold-start reading order
 

@@ -9,14 +9,18 @@ identifiers, descriptions, references, amounts, or balances.
 The observations motivate Gouda's evidence and resolution architecture. The
 Historical source now has a narrow deterministic design contract in
 [the BCI historical PDF contract](../contracts/bci-historical-current-account-pdf-v0.1.md).
-This lifecycle note still does not freeze a permanent multi-source strategy or
-transaction identity algorithm.
+The Current and Recent source variants now have separate source-only contracts:
+[Current Cartola](../contracts/bci-current-cartola-v0.1.md) and
+[Recent Movements](../contracts/bci-recent-movements-v0.1.md). This lifecycle
+note still does not freeze a permanent multi-source strategy or transaction
+identity algorithm.
 
 The v0.1 Historical route is implemented as a native-text, geometry-aware
 evidence-first import. It creates unresolved observations from reconciled or
 non-reconciled parsed rows; only the separate conservative Historical policy
 may confirm a reconciled row as a new canonical Movement. Recent and Current
-remain outside this route.
+source contracts are frozen for source recognition/extraction only; their
+parsers and lifecycle routes remain unimplemented.
 
 ## Observed source roles
 

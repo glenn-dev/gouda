@@ -40,7 +40,7 @@ context. `.ai/` is not canonical product documentation.
   fixtures.
 - Pinned `xlrd==2.0.1` now enables read-only inspection of legacy XLS
   artifacts; the available BCI Current Cartola XLS has been structurally
-  inspected, but no Current parser or semantic contract exists.
+  inspected.
 
 ## Implemented target evolution
 
@@ -52,14 +52,17 @@ No AI interpretation runtime, canonical Movement correction, workflow engine,
 or generic provider framework is implemented. The BCI Historical current-account PDF v0.1
 parser, narrow evidence persistence, unresolved observation import, and
 conservative reconciled Historical policy are implemented and validated.
+The source-only contracts `bci_current_cartola_v0.1` and
+`bci_recent_movements_v0.1` are frozen; neither parser is implemented.
 
 ## Current direction
 
-BCI Historical Current Account PDF v0.1 is implemented and validated. BCI
-Current and BCI Recent remain unimplemented, no stable cross-source identity
-rule is frozen, and no canonical Movement correction is implemented. Do not
-finalize cross-source identity or canonical correction rules without direct
-rollover or corrected-source evidence.
+BCI Historical Current Account PDF v0.1 is implemented and validated. The
+source-only Current Cartola and Recent Movements v0.1 contracts are frozen,
+but both parsers remain unimplemented. No stable cross-source identity rule is
+frozen, and no canonical Movement correction is implemented. Do not finalize
+cross-source identity or canonical correction rules without direct rollover
+or corrected-source evidence.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.
