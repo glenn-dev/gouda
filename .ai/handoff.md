@@ -136,16 +136,16 @@ extraction only. Current preserves `source_date`, `source_series`,
 `source_signed_amount`, and `source_balance` without broader semantics.
 Recent preserves distinct transaction/accounting dates, merged `C:F`
 descriptions, and Cargo/Abono XOR direction without canonical sign meaning.
-The Recent worksheet dimension anomaly is an explicit parser requirement.
-No production parser, persistence, observation resolution, cross-source
-identity, deduplication, or Movement behavior is implemented.
+The Recent worksheet dimension anomaly is an explicit parser requirement and
+is handled by direct OOXML cell discovery. Recent's implementation has no
+persistence, observation resolution, cross-source identity, deduplication, or
+Movement behavior.
 
 ## Next implementation slice
 
-Implement `bci_recent_movements_v0.1` first with synthetic fixtures and
-deterministic tests, then `bci_current_cartola_v0.1`. Keep both parser
-boundaries pure and source-native; do not add persistence or lifecycle
-semantics.
+Implement `bci_current_cartola_v0.1` next with synthetic fixtures and
+deterministic tests. Keep both parser boundaries pure and source-native; do
+not add persistence or lifecycle semantics.
 
 ## Cold-start reading order
 

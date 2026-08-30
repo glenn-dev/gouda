@@ -19,8 +19,9 @@ The v0.1 Historical route is implemented as a native-text, geometry-aware
 evidence-first import. It creates unresolved observations from reconciled or
 non-reconciled parsed rows; only the separate conservative Historical policy
 may confirm a reconciled row as a new canonical Movement. Recent and Current
-source contracts are frozen for source recognition/extraction only; their
-parsers and lifecycle routes remain unimplemented.
+source contracts are frozen for source recognition/extraction only. The
+Recent parser is implemented as a pure source parser; the Current parser and
+both lifecycle routes remain unimplemented.
 
 ## Observed source roles
 
