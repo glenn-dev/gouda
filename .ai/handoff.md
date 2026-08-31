@@ -25,9 +25,9 @@ reconciled Historical-only resolution policy.
 ## Functional checkpoint
 
 The latest committed checkpoint is
-`0ce69c05eddb341b17e238ef2c229d40ece4271e` (`docs: define BCI
-current-account lifecycle evidence plan`). Git commands at cold start
-determine whether the open-source strategy reassessment remains uncommitted.
+`423b008e012002a22a0f72fa8173f787f9c2aa98` (`docs: choose BCI current
+cartola for open period`). Git commands at cold start determine whether the T2
+falsification checkpoint remains uncommitted.
 
 ## Observation/resolution checkpoint
 
@@ -160,12 +160,10 @@ Recent subset, while no available statement covers the complete Recent
 capture. Existing evidence therefore cannot test Current rollover or the
 uncovered Recent tail.
 
-The minimum next capture chain is conditional and time-sensitive: if the first
-Current period remains open, retain one more consecutive same-account Current
-and Recent pair before closure. Then retain the Historical statement whose own
-printed period covers all first-capture Current dates and the uncovered Recent
-accounting dates. If Historical is already available, capture it immediately
-and preserve the missing second open snapshot as an explicit evidence gap.
+The open-period chain now contains T1 and T2 Current snapshots plus the
+completed one-time paired Recent challenge. The only missing lifecycle evidence
+is the Historical statement whose own printed period covers the Current source
+dates. If Historical is already available, capture it immediately.
 
 Later analysis must use source-native candidate sets and sanitized counts only.
 Repeated keys stay ambiguous; descriptions and references are hints; bounded
@@ -176,27 +174,46 @@ or canonical rule is authorized by this plan.
 
 Current Cartola is the preferred normal open-period source strategy. Recent
 Movements is retained as research and diagnostic support, not as a parallel
-operational pipeline. In the same-capture sample, all 23 Current rows have one
-unique Recent candidate using accounting date, source-native direction, and
-magnitude. Recent's remaining 27 rows fall inside the newer available
-Historical period, so its deeper rolling window does not add uncovered
-open-period coverage in this sample. These are candidate observations, not
-identity.
+operational pipeline. At T1 all 23 Current rows and at T2 all 27 Current rows
+have one unique Recent candidate using accounting date, source-native
+direction, and magnitude. Recent's deeper rows fall outside Current's parsed
+open-tail range. These are candidate observations, not identity.
 
 Current is preferred because it is period-scoped and preserves a source-signed
-amount, opaque series, and per-row accounting balance. All 22 adjacent balance
-equations hold in the observed artifact. Recent provides dual dates and is
-easier to maintain as OOXML, but those advantages do not outweigh Current's
-row-level validation evidence under the fidelity-first priority. The exact
-50-row Recent extent is not proof of a service cap, and one Current capture is
-not proof of universal completeness.
+amount, opaque series, and per-row accounting balance. All 22 T1 and 26 T2
+adjacent balance equations hold. Recent provides dual dates and is easier to
+maintain as OOXML, but those advantages do not outweigh Current's row-level
+validation evidence under the fidelity-first priority. Both Recent captures
+contain exactly 50 rows and show boundary replacement consistent with a fixed
+rolling shape, but that is not proof of a documented service cap.
 
 The selection must be revisited if later evidence shows Current omitting
 same-period rows, truncating or becoming unreliable, failing its balance
 chain, or rolling into Historical less usefully than Recent accounting dates.
 No parser is deleted or deprecated. An ADR should precede operational
-integration after a one-time selection challenge or direct rollover evidence
-is available.
+integration after direct rollover evidence is available.
+
+## T2 falsification checkpoint
+
+The one-time paired T2 challenge did not falsify Current as the preferred
+normal open-period source. Current recognizes 27 rows and passes all 26
+adjacent balance equations. Within the date range defined by parsed Current
+source dates, all 27 Recent accounting-date rows have exactly one Current
+candidate using source-native direction and magnitude; Recent's other 23 rows
+are older, and none is newer than Current's maximum parsed date.
+
+Current retains all 23 T1 candidate signatures in source order and adds four.
+Recent remains at exactly 50 rows, drops four candidates at its oldest
+boundary, and adds four newer candidates while preserving common order. This
+strongly supports a fixed-size rolling shape but does not prove a documented
+hard cap. Routine paired capture can stop.
+
+One shared unique Current candidate signature changes description, opaque
+series, and row balance between T1 and T2 while the corresponding Recent
+candidate retains its transaction date and description. The date,
+source-direction category, and magnitude candidate signature remains present.
+This is source volatility, not cross-source or cross-capture identity and not
+proof of authority. It must remain explicit in the later rollover experiment.
 
 ## Current Cartola implementation checkpoint
 
@@ -204,17 +221,15 @@ is available.
 `xlrd==2.0.1` adapter produces immutable source-cell snapshots; synthetic
 tests exercise recognition, parsing, provenance, formula/type rejection, and
 money/date validation without adding an XLS writer or binary fixture. The
-available private artifact is recognized read-only with no rejected rows.
+available private artifacts are recognized read-only with no rejected rows.
 
 ## Next checkpoint
 
-If the existing Current period remains open, capture one additional
-same-account Current snapshot before closure. A consecutively downloaded
-Recent snapshot remains useful only once as a challenge to the selection, not
-as a normal input. Then acquire the Historical statement whose intrinsic
-printed period covers the Current dates. If closure has already occurred,
-acquire Historical now and record the unavailable second snapshot as an
-evidence gap.
+After closure, acquire the Historical statement whose intrinsic printed period
+covers the Current dates. Then run a read-only Current-to-Historical candidate
+experiment that explicitly includes the one volatile T1/T2 candidate
+signature. Do not continue routine Recent capture and do not freeze identity,
+deduplication, lifecycle, persistence, or canonical rules.
 
 ## Cold-start reading order
 

@@ -2,8 +2,8 @@
 
 ## Objective
 
-Acquire the minimum same-account BCI evidence chain needed to observe one open
-Current Cartola period rolling into its Historical statement.
+Acquire the Historical statement needed to observe the captured open Current
+Cartola period rolling into a closed period.
 
 The source-only contract checkpoint is complete. Legacy XLS inspection tooling
 is available through the pinned `xlrd==2.0.1` dependency.
@@ -27,6 +27,15 @@ Current Cartola is the preferred normal open-period source. Recent Movements
 is retained as research and diagnostic support, not as a coexisting production
 pipeline. This source selection is not an identity or lifecycle rule.
 
+The one-time T2 paired challenge is complete. T2 Current has 27 parsed rows and
+an exact 26-step balance chain. Every contemporaneous T2 Recent accounting-date
+candidate has exactly one Current candidate; Recent's other 23 rows are older
+than Current's parsed range. Recent remains at 50 rows while its oldest
+boundary advances, strongly supporting a rolling fixed-size shape without
+proving a service cap. One shared T1/T2 Current candidate signature changes
+description, opaque series, and row balance; it remains unresolved source
+volatility rather than a transaction identity.
+
 ## Constraints
 
 Preserve private evidence outside tracked files, keep generic
@@ -36,11 +45,8 @@ from parser outputs.
 
 ## Next action
 
-If the existing Current period is still open, capture one additional
-same-account Current Cartola snapshot before closure. If operationally easy,
-capture Recent Movements immediately afterward as a final one-time challenge
-to the source selection, not as a required pipeline input. Then retain the
-Historical statement whose intrinsic printed period covers all Current source
-dates. If the statement is already available, capture it now and record that a
-second pre-close snapshot is unavailable. Do not begin identity or lifecycle
+After closure, retain the Historical statement whose intrinsic printed period
+covers all Current source dates. Then run a read-only Current-to-Historical
+candidate experiment, including the one volatile T1/T2 candidate signature.
+Do not resume routine Recent capture and do not begin identity or lifecycle
 design.

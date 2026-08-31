@@ -66,22 +66,26 @@ format maintainability and download simplicity.
 
 | Criterion | Current Cartola | Recent Movements | Assessment |
 | --- | --- | --- | --- |
-| Same-capture open-period coverage | 23 rows across 10 source dates in the observed open tail | One unique accounting-date/direction/magnitude candidate for each of those 23 rows, plus 27 older rows already inside the available Historical period | No observed Recent advantage for the uncovered open tail. Candidate alignment is not identity. |
-| Temporal depth | Period-scoped open view; observed source-date span is 18 days | Rolling view; observed accounting and transaction-date spans are each 35 days | Recent is deeper, but its extra observed depth duplicates a closed-period coverage window rather than extending the open tail. |
+| Same-capture open-period coverage | T1 has 23 rows; T2 has 27 | At both captures, every Current row has exactly one accounting-date/direction/magnitude candidate; T2 has 23 additional older rows outside Current's parsed date range | No observed Recent advantage for either contemporaneous open tail. Candidate alignment is not identity. |
+| Temporal depth | Period-scoped open view; source-date span grows from 18 to 24 days | Rolling view; accounting-date span grows from 35 to 40 days | Recent is deeper, but its extra T2 depth remains older than Current's parsed window. |
 | Source-native transaction evidence | One unresolved source date, description, opaque series, signed source amount, and per-row accounting balance | Distinct transaction and accounting dates, description, and Cargo/Abono magnitude; no row balance or reference | Current carries stronger row-level validation evidence. Recent carries stronger date-disambiguation evidence. |
 | Historical comparison | No direct Current-to-Historical rollover is available | Accounting date produces 27 strong Historical candidates, compared with 12 using transaction date | Recent is stronger for the partial lifecycle experiment, but this does not establish identity or make it the better ongoing open source. |
-| Internal financial validation | All 22 observed adjacent running-balance equations hold; the newest row balance agrees with the Current snapshot accounting balance | Only snapshot balances are present, and v0.1 deliberately does not extract them; no per-row balance exists | Current is materially stronger for detecting row or ordering anomalies inside one artifact. |
+| Internal financial validation | All 22 T1 and all 26 T2 adjacent running-balance equations hold | Only snapshot balances are present, and v0.1 deliberately does not extract them; no per-row balance exists | Current is materially stronger for detecting row or ordering anomalies inside one artifact. |
 | Reference evidence | `Serie` exists on every observed row but remains opaque | No row reference field | Current retains potentially useful evidence, without claiming identity semantics. |
 | Format and parser burden | Legacy CFB/XLS, pinned `xlrd==2.0.1`, and BIFF formula-record inspection | OOXML/XLSX with direct cell discovery, merge handling, and a misleading declared dimension | Recent is easier to maintain. Current's fidelity advantage is accepted despite this cost. |
-| Operational shape | One period-scoped download for the open period | One rolling/recent download whose observed 50-row extent may or may not be a service limit | Both are one download. A rolling-view truncation risk is plausible but unproven. |
+| Operational shape | One period-scoped download that grows from 23 to 27 rows between captures | Both captures contain exactly 50 rows; T2 replaces four oldest-boundary candidate signatures with four newer candidates | Recent strongly resembles a fixed-size rolling window, but no explicit hard-cap marker has been observed. |
 
-The observed Recent workbook contains exactly 50 rows. That is direct evidence
-of this artifact's extent, not proof of a fixed service cap. Likewise, one
-Current artifact does not prove universal open-period completeness. The
-selection should be revisited if a future capture shows that Current omits
-same-period evidence retained by Recent, Current is capped or unreliable, its
-balance chain fails, or Current source dates fail to behave usefully at
-Historical rollover while Recent accounting dates remain stable.
+Both observed Recent workbooks contain exactly 50 rows. Between T1 and T2, four
+oldest-boundary accounting-date/direction/magnitude candidates disappear and
+four newer candidates appear while the common candidate order remains stable.
+This is strong evidence of a fixed-size rolling shape, but it is not proof of
+a documented service cap. Current grows by four rows, retains all 23 T1
+candidate signatures in source order, and adds four T2 candidates. Two
+captures still do not prove universal open-period completeness. The selection
+should be revisited if a future capture shows that Current omits same-period
+evidence retained by Recent, Current is capped or unreliable, its balance
+chain fails, or Current source dates fail to behave usefully at Historical
+rollover while Recent accounting dates remain stable.
 
 Choosing Current means the normal open-period path does not retain Recent's
 explicit transaction date, explicit accounting-date label, or Cargo/Abono
@@ -91,6 +95,49 @@ normal open-period acquisition: each observed Current row has a unique Recent
 candidate on Recent accounting date plus source-native direction and magnitude,
 and the Current rows add per-row balances and series evidence. Recent's older
 rows are also covered by the candidate closed-period source, Historical.
+
+## T2 source-selection falsification checkpoint
+
+The one-time paired T2 challenge did not falsify the Current preference. The
+comparison window was defined from parsed evidence as the inclusive minimum to
+maximum T2 Current `source_date` range; filenames were not used as source-date
+evidence.
+
+Direct parser and source-local observations are:
+
+- Current recognizes 27 transaction rows over 13 distinct source dates and a
+  24-day span, with no rejected row;
+- Recent recognizes 50 transaction rows over 22 distinct accounting dates and
+  a 40-day accounting-date span, with no rejected row;
+- every one of the 27 Current rows has exactly one Recent candidate using
+  accounting date, compatible source direction, and magnitude;
+- all 27 Recent rows inside the Current date range have exactly one Current
+  candidate, no Recent accounting-date row is newer than the Current maximum,
+  and the remaining 23 Recent rows are older than the Current minimum;
+- using Recent transaction date instead leaves 12 Current rows without a
+  candidate, yields 14 unique candidates, and makes one Current candidate
+  ambiguous between two Recent rows; and
+- only 4 of the 27 accounting-date candidates have equal descriptions after
+  limited text normalization, confirming that description equality is weak
+  evidence.
+
+Across captures, all 23 T1 Current candidate signatures remain in T2 and four
+new signatures appear; no T1 signature disappears. Twenty-two of the 23
+shared unique candidate signatures retain equal descriptions, opaque series,
+and row balances. One shared candidate signature changes all three fields even
+though its date, source-sign category, and magnitude signature remains present.
+The corresponding Recent candidate retains its transaction date and
+description. This is direct evidence of open-source field volatility, not
+proof that the two rows are one transaction or that either representation is
+more authoritative. It weakens any use of `Serie`, description, or row balance
+as stable identity evidence but does not show a contemporaneous financial
+observation omitted by Current. Both Current balance chains remain internally
+exact.
+
+The result therefore confirms Current Cartola as the preferred normal
+open-period source under the existing fidelity-first criteria. Routine paired
+Current/Recent capture can stop. Recent remains available only for a targeted
+diagnostic if later evidence triggers one of the falsification conditions.
 
 ## Overlap and identity
 
@@ -115,8 +162,7 @@ A read-only intrinsic-date comparison was performed without using filename
 dates. The private corpus contains two recognized, exactly reconciled
 Historical statements:
 
-- neither printed Historical period contains any of the 23 Current Cartola
-  rows or any of its 10 distinct source dates;
+- neither printed Historical period contains any T1 or T2 Current Cartola row;
 - the newer Historical period contains 27 of the 50 Recent Movements rows by
   `Fecha Contable`, spanning 10 distinct accounting dates;
 - the same period contains 27 Recent rows by `Fecha Transacción`, spanning 13
@@ -132,31 +178,22 @@ tail, or changes between an open period and its final statement.
 
 ## Minimum rollover evidence protocol
 
-The smallest useful operational evidence set is now one same-account
-Current-to-Historical capture chain:
+The smallest useful operational evidence set is one same-account
+Current-to-Historical capture chain. Its open-period captures are complete:
 
-1. Retain the existing Current Cartola artifact as the first open-period
-   snapshot. Retain the existing paired Recent artifact as research evidence,
-   not as an operational dependency. Treat exact bytes as evidence and
-   filenames as non-evidence.
-2. If Current Cartola still contains source dates from that first snapshot,
-   capture one additional Current Cartola snapshot as close to period closure
-   as practical from the same trusted account context.
-3. After closure, download the Historical statement whose own printed period
+1. Retain the T1 and T2 Current Cartola artifacts as the two open-period
+   snapshots. Retain their paired Recent artifacts as completed research
+   evidence, not as an operational dependency. Treat exact bytes as evidence
+   and filenames as non-evidence.
+2. After closure, download the Historical statement whose own printed period
    contains all source dates from the Current captures. Verify coverage from
    parsed statement metadata, not from its filename.
-4. If that Historical statement is already available, retain it immediately.
-   A missed second open-period snapshot must be recorded as an evidence gap;
-   it cannot be reconstructed from the closed statement.
+3. If that Historical statement is already available, retain it immediately.
 
-One additional paired Current/Recent capture is still useful if it can be made
-consecutively at the second snapshot. It is a one-time selection challenge,
-not part of the normal acquisition protocol. It should test whether Current
-continues to cover the contemporaneous open tail, whether Recent appears
-truncated, and whether their candidate alignment persists in a later or
-higher-activity sample. After that challenge, future acquisition can use only
-Current and the corresponding Historical statement unless a falsification
-condition occurs.
+The one-time paired Current/Recent selection challenge is complete. Future
+routine acquisition should use Current and the corresponding Historical
+statement only. Another Recent capture is warranted only if contradictory
+evidence triggers a documented falsification condition.
 
 For every capture, keep a private acquisition note outside tracked fixtures
 and documentation containing:
@@ -226,10 +263,10 @@ accounting interpretation while all source evidence remains auditable.
 
 This lifecycle is a concrete reason to place interpreted observations and
 resolution before canonical `Movement`. The source-strategy recommendation
-does not authorize BCI ingestion or define final matching rules. An ADR should
-be created before operational integration is authorized, after the one-time
-selection challenge or direct Current-to-Historical rollover evidence can be
-reviewed.
+does not authorize BCI ingestion or define final matching rules. The T2
+challenge resolves the bounded open-source preference but not rollover. An ADR
+remains deferred until direct Current-to-Historical evidence can be reviewed
+and should be created before operational integration is authorized.
 
 ## Open questions
 
@@ -241,7 +278,7 @@ reviewed.
   required?
 - Which provisional product views are useful without implying closed-period
   authority?
-- Does one additional pre-close snapshot show rows disappearing or changing
-  before the closed statement is produced?
+- Does Historical preserve or clarify the one T1-to-T2 candidate signature
+  whose Current description, opaque series, and row balance changed?
 - Does the closed statement preserve, split, merge, or omit open-period rows,
   and can any such behavior be distinguished from candidate ambiguity?

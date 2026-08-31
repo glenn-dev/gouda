@@ -77,15 +77,23 @@ prioritizes Current's period-scoped coverage, per-row balance chain, and opaque
 series evidence over Recent's lower-maintenance OOXML format and dual dates.
 
 The next bounded task is evidence acquisition. Existing Historical coverage
-contains no Current rows. If the first Current period is still open, capture
-one more same-account Current snapshot before closure, then retain the
-Historical statement whose intrinsic printed period covers the Current dates.
-One final consecutively downloaded Current/Recent pair is useful only as a
-one-time challenge to the source selection; it is not an operational
-requirement. No stable cross-source identity rule is frozen, and no canonical
-Movement correction is implemented. Do not finalize cross-source identity or
-canonical correction rules without direct rollover or corrected-source
-evidence.
+contains no Current rows. The one-time paired T2 falsification challenge is
+complete and did not falsify Current: all 27 contemporaneous Recent
+accounting-date candidates have exactly one Current candidate, while Recent's
+other 23 rows are older than Current's parsed range. Current's balance chain
+passes all 26 adjacent equations. Recent remains at exactly 50 rows while
+replacing four oldest-boundary candidates with four newer candidates, which is
+strong rolling-window evidence but not proof of a documented cap.
+
+Routine paired capture can stop. The next task is to retain the Historical
+statement whose intrinsic printed period covers the Current dates and perform
+a read-only Current-to-Historical rollover experiment. One shared T1/T2
+Current candidate signature changed description, opaque series, and row
+balance while its corresponding Recent candidate fields remained stable; this
+is unresolved source volatility, not identity or authority evidence. No stable
+cross-source identity rule is frozen, and no canonical Movement correction is
+implemented. Do not finalize cross-source identity or canonical correction
+rules without direct rollover or corrected-source evidence.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.
