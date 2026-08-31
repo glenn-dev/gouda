@@ -94,6 +94,8 @@ That boundary is implemented as an opaque module-issued local principal, a
 read-only Account resolver, and an authorized reporting orchestration service.
 It returns the existing `MovementReport` and adds no ownership, authentication,
 HTTP, model, migration, or write semantics. The conditional unauthenticated
-local delivery contract is now frozen as explicit loopback-only exposure; its
-fail-closed startup/bootstrap enforcement and DRF delivery remain unimplemented.
-Client input cannot create principal context.
+local delivery contract is enforced by the dedicated `runlocal` command and
+its process-local bootstrap capability. The command owns an explicit numeric
+loopback bind and activates principal issuance only for the lifetime of its
+server runner. Direct `runserver` has no active capability. DRF delivery
+remains unimplemented, and client input cannot create principal context.

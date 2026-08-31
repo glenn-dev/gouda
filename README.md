@@ -28,6 +28,26 @@ Copy `.env.example` to `.env`, fill in a local Django secret and PostgreSQL
 password, then start PostgreSQL with `docker compose up -d postgres`. The
 `.env` file is ignored and must not be committed.
 
+## Local delivery launch
+
+The canonical launch path for Gouda's future unauthenticated local financial
+delivery is an explicit numeric-loopback bind:
+
+```text
+python manage.py runlocal --host 127.0.0.1 --port 8000
+```
+
+IPv6 loopback is also supported with `--host ::1`. Only `127.0.0.1` and `::1`
+are accepted; hostnames, wildcard, LAN, public, empty, and ambiguous binds fail
+before Django's server runner starts. The command requires the same Django and
+database environment as other management commands and currently serves no
+endpoints because HTTP delivery is not implemented yet.
+
+Generic `runserver` is not a supported launch path for unauthenticated
+financial delivery. The local mode assumes a single-user or otherwise fully
+trusted host and must not be re-published through a proxy, tunnel, forwarding
+rule, or container port mapping.
+
 ## Documentation map
 
 - Product: `docs/product/`

@@ -2,67 +2,54 @@
 
 ## Objective
 
-Implement the fail-closed local-MVP delivery bootstrap and loopback launch
-boundary required before Gouda enables HTTP reporting.
+Implement one narrow read-only canonical Movement report endpoint through the
+validated local-delivery runtime.
 
 ## Current state
 
-ADR-0010 and `docs/security/local-mvp-network-boundary.md` allow a future
-unauthenticated read adapter only behind an explicit numeric loopback host
-edge on a single-user or fully trusted machine. Wildcard, LAN, remote,
-tunneled, proxied, forwarded, shared-host, production, and ambiguous exposure
-must fail closed or require real authentication.
+The fail-closed local-MVP host bootstrap is implemented in the current
+worktree. `runlocal` requires an explicit `127.0.0.1` or `::1` bind, validates
+an unambiguous port, derives Django's server address itself, and activates a
+process-local `LocalDeliveryRuntime` only during the server runner lifetime.
+Direct `runserver`, WSGI, and ASGI launches do not activate the capability.
 
-Account authorization and authorized reporting orchestration are implemented.
-HTTP is not: the repository has no backend listener, endpoint, DRF, auth,
-frontend, or runtime guard that couples the trusted principal bootstrap to a
-safe bind. Django's development-server default is not sufficient because its
-address is operator-overridable.
+The runtime may issue the existing singleton trusted principal with no request
+input. Account authorization and canonical Movement reporting are already
+implemented and remain read-only. URLs are still empty; DRF, authentication,
+CORS, CSRF middleware, frontend behavior, and HTTP serialization are absent.
 
 ## Scope
 
-Implement the smallest explicit server-side boundary that:
+The next bounded delivery slice should:
 
-- enables local unauthenticated delivery only through trusted configuration
-  with no permissive default;
-- owns a dedicated launch path bound to numeric `127.0.0.1`, with optional
-  explicit `::1` support if it can be tested safely;
-- refuses wildcard, unspecified, LAN, or caller-selected bind addresses;
-- establishes the validated local-delivery mode before any adapter may obtain
+- install and minimally configure DRF;
+- add one read-only endpoint for an internal Account UUID plus inclusive start
+  and end dates;
+- require the active `LocalDeliveryRuntime` before obtaining
   `trusted_local_principal_context()`;
-- uses strict Host/origin configuration only as defense in depth, never as
-  caller authentication;
-- provides deterministic tests for allowed and rejected startup/configuration
-  shapes without opening a public listener; and
-- documents the exact safe local launch command and fail-closed behavior.
-
-Expected areas are Django configuration, a narrow local-delivery bootstrap or
-management-command boundary, focused tests, and local-development/security
-documentation.
+- call `report_authorized_canonical_movements` rather than querying Account or
+  Movement directly;
+- explicitly serialize only the privacy-safe `MovementReport` fields already
+  approved by architecture; and
+- preserve indistinguishable Account access failures and stable date failures
+  without leaking source evidence.
 
 ## Non-goals
 
-Do not implement DRF, URL routes, HTTP response serialization, authentication,
-sessions, tokens, users, households, roles, Account ownership/grants, models,
-migrations, frontend, Docker backend publication, reverse proxy, TLS, writes,
-import authorization, or financial semantics.
+Do not add login, Django auth, sessions, tokens, users, households, roles,
+ownership/grants, write/import endpoints, frontend, CORS convenience, Docker
+backend publication, proxying, TLS, financial semantics, classification, or
+reporting representation changes.
 
-## Acceptance criteria
+## Preconditions and guardrails
 
-- Trusted mode has no implicit or ambiguous default.
-- The supported launcher cannot bind an unauthenticated service to wildcard,
-  LAN, or caller-selected interfaces.
-- Principal context is issued only from validated server composition and never
-  from request-like data.
-- Unsupported launch/configuration paths fail before financial delivery.
-- Existing Account authorization and reporting services remain unchanged.
-- No endpoint, model, migration, write behavior, or ownership semantics are
-  added.
-- Tests and documentation make clear that local OS processes share the
-  temporary trust perimeter and that tunnels/proxies remain prohibited.
-
-Principal risks are relying on Django's overridable defaults, treating Host or
-origin checks as authentication, or creating an enforcement seam that a later
-endpoint can silently bypass.
+- Begin the endpoint slice from the reviewed, committed runtime checkpoint and
+  a clean worktree.
+- The endpoint must fail closed when no active local-delivery runtime exists;
+  a Host header or direct `runserver` is not trust.
+- Only Account UUID and dates may come from request data. Principal trust may
+  not.
+- Loopback remains a single-host operational trust assumption, not user
+  authentication.
 
 Recommended reasoning level: Sol High.

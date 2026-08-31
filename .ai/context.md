@@ -59,6 +59,10 @@ context. `.ai/` is not canonical product documentation.
   source payloads or filenames.
 - The account-orientation migration test now restores the current ledger leaf
   migration, removing its pre-existing schema leakage into later test modules.
+- The fail-closed local-delivery bootstrap is implemented. The dedicated
+  `runlocal` command accepts only explicit numeric `127.0.0.1` or `::1`, owns
+  Django's downstream bind, and activates one non-persisted opaque runtime only
+  during the server runner lifetime. Principal issuance requires that runtime.
 
 ## Implemented target evolution
 
@@ -127,16 +131,20 @@ publication, tunnel, proxy, forwarding, or production exposure. Request data
 never establishes principal trust. LAN, remote, shared-host, ambiguous, or
 broader exposure requires real authentication.
 
-The repository still exposes no backend HTTP service. Compose publishes only
+The repository still exposes no backend endpoint. Compose publishes only
 PostgreSQL on `127.0.0.1`; URLs are empty; DRF, auth, CORS, CSRF middleware,
-and frontend code are absent. Django's development-server loopback default is
-not Gouda enforcement because its bind is operator-overridable and current
-settings do not define a web profile.
+and frontend code are absent. `runlocal` is now the supported host launch: it
+requires exact numeric loopback, rejects wildcard/LAN/hostname/ambiguous
+values before delegation, validates the port, and derives Django's bind. It
+disables autoreload so its in-memory trust capability and server share one
+process lifetime. Direct `runserver`, WSGI, or ASGI composition has no active
+capability and must remain unavailable to a future unauthenticated adapter.
 
-The next bounded task is to implement a fail-closed local delivery
-bootstrap/settings/launch boundary that owns explicit loopback binding and may
-obtain `trusted_local_principal_context()` without request input. Do not add
-DRF or the reporting endpoint until that enforcement exists.
+This runtime checkpoint satisfies ADR-0010's implementation prerequisite for
+installing/configuring DRF and adding one narrow read-only canonical Movement
+report endpoint. That next adapter must require the active runtime, obtain the
+existing principal without request input, call
+`report_authorized_canonical_movements`, and serialize only approved fields.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.

@@ -17,7 +17,9 @@ def _required_environment(name: str) -> str:
 
 SECRET_KEY = _required_environment("DJANGO_SECRET_KEY")
 DEBUG = os.environ.get("DJANGO_DEBUG", "false").lower() == "true"
-ALLOWED_HOSTS: list[str] = []
+# Defense in depth for the supported numeric-loopback local launcher. Host
+# validation does not replace the launcher's bind enforcement or authenticate.
+ALLOWED_HOSTS = ["127.0.0.1", "[::1]"]
 
 INSTALLED_APPS = [
     "django.contrib.contenttypes",

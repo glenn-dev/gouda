@@ -1,0 +1,1 @@
+"""Gouda management commands."""

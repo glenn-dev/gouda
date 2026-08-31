@@ -2,9 +2,10 @@
 
 ## Status and scope
 
-This document freezes the temporary network and caller-trust contract for a
-future read-only Gouda HTTP surface. It does not implement an HTTP server,
-authentication, DRF, frontend behavior, or deployment infrastructure.
+This document defines the temporary network and caller-trust contract for a
+future read-only Gouda HTTP surface and records its implemented local launch
+boundary. It does not implement an endpoint, authentication, DRF, frontend
+behavior, or deployment infrastructure.
 
 The decision is recorded in
 [ADR-0010](../decisions/ADR-0010-loopback-only-local-mvp-delivery.md).
@@ -38,21 +39,22 @@ The repository currently exposes no backend HTTP service:
 - `config.urls` has no URL patterns;
 - DRF and Django authentication are not installed;
 - no CORS or CSRF middleware is configured;
-- `ALLOWED_HOSTS` is empty and `DEBUG` defaults to false;
+- `ALLOWED_HOSTS` contains only numeric IPv4 and bracketed IPv6 loopback, and
+  `DEBUG` defaults to false;
 - ASGI and WSGI application objects exist but do not open listeners;
-- no backend launch command, container image, or backend Compose service is
-  defined; and
+- the dedicated `runlocal` command enforces the supported host-process bind,
+  but no container image or backend Compose service is defined; and
 - no frontend implementation or browser-to-backend connection exists.
 
 The only Compose host-port publication is PostgreSQL on
 `127.0.0.1:5432`. It is a loopback-bound database development port, not an
 HTTP caller-trust boundary.
 
-The installed Django development server defaults to `127.0.0.1:8000`, or
-`::1:8000` with its IPv6 option, when started without an address. That
-framework default is not current Gouda enforcement: the command is not part of
-the documented startup path, its address can be overridden, and the current
-default settings do not provide a runnable web configuration.
+Generic Django `runserver`, WSGI, and ASGI launches remain unsupported for
+unauthenticated financial delivery because they do not activate Gouda's local
+delivery capability. The supported `runlocal` path requires an explicit host,
+accepts only `127.0.0.1` or `::1`, validates the port, and constructs the
+downstream Django address itself.
 
 ## Exposure models considered
 
@@ -93,7 +95,8 @@ conditions hold:
 Binding only one loopback family is valid. If IPv6 is offered, it must use
 `::1`; the IPv6 wildcard `::` is forbidden. A hostname such as `localhost` may
 be used by a browser after the listener is safely bound, but hostname
-resolution is not the bind guarantee.
+resolution is not the bind guarantee. Gouda's current launcher and Host-header
+allowlist deliberately require the numeric form instead.
 
 ### Docker boundary
 
@@ -105,7 +108,8 @@ all host interfaces, is forbidden for the unauthenticated mode.
 
 Only trusted application containers may share the backend's internal network.
 Publishing a loopback host port does not make an otherwise reachable container
-network trusted.
+network trusted. No backend container is added by the current host-process
+implementation; container exposure enforcement remains future work.
 
 ## Caller-trust bootstrap
 
@@ -139,6 +143,33 @@ Only the Account UUID selector, inclusive start date, and inclusive end date
 may come from the request. Principal identity or trust, ownership claims,
 provider/account binding claims, and authorization decisions must not.
 
+### Implemented host-process bootstrap
+
+The supported direct host launch is:
+
+```text
+python manage.py runlocal --host 127.0.0.1 --port 8000
+```
+
+`--host ::1` deliberately supports IPv6 loopback. The host is required and is
+matched exactly; `localhost`, empty values, wildcards, LAN/public addresses,
+and arbitrary hostnames are rejected. The port defaults to `8000` and accepts
+only an unambiguous ASCII decimal integer from 1 through 65535.
+
+The command validates configuration before delegation, derives Django's
+address/port argument itself, and disables autoreload so the in-memory trust
+lifetime and server process are the same. During that runner lifetime it
+activates one opaque, non-persisted `LocalDeliveryRuntime`. A future adapter
+must require that active runtime and use its no-argument principal issuance
+method before calling `report_authorized_canonical_movements`. The runtime is
+cleared when the runner exits or raises. Direct `runserver` and arbitrary
+WSGI/ASGI composition do not activate it.
+
+This is an architectural/application boundary, not protection from arbitrary
+internal Python code deliberately importing or bypassing internals. It couples
+Gouda's supported unauthenticated launcher to its validated bind; it does not
+infer the machine's external network topology.
+
 ## Fail-closed behavior
 
 The unauthenticated delivery adapter must not start or must remain unavailable
@@ -157,6 +188,15 @@ secrecy are not authentication or Account authorization. They cannot rescue a
 non-loopback deployment. Strict Host and browser-origin policy remain useful
 defense in depth against browser-origin confusion and DNS-rebinding-style
 attacks.
+
+The implemented boundary guarantees that Gouda's supported unauthenticated
+host launch delegates only an exact numeric loopback bind and makes trusted
+local principal issuance available only during that validated runner. It does
+not prevent a developer from starting an unsupported server, detect or block
+OS-level proxies, tunnels, NAT, or SSH forwarding, exclude other local users
+and processes, or make loopback equivalent to user authentication. A future
+adapter must require the active runtime; otherwise an unsupported launch could
+still expose adapter code incorrectly.
 
 ## Frontend compatibility
 

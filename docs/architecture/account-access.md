@@ -185,8 +185,15 @@ validated server-side loopback delivery mode. Request bodies, headers, query
 parameters, cookies, Account selectors, and source data cannot issue that
 context.
 
-The required fail-closed bind/bootstrap enforcement is not implemented. DRF
-is accepted by the technology ADR but is not installed or configured. An
-endpoint must not be enabled until the loopback-only startup boundary exists;
-LAN, remote, tunneled, proxied, shared-host, or production access requires real
-authentication instead.
+The required fail-closed bind/bootstrap enforcement is implemented by
+`python manage.py runlocal --host <numeric-loopback> --port <port>`. While its
+validated server runner is active, the process-local `LocalDeliveryRuntime`
+may issue this module's existing principal context without request input. A
+direct `runserver`, WSGI, or ASGI launch has no active local-delivery runtime,
+so a future adapter that requires it fails closed.
+
+DRF is accepted by the technology ADR but is not installed or configured. The
+runtime prerequisite is now satisfied for one narrow read-only adapter that
+requires the active runtime, calls `report_authorized_canonical_movements`,
+and explicitly serializes approved fields. LAN, remote, tunneled, proxied,
+shared-host, or production access still requires real authentication instead.

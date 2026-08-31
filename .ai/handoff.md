@@ -33,6 +33,12 @@ remote, tunneled, proxied, forwarded, shared-host, production, and ambiguous
 exposure requires real authentication or fails closed. This is deployment
 trust, not caller authentication.
 
+The runtime checkpoint implements that host-process boundary. `runlocal` owns an
+explicit `127.0.0.1` or `::1` bind and activates an opaque in-memory runtime
+only while Django's server runner is active. The runtime may issue the existing
+principal without request input. Direct `runserver`, WSGI, or ASGI launches do
+not activate it. No endpoint or backend container is added.
+
 Account-access validation exposed a pre-existing migration-test isolation
 defect: the checkpoint migration module restored hard-coded migration `0008`
 instead of the current ledger leaf `0009`, so modules executed afterward saw
@@ -52,10 +58,10 @@ reconciled Historical-only resolution policy.
 
 ## Functional checkpoint
 
-The latest committed checkpoint is
-`146014e69f1cd3a46a5ef87539a63f9fc896770d` (`feat: add trusted account access
-service`). The caller-trust/network design documentation and durable state are
-currently uncommitted; Git commands at cold start determine exact state.
+The committed runtime checkpoint follows
+`3320e7757e90796d8e8febdc495900ba9e53832d` (`docs: constrain local MVP
+delivery to loopback`) and implements the required fail-closed bootstrap.
+Git commands at cold start determine its exact commit and repository state.
 
 ## Observation/resolution checkpoint
 
@@ -286,31 +292,37 @@ network exposure contract; durable ownership semantics remain deferred.
 
 ## Local delivery trust checkpoint
 
-The current repository exposes no backend HTTP service. `config.urls` is
-empty; DRF, auth, CORS, CSRF middleware, and frontend code are absent. Compose
-publishes only PostgreSQL at `127.0.0.1:5432`. ASGI/WSGI objects do not open a
-listener. Django runserver defaults to loopback, but its bind can be overridden
-and current settings do not define a runnable web profile, so that default is
-not Gouda enforcement.
+The current repository exposes no backend endpoint. `config.urls` is empty;
+DRF, auth, CORS, CSRF middleware, and frontend code are absent. Compose
+publishes only PostgreSQL at `127.0.0.1:5432`; no backend container exists.
+The canonical host launch is `python manage.py runlocal --host 127.0.0.1
+--port 8000`, with deliberate `::1` support. The host is required and exact;
+the port is an ASCII decimal 1 through 65535. Unsafe or ambiguous values fail
+before server delegation.
 
-`docs/security/local-mvp-network-boundary.md` defines local as machine-local
-numeric IP loopback, not process locality or LAN proximity. A server-side
-validated local-delivery mode may inject the existing principal with no
-request input only when the host edge and trusted-host conditions hold.
-Container-internal wildcard binding is allowed only behind explicit loopback
-host publication and a trusted private application network. Host, CORS, CSRF,
-port obscurity, and Account UUID secrecy are defense or selectors, not
-authentication.
+`gouda.local_delivery` activates one opaque non-persisted runtime for the
+validated server lifetime. Its no-argument method may obtain the existing
+trusted local principal; the active-runtime lookup fails closed outside that
+lifetime. The command constructs the only downstream Django bind argument and
+disables autoreload. Host validation allows only numeric loopback as defense
+in depth, not authentication.
+
+`docs/security/local-mvp-network-boundary.md` still defines local as
+machine-local numeric IP loopback, not process locality or LAN proximity.
+Container-internal wildcard binding remains allowed only behind explicit
+loopback host publication and a trusted private application network; container
+enforcement is future work. Gouda cannot detect external tunnels, proxies,
+NAT, SSH forwarding, unsupported launchers, or hostile local processes.
 
 ## Next checkpoint
 
-Implement the fail-closed local-delivery bootstrap/settings/launch boundary
-before installing DRF or adding an endpoint. The supported launch path must own
-explicit numeric loopback binding, reject wildcard/LAN/ambiguous addresses,
-and establish trusted mode before server composition obtains the principal.
-Do not add DRF, routes, authentication, ownership persistence, models,
-migrations, UI, Docker publication, or writes. Recommended reasoning level:
-Sol High.
+Install and minimally configure DRF and add one narrow read-only canonical
+Movement report endpoint. It must require the active local-delivery runtime,
+obtain principal trust without request input, call
+`report_authorized_canonical_movements`, and explicitly serialize only
+approved fields. Do not add authentication, ownership persistence, writes,
+UI, CORS convenience, Docker publication, or new financial semantics.
+Recommended reasoning level: Sol High.
 
 ## Roadmap reassessment
 
@@ -322,17 +334,15 @@ remain absent.
 
 Priorities are:
 
-1. Implement fail-closed local-delivery bootstrap and numeric loopback launch
-   enforcement. The trust contract is frozen, but runtime enforcement is not.
-2. Install/configure DRF and implement a narrow read-only delivery layer only
-   after that startup boundary is enforced.
-3. Define classification semantics and persistence for the MVP types before
+1. Install/configure DRF and implement one narrow read-only delivery layer
+   through the now-enforced local bootstrap.
+2. Define classification semantics and persistence for the MVP types before
    implementing category/type filters. Provider categories and amount signs
    are not canonical income/expense semantics.
-4. Add an operational import/API surface for the already implemented
+3. Add an operational import/API surface for the already implemented
    Santander services only after the account-access and upload-security
    boundary is explicit.
-5. Resume Current-to-Historical validation only on the external artifact
+4. Resume Current-to-Historical validation only on the external artifact
    trigger described above.
 
 Cross-source identity/deduplication, transfer pairing, household-flow
