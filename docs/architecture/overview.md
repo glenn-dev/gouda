@@ -89,3 +89,10 @@ The pre-HTTP caller-to-Account boundary is defined separately in
 [Account access and read-only delivery](account-access.md). Delivery must
 resolve an untrusted Account selector through that boundary before invoking
 reporting; possession of an Account UUID is never authorization.
+
+That boundary is implemented as an opaque module-issued local principal, a
+read-only Account resolver, and an authorized reporting orchestration service.
+It returns the existing `MovementReport` and adds no ownership, authentication,
+HTTP, model, migration, or write semantics. Network delivery remains blocked
+on a trusted server-side caller bootstrap/authentication decision; client input
+cannot create principal context.

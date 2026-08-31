@@ -2,9 +2,10 @@
 
 ## Status and scope
 
-This document defines the pre-HTTP application boundary for deciding which
-`Account` one trusted caller principal may read. It does not choose an
-authentication mechanism, add ownership persistence, or define write access.
+This document defines the implemented pre-HTTP application boundary for
+deciding which `Account` one trusted caller principal may read. It does not
+choose an authentication mechanism, add ownership persistence, or define
+write access.
 
 The bounded flow is:
 
@@ -30,11 +31,19 @@ or ownership model. Django authentication is not installed, and `Account`
 contains only internal identity, display name, product kind, economic
 orientation, and currency. It has no owner or household relationship.
 
-The current import services and canonical Movement reporting service accept a
-persisted `Account` supplied by a trusted caller. They re-fetch or validate
-that Account for source and domain invariants, but they do not establish who
-may select it. `SantanderTdcAccountBinding` verifies a selected Account against
-source evidence; it is not caller authorization or ownership.
+The current import services and lower-level canonical Movement reporting
+service accept a persisted `Account` supplied by a trusted caller. They
+re-fetch or validate that Account for source and domain invariants, but they do
+not establish who may select it. `SantanderTdcAccountBinding` verifies a
+selected Account against source evidence; it is not caller authorization or
+ownership.
+
+The read boundary is implemented in
+`gouda.ledger.services.account_access`. It issues one opaque singleton
+`TrustedPrincipalContext` from trusted application composition, resolves an
+untrusted UUID selector to an authorized persisted `Account`, and composes
+that resolver with canonical Movement reporting. It adds no model or write
+path.
 
 The MVP requires account/date querying, totals, and traceability. Multi-user
 sharing and collaborative editing are explicitly out of scope. No product or
@@ -83,7 +92,7 @@ does not by itself prove that ownership persistence is required.
 
 ## Trusted read-account boundary
 
-The application-facing resolver should accept:
+The application-facing `resolve_read_account` service accepts:
 
 - a trusted, opaque principal context produced outside the domain service; and
 - one internal Account UUID selector received as untrusted input.
@@ -92,13 +101,21 @@ Principal context must not contain provider account numbers or be constructed
 from an artifact. The selector is only a lookup request; possession of a UUID
 does not grant access.
 
-The resolver should validate the selector, check the principal against the
-configured single-principal policy, and load the Account in one boundary. On
+The resolver validates the principal before the selector, checks the principal
+against the single-principal policy, and loads the Account in one boundary. On
 success it returns the persisted `Account` object. Downstream financial
-services should continue receiving that authorized object rather than an
-arbitrary UUID.
+services continue receiving that authorized object rather than an arbitrary
+UUID. The application selector is a `UUID` value; raw transport strings are
+not silently parsed at this trusted application boundary.
 
-Initial stable failures should be:
+`trusted_local_principal_context()` is a server-side composition seam, not an
+authentication function. It returns the only principal object recognized by
+the temporary policy and accepts no client input. Other instances of the same
+Python type, strings, Account values, provider data, and artifacts are not
+recognized. This is an explicit application convention, not a claim that
+Python imports enforce a security boundary.
+
+Stable failures are:
 
 - `principal_context_invalid` when trusted application context is absent or
   malformed;
@@ -117,14 +134,15 @@ silently imply permission to upload, bind, import, resolve, correct, or delete.
 
 ## Read-only reporting operation
 
-The eventual transport-independent operation should accept:
+The implemented transport-independent
+`report_authorized_canonical_movements` operation accepts:
 
 - trusted principal context;
 - untrusted internal Account UUID selector;
 - inclusive `start_date`; and
 - inclusive `end_date`.
 
-It should:
+It:
 
 1. resolve the selector through the read-account access boundary;
 2. pass only the resulting authorized `Account` to
@@ -132,10 +150,11 @@ It should:
 3. return the existing immutable `MovementReport` without creating a competing
    reporting representation.
 
-Account access failure uses `account_not_accessible`. Date validation continues
-to use the reporting service's stable `start_date_invalid`, `end_date_invalid`,
-and `date_range_invalid` failures. If the Account disappears between access
-resolution and reporting, delivery must still expose only
+Account access failure uses `account_not_accessible`. Date validation
+continues to use the reporting service's stable `start_date_invalid`,
+`end_date_invalid`, and `date_range_invalid` failures without translation. If
+the Account disappears between access resolution and reporting, the
+orchestration operation translates the lower-level absence to
 `account_not_accessible`, not a distinct existence signal.
 
 The delivery layer must explicitly serialize approved result fields. The
@@ -155,3 +174,18 @@ may back the same conceptual boundary with user ownership, household
 membership, or Account grants. Write/import authorization can remain a
 separate capability. Those models, roles, and migrations should be designed
 from concrete multi-principal requirements rather than anticipated here.
+
+## Delivery prerequisite
+
+Account authorization is now implemented, but network delivery is not ready
+to treat arbitrary requests as the trusted local principal. A future HTTP
+adapter must obtain principal context from a trusted server-side
+authentication or bootstrap boundary and then call
+`report_authorized_canonical_movements`; request bodies, headers, query
+parameters, Account selectors, and source data cannot issue that context.
+
+For a deliberately local MVP, trusted server composition may obtain the
+singleton only after a separately defined local-caller trust check. The exact
+mechanism and exposure constraints remain unresolved. DRF is accepted by the
+technology ADR but is not installed or configured, and neither installing it
+nor adding an endpoint should precede that caller-trust decision.

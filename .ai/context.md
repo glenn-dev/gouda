@@ -108,19 +108,26 @@ The first canonical read/reporting boundary is implemented. Persisted
 filter, and superseding evidence does not retract an existing Movement while
 canonical correction remains deferred.
 
-The pre-HTTP Account-access design is now documented in
-`docs/architecture/account-access.md`. Gouda has no user, principal,
-household, member, role, permission, or Account ownership persistence, and the
-product does not define named-person, shared-Account, or multi-user access.
-The temporary MVP read policy therefore recognizes one trusted local principal
-with access to all persisted Accounts. This is non-persistent access policy,
-not ownership. Unknown and unauthorized Account selectors share one
-`account_not_accessible` failure, and downstream reporting continues to
-receive an authorized `Account` object.
+The pre-HTTP Account-access boundary is implemented in
+`gouda.ledger.services.account_access`. Gouda still has no user, principal,
+household, member, role, permission, or Account ownership persistence. One
+opaque module-issued trusted local principal receives temporary read access to
+all persisted Accounts; this is authorization policy, not ownership or
+authentication. The resolver accepts an untrusted UUID value, returns an
+authorized persisted `Account`, and gives unknown and policy-denied selectors
+the same `account_not_accessible` failure. The authorized reporting operation
+then delegates unchanged to the existing `MovementReport` service. Both paths
+are deterministic and read-only.
 
-The next bounded task is to implement that read-only resolver and an authorized
-reporting orchestration service without authentication, HTTP, DRF, models,
-migrations, writes, or broader ownership semantics.
+HTTP/DRF remains unimplemented. Account authorization is no longer the
+prerequisite, but a network adapter still needs a trusted server-side
+caller-bootstrap or authentication boundary. It must not issue principal
+context from request data. DRF is accepted architecturally but is not installed
+or configured.
+
+The next bounded task is a design checkpoint to choose and freeze the smallest
+local-MVP caller-trust/bootstrap contract and network exposure constraints
+before implementing a read-only endpoint.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.

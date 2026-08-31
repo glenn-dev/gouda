@@ -2,67 +2,62 @@
 
 ## Objective
 
-Implement the temporary single-principal read-Account access boundary and the
-authorized canonical Movement reporting orchestration service.
+Design the smallest trusted local-caller bootstrap/authentication contract for
+Gouda's first read-only delivery surface.
 
 ## Current state
 
-`docs/architecture/account-access.md` defines the pre-HTTP boundary. Gouda has
-no persisted user, principal, household, member, role, permission, or Account
-ownership model. Multi-user sharing is outside MVP scope, and no documented
-product rule establishes named-person access or individual/shared Accounts.
+The pre-HTTP Account authorization boundary is implemented in
+`gouda.ledger.services.account_access`. One opaque module-issued local
+principal receives temporary read access to all persisted Accounts. The
+resolver validates principal context and a UUID Account selector, returns an
+authorized persisted `Account`, and uses one `account_not_accessible` failure
+for unknown and policy-denied selectors. The authorized orchestration service
+delegates to the existing immutable `MovementReport` result.
 
-The temporary MVP policy recognizes one trusted local principal supplied by
-trusted application composition and allows that principal to read all
-persisted Accounts. This is an access policy, not ownership. An untrusted
-Account UUID must be resolved together with principal context; unknown and
-unauthorized Accounts are indistinguishable as `account_not_accessible`.
-
-The existing `report_canonical_movements` service already accepts a trusted
-persisted `Account` and returns the canonical immutable report.
+This is authorization policy only. Gouda still has no authentication app,
+persisted user/principal/household/role/grant model, HTTP endpoint, or DRF
+installation. Calling `trusted_local_principal_context()` merely because an
+HTTP request arrived would make every reachable caller trusted and is not an
+acceptable network boundary.
 
 ## Scope
 
-Implement a small read-only application service that:
+Perform a design/security checkpoint that:
 
-- represents an opaque trusted principal context without authentication
-  mechanics or persistence;
-- is configured for exactly one recognized local principal;
-- validates one untrusted internal Account UUID selector;
-- resolves principal access and Account lookup in one boundary;
-- returns the authorized persisted `Account` object;
-- uses `principal_context_invalid`, `account_selector_invalid`, and uniform
-  `account_not_accessible` failures; and
-- provides one orchestration function that resolves access and then invokes
-  `report_canonical_movements`, returning the existing `MovementReport`.
-
-Expected code areas are small modules under `gouda/ledger/services/` and
-focused PostgreSQL-backed tests under `tests/ledger/`.
+- defines the local MVP's intended network/process exposure;
+- identifies how trusted server-side code establishes the one local caller
+  before issuing principal context;
+- evaluates the smallest viable mechanisms without inferring identity from
+  request bodies, headers, Account UUIDs, artifacts, or provider data;
+- specifies failure and deployment assumptions needed by a later DRF adapter;
+- determines whether DRF can be installed and a read-only endpoint safely
+  implemented in one following bounded slice; and
+- records the event that would require replacing the temporary singleton
+  policy with durable multi-principal access semantics.
 
 ## Non-goals
 
-Do not add authentication, DRF/HTTP, serializers, permissions frameworks,
-frontend, models, migrations, users, households, members, roles, persisted
-grants, tokens, sessions, JWT, imports/writes, classification, transfers, BCI
-lifecycle behavior, or new financial semantics. Read access must not imply
-write/import permission.
+Do not implement DRF/HTTP, middleware, authentication, sessions, tokens, users,
+households, roles, Account ownership/grants, models, migrations, frontend,
+writes/import authorization, or new financial semantics during the design
+checkpoint.
 
 ## Acceptance criteria
 
-- Only the configured trusted principal can resolve Accounts.
-- A valid principal can resolve every current persisted Account under the
-  explicitly temporary policy.
-- Invalid principal context and selector shapes fail deterministically.
-- Unknown and unauthorized Account selectors produce the same safe failure.
-- Arbitrary Account UUIDs never reach reporting without resolver success.
-- Authorized reporting preserves inclusive dates, Account isolation,
-  canonical ordering, exact Decimal totals, and the existing result type.
-- The boundary is read-only, deterministic, and does not expose Account
-  existence or private source data through errors.
-- Tests cover repeated calls and multiple Accounts without private values.
+- Client-controlled data cannot establish trusted principal context.
+- The selected mechanism has an explicit local deployment/threat boundary.
+- Network reachability is not silently treated as identity unless that is an
+  explicit, justified, fail-closed local-only deployment contract.
+- Account authorization remains delegated to the implemented resolver.
+- A future endpoint is required to call
+  `report_authorized_canonical_movements` rather than fetch an Account itself.
+- Authentication, authorization, ownership, and delivery remain distinct.
+- The design identifies exact implementation prerequisites and privacy-safe
+  transport errors without broad multi-tenant architecture.
 
-Principal risks are accidentally treating a client value as trusted principal
-context, leaking Account existence through distinguishable failures, or
-letting the temporary all-Accounts policy masquerade as ownership.
+Principal risks are creating a bearer secret accidentally through client
+input, exposing an unauthenticated endpoint beyond its assumed local boundary,
+or adding durable ownership semantics without product evidence.
 
 Recommended reasoning level: Sol High.

@@ -19,10 +19,19 @@ count and signed-account-effect total from the returned tuple, and exposes a
 bounded source trace without filenames, bytes, digests, raw cells, source
 references, running balances, or parser payloads.
 
-Review found and fixed a pre-existing test-isolation defect: the account
-orientation migration test restored hard-coded migration `0008` instead of
-the current ledger leaf. It now snapshots and restores the leaf target, and
-the reporting and migration modules pass in either explicit execution order.
+The temporary pre-HTTP read-Account boundary and authorized reporting
+orchestration are implemented. One opaque module-issued local principal may
+read all persisted Accounts under the temporary non-ownership policy. Unknown
+and policy-denied selectors are indistinguishable, and the orchestration path
+returns the existing `MovementReport` without widening provenance or writing
+state.
+
+Account-access validation exposed a pre-existing migration-test isolation
+defect: the checkpoint migration module restored hard-coded migration `0008`
+instead of the current ledger leaf `0009`, so modules executed afterward saw
+an old schema. The migration test class now restores the current graph leaf in
+`tearDown`; explicit migration-before-reporting and reporting-before-migration
+orders are part of this checkpoint's validation.
 
 The observation boundary is now implemented. `FinancialObservation` stores an
 immutable interpreted claim and mutable current lifecycle projection.
@@ -37,9 +46,10 @@ reconciled Historical-only resolution policy.
 ## Functional checkpoint
 
 The latest committed checkpoint is
-`1097f9104f9a5279eb396c842a4f2f5f2094b60e` (`feat: add canonical movement
-reporting service`). The Account-access design documentation is currently
-uncommitted; Git commands at cold start determine exact state.
+`a50438588413b97bec3e27f39d1e0e33a32fe702` (`docs: define trusted account
+access boundary`). The Account-access implementation, focused tests, and
+status documentation are currently uncommitted; Git commands at cold start
+determine exact state.
 
 ## Observation/resolution checkpoint
 
@@ -237,7 +247,7 @@ tests exercise recognition, parsing, provenance, formula/type rejection, and
 money/date validation without adding an XLS writer or binary fixture. The
 available private artifacts are recognized read-only with no rejected rows.
 
-## Account access design checkpoint
+## Account access implementation checkpoint
 
 Gouda currently has no Django authentication app and no persisted user,
 principal, household, member, role, permission, Account owner, or Account grant.
@@ -245,13 +255,23 @@ The product makes multi-user sharing out of scope and does not document
 named-person access or individual/shared Account behavior. Household net-worth
 language defines canonical sign, not ownership.
 
-The bounded MVP design therefore uses one trusted local principal with read
-access to every persisted Account. This is a temporary non-persistent access
-policy, not ownership. A future delivery adapter must pass untrusted internal
-Account UUID selectors through one read-access resolver; it cannot instantiate
-or fetch an Account and call reporting directly. The resolver returns a
-persisted authorized `Account`, uses one `account_not_accessible` result for
-unknown and unauthorized selectors, and grants no import/write capability.
+The bounded MVP implementation uses one opaque module-issued trusted local
+principal with read access to every persisted Account. This is a temporary
+non-persistent access policy, not ownership or authentication.
+`resolve_read_account` validates that principal and an untrusted UUID selector,
+returns a persisted authorized `Account`, and uses one
+`account_not_accessible` result for unknown and policy-denied selectors.
+`report_authorized_canonical_movements` composes the resolver with the existing
+canonical report and returns `MovementReport` unchanged. It translates only a
+post-resolution Account disappearance to the non-enumerating access failure;
+date failures propagate unchanged. Both services are read-only.
+
+The module exposes `trusted_local_principal_context()` solely for trusted
+server-side composition. Strings, other context instances, Accounts, UUIDs,
+artifacts, and provider evidence cannot establish principal context. This is
+an application convention, not a Python-level security claim. A future
+delivery adapter must call the authorized orchestration operation rather than
+fetching an Account directly.
 
 Revisit ownership persistence before a second independently authenticated
 principal, different Account visibility, individual/shared Account behavior,
@@ -260,14 +280,13 @@ durable semantics remain intentionally deferred.
 
 ## Next checkpoint
 
-Implement the temporary single-principal read-Account resolver and authorized
-reporting orchestration service defined in
-`docs/architecture/account-access.md`. Keep principal context opaque and
-trusted by application composition, resolve untrusted Account UUIDs before
-calling reporting, and use one indistinguishable `account_not_accessible`
-failure for unknown or unauthorized Accounts. Do not add HTTP/DRF,
-authentication, ownership persistence, models, migrations, UI, or writes.
-Recommended reasoning level: Sol High.
+Design the smallest local-MVP caller-trust/bootstrap and network-exposure
+contract before implementing HTTP. Account authorization is implemented, but
+DRF is not installed and no trusted request-to-principal mechanism exists.
+Client input must never issue principal context. Keep the checkpoint to
+authentication/bootstrap and delivery trust design; do not add HTTP/DRF,
+ownership persistence, models, migrations, UI, or writes. Recommended
+reasoning level: Sol High.
 
 ## Roadmap reassessment
 
@@ -279,11 +298,11 @@ remain absent.
 
 Priorities are:
 
-1. Implement the temporary single-principal read-Account resolver and
-   authorized reporting orchestration boundary without HTTP or authentication.
-2. Choose and implement authentication plus a narrow read-only delivery layer
-   only after the resolver is enforced. DRF is accepted by ADR-0002 but is not
-   installed or configured.
+1. Freeze the local-MVP trusted caller bootstrap/authentication and network
+   exposure contract. Account authorization is now enforced, but DRF is not
+   installed and request-to-principal trust remains undefined.
+2. Install/configure DRF and implement a narrow read-only delivery layer only
+   after that trust boundary is explicit.
 3. Define classification semantics and persistence for the MVP types before
    implementing category/type filters. Provider categories and amount signs
    are not canonical income/expense semantics.

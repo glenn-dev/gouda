@@ -17,6 +17,13 @@ XLSX_SOURCE_KIND = "SANTANDER_CURRENT_ACCOUNT_XLSX"
 class CheckpointAMigrationTests(TransactionTestCase):
     reset_sequences = True
 
+    def tearDown(self):
+        try:
+            executor = MigrationExecutor(connection)
+            executor.migrate(executor.loader.graph.leaf_nodes("ledger"))
+        finally:
+            super().tearDown()
+
     def migrate(self, targets):
         executor = MigrationExecutor(connection)
         executor.migrate(targets)
