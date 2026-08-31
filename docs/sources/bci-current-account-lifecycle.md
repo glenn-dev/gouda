@@ -185,10 +185,12 @@ Current-to-Historical capture chain. Its open-period captures are complete:
    snapshots. Retain their paired Recent artifacts as completed research
    evidence, not as an operational dependency. Treat exact bytes as evidence
    and filenames as non-evidence.
-2. After closure, download the Historical statement whose own printed period
-   contains all source dates from the Current captures. Verify coverage from
-   parsed statement metadata, not from its filename.
-3. If that Historical statement is already available, retain it immediately.
+2. When a new Historical statement becomes naturally available, retain it and
+   verify whether its own printed period contains the Current source dates.
+   Coverage comes from parsed statement metadata, not from its filename.
+3. If the printed period covers the retained Current dates, resume the
+   read-only rollover candidate experiment. Otherwise keep validation deferred
+   until a covering statement becomes available.
 
 The one-time paired Current/Recent selection challenge is complete. Future
 routine acquisition should use Current and the corresponding Historical
@@ -207,6 +209,21 @@ and documentation containing:
 
 The protocol does not require a persistence change. It preserves evidence for
 a later read-only experiment only.
+
+## Historical publication cadence
+
+BCI operationally emits only three Historical current-account statements per
+year. As of August 2026, no available Historical statement covers the retained
+T1/T2 Current dates. No exact future publication date is established by the
+repository evidence.
+
+Current-to-Historical rollover validation is therefore an event-triggered,
+deferred evidence task rather than a development blocker. Gouda development
+continues independently. Resume the validation only when a new Historical
+artifact becomes naturally available and its intrinsic printed period covers
+the retained Current dates. This cadence does not weaken the Current source
+preference or authorize lifecycle, identity, deduplication, persistence, or
+canonical behavior.
 
 ## Candidate-analysis method
 

@@ -5,7 +5,9 @@
 This document records the implemented observation and resolution boundary
 around the current ingestion architecture. `FinancialObservation` and
 `ObservationResolution` are implemented as Django/PostgreSQL models with a
-deterministic synchronous application service. No BCI adapter, provisional
+deterministic synchronous application service. The BCI Historical
+evidence-first adapter and conservative reconciled policy are implemented;
+BCI Current/Recent persistence and lifecycle behavior are not. No provisional
 view, background workflow, or AI implementation is defined here.
 
 The separation decision is recorded in
@@ -177,11 +179,13 @@ period labels without qualification.
 
 Canonical ledger queries should continue to use accepted movements only.
 
-For a later BCI adapter, the intended initial policy is conservative: Recent
-Movements and Current Cartola observations remain unresolved by default;
-validated Historical Cartola observations may later create or uniquely match
-a Movement. This is future source-policy behavior, not a generic observation
-state or model invariant.
+The implemented BCI Historical route creates unresolved observations from
+preserved source evidence. Its separate conservative policy may confirm an
+eligible reconciled observation as a new Movement while abstaining at
+unsupported collisions; it performs no automatic cross-source match. Current
+Cartola and Recent Movements remain source-only parsers with no observation,
+persistence, or lifecycle route. This source-specific behavior is not a
+generic observation state or model invariant.
 
 ## Agent and deterministic cooperation
 
@@ -260,5 +264,6 @@ The following are not justified by current evidence:
 - a multi-agent orchestration framework; and
 - full double-entry accounting.
 
-BCI adapters, permanent identity policy, provisional product views, and
-canonical Movement correction remain later source-driven checkpoints.
+BCI Current/Recent persistence and lifecycle behavior, permanent identity
+policy, provisional product views, and canonical Movement correction remain
+later source-driven checkpoints.

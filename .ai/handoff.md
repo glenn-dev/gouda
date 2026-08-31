@@ -25,9 +25,9 @@ reconciled Historical-only resolution policy.
 ## Functional checkpoint
 
 The latest committed checkpoint is
-`423b008e012002a22a0f72fa8173f787f9c2aa98` (`docs: choose BCI current
-cartola for open period`). Git commands at cold start determine whether the T2
-falsification checkpoint remains uncommitted.
+`22c22efe9e9ac1432792866dda36dc56cd37c2c9` (`docs: confirm BCI current
+cartola for open period`). Git commands at cold start determine whether the
+roadmap reassessment remains uncommitted.
 
 ## Observation/resolution checkpoint
 
@@ -161,9 +161,11 @@ capture. Existing evidence therefore cannot test Current rollover or the
 uncovered Recent tail.
 
 The open-period chain now contains T1 and T2 Current snapshots plus the
-completed one-time paired Recent challenge. The only missing lifecycle evidence
-is the Historical statement whose own printed period covers the Current source
-dates. If Historical is already available, capture it immediately.
+completed one-time paired Recent challenge. BCI produces only three Historical
+current-account statements per year. As of August 2026, rollover validation is
+deferred until a naturally available Historical artifact has an intrinsic
+printed period covering the retained Current dates. It does not block Gouda
+development, and no exact future publication date is established.
 
 Later analysis must use source-native candidate sets and sanitized counts only.
 Repeated keys stay ambiguous; descriptions and references are hints; bounded
@@ -225,16 +227,51 @@ available private artifacts are recognized read-only with no rejected rows.
 
 ## Next checkpoint
 
-After closure, acquire the Historical statement whose intrinsic printed period
-covers the Current dates. Then run a read-only Current-to-Historical candidate
-experiment that explicitly includes the one volatile T1/T2 candidate
-signature. Do not continue routine Recent capture and do not freeze identity,
-deduplication, lifecycle, persistence, or canonical rules.
+Implement the first read-only canonical Movement reporting application
+service. Scope one trusted Account and inclusive date range; return
+deterministically ordered canonical Movements, exact Decimal signed totals and
+count, and a safe trace through RawRecord and ImportBatch to SourceArtifact
+identity. Do not add HTTP/DRF, authentication, UI, migrations, classification,
+transfers, provisional data, BCI integration, identity/deduplication,
+lifecycle policy, or Movement correction. Recommended reasoning level: Sol
+Medium.
+
+## Roadmap reassessment
+
+The major implemented foundation is ingestion-heavy: two Santander routes
+materialize canonical movements; BCI Historical persists evidence and uses the
+observation/resolution boundary; Current and Recent have source-only parsers.
+Canonical query, period reporting, classification, API, and frontend product
+surfaces remain absent.
+
+Priorities are:
+
+1. Build the internal canonical Movement read/reporting service now. It uses
+   stable model semantics, directly advances MVP query/totals/trace behavior,
+   requires no migration, and unlocks later delivery surfaces.
+2. Design the account-access/authentication boundary and expose the reporting
+   service through a narrow read-only API. DRF is accepted by ADR-0002 but is
+   not installed or configured, and no user/household ownership model exists.
+3. Define classification semantics and persistence for the MVP types before
+   implementing category/type filters. Provider categories and amount signs
+   are not canonical income/expense semantics.
+4. Add an operational import/API surface for the already implemented
+   Santander services only after the account-access and upload-security
+   boundary is explicit.
+5. Resume Current-to-Historical validation only on the external artifact
+   trigger described above.
+
+Cross-source identity/deduplication, transfer pairing, household-flow
+classification, provisional/open-period views, BCI Current persistence,
+canonical Movement correction/replacement, AI ingestion, additional source
+adapters without evidence, and generic workflow/provider frameworks remain
+deferred.
 
 ## Cold-start reading order
 
 Read `AGENTS.md`, the README documentation map,
-`docs/product/ingestion-evidence-principles.md`,
-`docs/architecture/evidence-resolution.md`, relevant ADRs and contracts,
+`docs/product/mvp-scope.md`, `docs/product/ingestion-evidence-principles.md`,
+`docs/architecture/domain-model.md`, `docs/architecture/evidence-resolution.md`,
+relevant ADRs and contracts,
 `docs/sources/bci-current-account-lifecycle.md`, then
 `.ai/context.md`, `.ai/tasks/current.md`, and this handoff.

@@ -36,8 +36,9 @@ Artifact -> identify/route -> extract/interpret -> FinancialObservation
 ```
 
 See [Evidence and resolution architecture](evidence-resolution.md). The
-observation and resolution persistence/service boundary is implemented; BCI
-ingestion, AI interpretation, and provisional product views are not.
+observation and resolution persistence/service boundary and the BCI Historical
+evidence-first route are implemented. BCI Current/Recent persistence and
+lifecycle behavior, AI interpretation, and provisional product views are not.
 
 ## v0.1 persistence foundation
 

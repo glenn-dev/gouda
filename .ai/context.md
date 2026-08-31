@@ -76,24 +76,34 @@ research and diagnostic support rather than a parallel pipeline. This choice
 prioritizes Current's period-scoped coverage, per-row balance chain, and opaque
 series evidence over Recent's lower-maintenance OOXML format and dual dates.
 
-The next bounded task is evidence acquisition. Existing Historical coverage
-contains no Current rows. The one-time paired T2 falsification challenge is
-complete and did not falsify Current: all 27 contemporaneous Recent
-accounting-date candidates have exactly one Current candidate, while Recent's
-other 23 rows are older than Current's parsed range. Current's balance chain
-passes all 26 adjacent equations. Recent remains at exactly 50 rows while
-replacing four oldest-boundary candidates with four newer candidates, which is
-strong rolling-window evidence but not proof of a documented cap.
+The one-time paired T2 falsification challenge did not falsify Current: all 27
+contemporaneous Recent accounting-date candidates have exactly one Current
+candidate, while Recent's other 23 rows are older than Current's parsed range.
+Current's balance chain passes all 26 adjacent equations. Recent remains at
+exactly 50 rows while replacing four oldest-boundary candidates with four newer
+candidates, which is strong rolling-window evidence but not proof of a
+documented cap. Routine paired capture has stopped.
 
-Routine paired capture can stop. The next task is to retain the Historical
-statement whose intrinsic printed period covers the Current dates and perform
-a read-only Current-to-Historical rollover experiment. One shared T1/T2
-Current candidate signature changed description, opaque series, and row
+One Current-to-Historical rollover experiment remains valuable. One shared
+T1/T2 Current candidate signature changed description, opaque series, and row
 balance while its corresponding Recent candidate fields remained stable; this
-is unresolved source volatility, not identity or authority evidence. No stable
-cross-source identity rule is frozen, and no canonical Movement correction is
-implemented. Do not finalize cross-source identity or canonical correction
-rules without direct rollover or corrected-source evidence.
+is unresolved source volatility, not identity or authority evidence.
+
+BCI produces only three Historical current-account statements per year. As of
+August 2026, Current-to-Historical validation is deferred until a naturally
+available Historical artifact has an intrinsic printed period covering the
+retained Current dates. It is not the immediate Gouda task and does not block
+development. No stable cross-source identity rule is frozen, and no canonical
+Movement correction is implemented.
+
+The immediate roadmap priority is the first canonical read/reporting boundary:
+a read-only application service that queries accepted `Movement` rows for one
+trusted Account and inclusive date range, computes exact signed period totals,
+and returns a safe provenance trace to originating evidence. This advances the
+MVP query/totals/trace path using already stable canonical semantics. It must
+not add HTTP endpoints, authentication, migrations, classification, transfer
+pairing, provisional observations, BCI integration, identity/deduplication, or
+Movement correction.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.
