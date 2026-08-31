@@ -58,3 +58,29 @@ requires an explicit account/card-suffix binding, parses outside transactions,
 and atomically persists source evidence and canonical liability movements.
 Classification, transfer pairing, FX, and asynchronous processing remain
 outside this foundation.
+
+## Internal Movement reporting boundary
+
+The first read-only canonical reporting service is implemented under
+`gouda.ledger.services`. It accepts one trusted persisted `Account` and an
+inclusive date range, using `Movement.occurrence_date` as the existing
+canonical reporting date. It returns matching Movements ordered by occurrence
+date and Movement UUID, their exact Decimal signed-account-effect total and
+count, and a bounded source trace through the originating `RawRecord` and
+`ImportBatch` to the `SourceArtifact` UUID.
+
+Persisted `Movement` rows are the current accepted canonical query boundary.
+The service does not combine or filter them using `FinancialObservation`
+state: unresolved, rejected, and superseded evidence is not a Movement, while
+superseding an observation does not retract an existing Movement because
+canonical correction remains unimplemented. The source trace exposes only
+database identifiers and batch source kind, variant, parser version, import
+status, and reconciliation status. It excludes filenames, artifact digests or
+bytes, raw cells, source payloads, source references, and running balances.
+`Movement.description` remains an optional canonical reporting field on each
+item; it is not copied into the source trace, and raw source descriptions or
+parser evidence are not exposed as provenance.
+
+This is an internal application service only. It defines no HTTP/DRF,
+authentication, authorization, household ownership, classification,
+transfer, lifecycle, provisional-view, or write behavior.

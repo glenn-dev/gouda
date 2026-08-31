@@ -12,6 +12,18 @@ the existing test suite.
 Canonical movement sign follows ADR-0005. `Movement` represents accepted
 source-neutral financial truth; provider-native fields remain in evidence.
 
+The internal canonical Movement reporting service is implemented. It queries
+one trusted persisted Account over an inclusive `Movement.occurrence_date`
+range, orders by occurrence date and Movement UUID, computes exact Decimal
+count and signed-account-effect total from the returned tuple, and exposes a
+bounded source trace without filenames, bytes, digests, raw cells, source
+references, running balances, or parser payloads.
+
+Review found and fixed a pre-existing test-isolation defect: the account
+orientation migration test restored hard-coded migration `0008` instead of
+the current ledger leaf. It now snapshots and restores the leaf target, and
+the reporting and migration modules pass in either explicit execution order.
+
 The observation boundary is now implemented. `FinancialObservation` stores an
 immutable interpreted claim and mutable current lifecycle projection.
 `ObservationResolution` stores append-only transition history. Deterministic
@@ -25,9 +37,9 @@ reconciled Historical-only resolution policy.
 ## Functional checkpoint
 
 The latest committed checkpoint is
-`22c22efe9e9ac1432792866dda36dc56cd37c2c9` (`docs: confirm BCI current
-cartola for open period`). Git commands at cold start determine whether the
-roadmap reassessment remains uncommitted.
+`d1645d33bd46ea6dc987ae1a4b2da1f364fce62d` (`docs: reprioritize roadmap
+around movement reporting`). The reporting implementation and documentation
+are currently uncommitted; Git commands at cold start determine exact state.
 
 ## Observation/resolution checkpoint
 
@@ -227,31 +239,28 @@ available private artifacts are recognized read-only with no rejected rows.
 
 ## Next checkpoint
 
-Implement the first read-only canonical Movement reporting application
-service. Scope one trusted Account and inclusive date range; return
-deterministically ordered canonical Movements, exact Decimal signed totals and
-count, and a safe trace through RawRecord and ImportBatch to SourceArtifact
-identity. Do not add HTTP/DRF, authentication, UI, migrations, classification,
-transfers, provisional data, BCI integration, identity/deduplication,
-lifecycle policy, or Movement correction. Recommended reasoning level: Sol
-Medium.
+Design the trusted account-access/authentication boundary and narrow read-only
+delivery contract for the implemented reporting service. Determine how an
+authenticated caller may be authorized for exactly one Account and whether
+the absent user/household ownership model blocks implementation. Do not add
+HTTP/DRF, authentication code, models, migrations, UI, writes, or financial
+semantics in this design checkpoint. Recommended reasoning level: Sol High.
 
 ## Roadmap reassessment
 
-The major implemented foundation is ingestion-heavy: two Santander routes
-materialize canonical movements; BCI Historical persists evidence and uses the
-observation/resolution boundary; Current and Recent have source-only parsers.
-Canonical query, period reporting, classification, API, and frontend product
-surfaces remain absent.
+The implemented foundation now includes two Santander canonical-write routes,
+BCI Historical evidence and resolution, Current/Recent source-only parsers,
+and the first internal canonical query/period-total/source-trace service.
+Classification, API, authentication/ownership, and frontend product surfaces
+remain absent.
 
 Priorities are:
 
-1. Build the internal canonical Movement read/reporting service now. It uses
-   stable model semantics, directly advances MVP query/totals/trace behavior,
-   requires no migration, and unlocks later delivery surfaces.
-2. Design the account-access/authentication boundary and expose the reporting
-   service through a narrow read-only API. DRF is accepted by ADR-0002 but is
-   not installed or configured, and no user/household ownership model exists.
+1. Design the account-access/authentication boundary and a narrow read-only
+   delivery contract. DRF is accepted by ADR-0002 but is not installed or
+   configured, and no user/household ownership model exists.
+2. Implement the accepted access boundary and expose the reporting service
+   only after its security and ownership decisions are explicit.
 3. Define classification semantics and persistence for the MVP types before
    implementing category/type filters. Provider categories and amount signs
    are not canonical income/expense semantics.

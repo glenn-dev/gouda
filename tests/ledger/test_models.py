@@ -662,6 +662,7 @@ class AccountOrientationMigrationTests(TransactionTestCase):
 
     def test_existing_current_accounts_are_backfilled_by_0004(self):
         executor = MigrationExecutor(connection)
+        restore_targets = executor.loader.graph.leaf_nodes("ledger")
         migrate_from = [("ledger", "0003_importbatch_source_variant")]
         migrate_to = [("ledger", "0004_account_economic_orientation")]
         executor.migrate(migrate_from)
@@ -681,4 +682,6 @@ class AccountOrientationMigrationTests(TransactionTestCase):
             account = new_account.objects.get(pk=account.pk)
             self.assertEqual(account.economic_orientation, "ASSET")
         finally:
-            executor.migrate([("ledger", "0008_observation_resolution_boundary")])
+            MigrationExecutor(connection).migrate(restore_targets)
+            restored = MigrationExecutor(connection)
+            self.assertEqual(restored.migration_plan(restore_targets), [])

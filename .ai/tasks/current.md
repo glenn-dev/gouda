@@ -2,65 +2,52 @@
 
 ## Objective
 
-Implement a narrow read-only canonical Movement reporting application service
-for one trusted Account and inclusive date range.
+Design the trusted account-access/authentication boundary and narrow read-only
+delivery contract for the implemented canonical Movement reporting service.
 
 ## Current state
 
-BCI Historical Current Account PDF v0.1 is implemented and validated. The
-source-only contracts `bci_current_cartola_v0.1` and
-`bci_recent_movements_v0.1` are frozen and implemented as pure source parsers
-with synthetic tests and sanitized private validation. Current and Recent now
-require trusted nonblank artifact identity and preserve it in field
-provenance; Recent also records the selected Cargo or Abono source header and
-coordinate. No stable cross-source identity rule or canonical Movement
-correction has been frozen.
+The internal reporting service accepts one trusted persisted `Account` and an
+inclusive `Movement.occurrence_date` range. It returns immutable canonical
+Movement items ordered by occurrence date and Movement UUID, exact Decimal net
+signed account effect and count, and safe provenance identifiers plus source
+kind, variant, parser, import status, and reconciliation status. It performs no
+writes and avoids source filenames, bytes, digests, raw cells, references,
+balances, and parser payloads.
 
-Canonical `Movement`, Account orientation, exact money validation, originating
-RawRecord provenance, source-typed ImportBatch, and exact SourceArtifact
-identity are implemented. Santander current-account and credit-card routes
-already materialize validated canonical movements. BCI Historical may also
-resolve reconciled observations conservatively. There is no query/reporting
-application service, HTTP API, or frontend.
+Persisted `Movement` is the existing accepted canonical query boundary.
+Unresolved, rejected, or superseded observations do not independently appear
+in reports. Observation state does not filter existing Movements; canonical
+Movement correction or retraction remains unimplemented.
 
-The one-time T2 paired challenge is complete. T2 Current has 27 parsed rows and
-an exact 26-step balance chain. Every contemporaneous T2 Recent accounting-date
-candidate has exactly one Current candidate; Recent's other 23 rows are older
-than Current's parsed range. Recent remains at 50 rows while its oldest
-boundary advances, strongly supporting a rolling fixed-size shape without
-proving a service cap. One shared T1/T2 Current candidate signature changes
-description, opaque series, and row balance; it remains unresolved source
-volatility rather than a transaction identity. BCI emits only three Historical
-statements per year, so rollover validation is deferred until a naturally
-available statement's printed period covers the retained Current dates.
+No HTTP API, DRF dependency/configuration, authentication, authorization,
+user/household ownership model, or frontend exists. ADR-0002 accepts DRF as a
+technology direction but does not establish an account-access policy.
+
+BCI Current-to-Historical validation remains an event-triggered deferred task
+because BCI emits only three Historical current-account statements per year.
+It does not block this system-level design work.
 
 ## Constraints
 
-Use only accepted canonical `Movement` rows. Preserve exact Decimal semantics
-and Account isolation. Do not add migrations or writes. Do not infer income,
-expense, refund, fee, adjustment, transfer, household flow, cross-source
-identity, deduplication, lifecycle, or provisional meaning from sign or source
-fields.
+This is a design checkpoint. Do not add endpoints, authentication code,
+models, migrations, writes, UI, classification, household-flow semantics,
+transfers, provisional observations, BCI Current persistence, cross-source
+identity/deduplication, lifecycle policy, or Movement correction.
 
 ## Next action
 
-Design and implement one internal application service that:
+Review product, security, account-model, API, and deployment documentation and
+propose the smallest explicit boundary that can turn authenticated caller
+context into one authorized Account before invoking the reporting service.
+Specify a narrow read-only request/result/error contract, privacy-safe source
+trace representation, and test strategy. Identify whether the absent
+user/household ownership model blocks implementation; do not invent ownership
+semantics to avoid that decision.
 
-- validates a trusted Account and inclusive date range;
-- lists only canonical Movements in deterministic documented order;
-- returns an exact Decimal net signed account-effect total and count;
-- returns safe provenance identifiers and source kind/variant/parser and
-  reconciliation status without artifact bytes, filenames, raw cells, or other
-  private source payloads; and
-- proves through PostgreSQL-backed tests that Account/date filtering is exact,
-  unresolved or rejected observations never affect results, asset and
-  liability signs retain the same canonical meaning, and repeated queries are
-  deterministic.
+Expected artifacts are an architecture/design note and durable state updates.
+Create an ADR only if the accepted decision establishes persistent ownership,
+security, integration, or domain semantics. Do not implement the delivery
+surface during the design checkpoint.
 
-Expected implementation areas are a small module under
-`gouda/ledger/services/`, focused tests under `tests/ledger/`, and only the
-minimum architecture/state documentation warranted by the final boundary.
-Do not add DRF/HTTP, authentication, UI, classification/category models,
-transfer pairing, BCI routes, persistence changes, or correction behavior.
-
-Recommended reasoning level: Sol Medium.
+Recommended reasoning level: Sol High.

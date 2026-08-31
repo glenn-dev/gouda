@@ -52,6 +52,13 @@ context. `.ai/` is not canonical product documentation.
   identity before source reading and preserve it in record and field-level
   provenance. Recent Movements also records the selected Cargo or Abono header
   and cell coordinate for source direction and amount.
+- The internal canonical Movement reporting service queries one trusted
+  persisted Account over an inclusive `Movement.occurrence_date` range. It
+  returns deterministically ordered immutable items, exact Decimal total and
+  count, and safe UUID-based provenance plus route status metadata without
+  source payloads or filenames.
+- The account-orientation migration test now restores the current ledger leaf
+  migration, removing its pre-existing schema leakage into later test modules.
 
 ## Implemented target evolution
 
@@ -96,14 +103,14 @@ retained Current dates. It is not the immediate Gouda task and does not block
 development. No stable cross-source identity rule is frozen, and no canonical
 Movement correction is implemented.
 
-The immediate roadmap priority is the first canonical read/reporting boundary:
-a read-only application service that queries accepted `Movement` rows for one
-trusted Account and inclusive date range, computes exact signed period totals,
-and returns a safe provenance trace to originating evidence. This advances the
-MVP query/totals/trace path using already stable canonical semantics. It must
-not add HTTP endpoints, authentication, migrations, classification, transfer
-pairing, provisional observations, BCI integration, identity/deduplication, or
-Movement correction.
+The first canonical read/reporting boundary is implemented. Persisted
+`Movement` rows are the accepted query set; observation state is not a query
+filter, and superseding evidence does not retract an existing Movement while
+canonical correction remains deferred. The next bounded task is to design the
+trusted account-access/authentication boundary and a narrow read-only delivery
+contract for this service before adding HTTP. It must not implement DRF,
+authentication, ownership persistence, UI, writes, or broaden financial
+semantics during that design checkpoint.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.
