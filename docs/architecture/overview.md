@@ -93,6 +93,7 @@ reporting; possession of an Account UUID is never authorization.
 That boundary is implemented as an opaque module-issued local principal, a
 read-only Account resolver, and an authorized reporting orchestration service.
 It returns the existing `MovementReport` and adds no ownership, authentication,
-HTTP, model, migration, or write semantics. Network delivery remains blocked
-on a trusted server-side caller bootstrap/authentication decision; client input
-cannot create principal context.
+HTTP, model, migration, or write semantics. The conditional unauthenticated
+local delivery contract is now frozen as explicit loopback-only exposure; its
+fail-closed startup/bootstrap enforcement and DRF delivery remain unimplemented.
+Client input cannot create principal context.

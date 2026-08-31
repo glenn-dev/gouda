@@ -119,15 +119,24 @@ the same `account_not_accessible` failure. The authorized reporting operation
 then delegates unchanged to the existing `MovementReport` service. Both paths
 are deterministic and read-only.
 
-HTTP/DRF remains unimplemented. Account authorization is no longer the
-prerequisite, but a network adapter still needs a trusted server-side
-caller-bootstrap or authentication boundary. It must not issue principal
-context from request data. DRF is accepted architecturally but is not installed
-or configured.
+ADR-0010 and `docs/security/local-mvp-network-boundary.md` freeze the temporary
+delivery trust contract. An unauthenticated read adapter may issue the local
+principal only under explicit numeric loopback host exposure on a single-user
+or fully trusted host, with no wildcard/LAN bind, unspecified Docker
+publication, tunnel, proxy, forwarding, or production exposure. Request data
+never establishes principal trust. LAN, remote, shared-host, ambiguous, or
+broader exposure requires real authentication.
 
-The next bounded task is a design checkpoint to choose and freeze the smallest
-local-MVP caller-trust/bootstrap contract and network exposure constraints
-before implementing a read-only endpoint.
+The repository still exposes no backend HTTP service. Compose publishes only
+PostgreSQL on `127.0.0.1`; URLs are empty; DRF, auth, CORS, CSRF middleware,
+and frontend code are absent. Django's development-server loopback default is
+not Gouda enforcement because its bind is operator-overridable and current
+settings do not define a web profile.
+
+The next bounded task is to implement a fail-closed local delivery
+bootstrap/settings/launch boundary that owns explicit loopback binding and may
+obtain `trusted_local_principal_context()` without request input. Do not add
+DRF or the reporting endpoint until that enforcement exists.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.

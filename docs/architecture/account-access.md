@@ -10,7 +10,7 @@ write access.
 The bounded flow is:
 
 ```text
-authentication adapter (future)
+validated local-delivery bootstrap or authentication adapter
 -> trusted principal context
 -> read-account access resolver
 -> authorized persisted Account
@@ -77,18 +77,19 @@ The policy is intentionally non-persistent and single-principal:
 - no principal, user, household, member, role, or Account ownership row is
   added;
 - no client value is itself proof of principal identity;
-- the future authentication adapter must create the trusted principal context;
+- only the validated server-side delivery bootstrap or a future authentication
+  adapter may obtain the trusted principal context;
 - the access resolver, not the transport, converts an Account selector into an
   authorized `Account`; and
 - the policy must not be used in a deployment where recognized principals need
   different Account visibility.
 
-This temporary choice does not warrant an ADR because it deliberately defers
-the durable ownership and security-domain decision. Revisit it before adding a
-second independently authenticated principal, different Account visibility,
-individual/shared Account behavior, household membership, or any persisted
-grant. Network delivery still requires authentication and threat review, but
-does not by itself prove that ownership persistence is required.
+This temporary Account-access choice does not freeze durable ownership
+semantics. The conditional local network trust decision is recorded separately
+in [ADR-0010](../decisions/ADR-0010-loopback-only-local-mvp-delivery.md).
+Revisit ownership before adding a second independently authenticated principal,
+different Account visibility, individual/shared Account behavior, household
+membership, or any persisted grant.
 
 ## Trusted read-account boundary
 
@@ -177,15 +178,15 @@ from concrete multi-principal requirements rather than anticipated here.
 
 ## Delivery prerequisite
 
-Account authorization is now implemented, but network delivery is not ready
-to treat arbitrary requests as the trusted local principal. A future HTTP
-adapter must obtain principal context from a trusted server-side
-authentication or bootstrap boundary and then call
-`report_authorized_canonical_movements`; request bodies, headers, query
-parameters, Account selectors, and source data cannot issue that context.
+The local caller-trust and exposure contract is frozen in
+[Local MVP caller trust and network boundary](../security/local-mvp-network-boundary.md).
+A future unauthenticated read adapter may obtain the singleton only through a
+validated server-side loopback delivery mode. Request bodies, headers, query
+parameters, cookies, Account selectors, and source data cannot issue that
+context.
 
-For a deliberately local MVP, trusted server composition may obtain the
-singleton only after a separately defined local-caller trust check. The exact
-mechanism and exposure constraints remain unresolved. DRF is accepted by the
-technology ADR but is not installed or configured, and neither installing it
-nor adding an endpoint should precede that caller-trust decision.
+The required fail-closed bind/bootstrap enforcement is not implemented. DRF
+is accepted by the technology ADR but is not installed or configured. An
+endpoint must not be enabled until the loopback-only startup boundary exists;
+LAN, remote, tunneled, proxied, shared-host, or production access requires real
+authentication instead.

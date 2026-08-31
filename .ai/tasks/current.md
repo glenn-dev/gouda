@@ -2,62 +2,67 @@
 
 ## Objective
 
-Design the smallest trusted local-caller bootstrap/authentication contract for
-Gouda's first read-only delivery surface.
+Implement the fail-closed local-MVP delivery bootstrap and loopback launch
+boundary required before Gouda enables HTTP reporting.
 
 ## Current state
 
-The pre-HTTP Account authorization boundary is implemented in
-`gouda.ledger.services.account_access`. One opaque module-issued local
-principal receives temporary read access to all persisted Accounts. The
-resolver validates principal context and a UUID Account selector, returns an
-authorized persisted `Account`, and uses one `account_not_accessible` failure
-for unknown and policy-denied selectors. The authorized orchestration service
-delegates to the existing immutable `MovementReport` result.
+ADR-0010 and `docs/security/local-mvp-network-boundary.md` allow a future
+unauthenticated read adapter only behind an explicit numeric loopback host
+edge on a single-user or fully trusted machine. Wildcard, LAN, remote,
+tunneled, proxied, forwarded, shared-host, production, and ambiguous exposure
+must fail closed or require real authentication.
 
-This is authorization policy only. Gouda still has no authentication app,
-persisted user/principal/household/role/grant model, HTTP endpoint, or DRF
-installation. Calling `trusted_local_principal_context()` merely because an
-HTTP request arrived would make every reachable caller trusted and is not an
-acceptable network boundary.
+Account authorization and authorized reporting orchestration are implemented.
+HTTP is not: the repository has no backend listener, endpoint, DRF, auth,
+frontend, or runtime guard that couples the trusted principal bootstrap to a
+safe bind. Django's development-server default is not sufficient because its
+address is operator-overridable.
 
 ## Scope
 
-Perform a design/security checkpoint that:
+Implement the smallest explicit server-side boundary that:
 
-- defines the local MVP's intended network/process exposure;
-- identifies how trusted server-side code establishes the one local caller
-  before issuing principal context;
-- evaluates the smallest viable mechanisms without inferring identity from
-  request bodies, headers, Account UUIDs, artifacts, or provider data;
-- specifies failure and deployment assumptions needed by a later DRF adapter;
-- determines whether DRF can be installed and a read-only endpoint safely
-  implemented in one following bounded slice; and
-- records the event that would require replacing the temporary singleton
-  policy with durable multi-principal access semantics.
+- enables local unauthenticated delivery only through trusted configuration
+  with no permissive default;
+- owns a dedicated launch path bound to numeric `127.0.0.1`, with optional
+  explicit `::1` support if it can be tested safely;
+- refuses wildcard, unspecified, LAN, or caller-selected bind addresses;
+- establishes the validated local-delivery mode before any adapter may obtain
+  `trusted_local_principal_context()`;
+- uses strict Host/origin configuration only as defense in depth, never as
+  caller authentication;
+- provides deterministic tests for allowed and rejected startup/configuration
+  shapes without opening a public listener; and
+- documents the exact safe local launch command and fail-closed behavior.
+
+Expected areas are Django configuration, a narrow local-delivery bootstrap or
+management-command boundary, focused tests, and local-development/security
+documentation.
 
 ## Non-goals
 
-Do not implement DRF/HTTP, middleware, authentication, sessions, tokens, users,
-households, roles, Account ownership/grants, models, migrations, frontend,
-writes/import authorization, or new financial semantics during the design
-checkpoint.
+Do not implement DRF, URL routes, HTTP response serialization, authentication,
+sessions, tokens, users, households, roles, Account ownership/grants, models,
+migrations, frontend, Docker backend publication, reverse proxy, TLS, writes,
+import authorization, or financial semantics.
 
 ## Acceptance criteria
 
-- Client-controlled data cannot establish trusted principal context.
-- The selected mechanism has an explicit local deployment/threat boundary.
-- Network reachability is not silently treated as identity unless that is an
-  explicit, justified, fail-closed local-only deployment contract.
-- Account authorization remains delegated to the implemented resolver.
-- A future endpoint is required to call
-  `report_authorized_canonical_movements` rather than fetch an Account itself.
-- Authentication, authorization, ownership, and delivery remain distinct.
-- The design identifies exact implementation prerequisites and privacy-safe
-  transport errors without broad multi-tenant architecture.
+- Trusted mode has no implicit or ambiguous default.
+- The supported launcher cannot bind an unauthenticated service to wildcard,
+  LAN, or caller-selected interfaces.
+- Principal context is issued only from validated server composition and never
+  from request-like data.
+- Unsupported launch/configuration paths fail before financial delivery.
+- Existing Account authorization and reporting services remain unchanged.
+- No endpoint, model, migration, write behavior, or ownership semantics are
+  added.
+- Tests and documentation make clear that local OS processes share the
+  temporary trust perimeter and that tunnels/proxies remain prohibited.
 
-Principal risks are creating a bearer secret accidentally through client
-input, exposing an unauthenticated endpoint beyond its assumed local boundary,
-or adding durable ownership semantics without product evidence.
+Principal risks are relying on Django's overridable defaults, treating Host or
+origin checks as authentication, or creating an enforcement seam that a later
+endpoint can silently bypass.
 
 Recommended reasoning level: Sol High.

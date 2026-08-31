@@ -26,6 +26,13 @@ and policy-denied selectors are indistinguishable, and the orchestration path
 returns the existing `MovementReport` without widening provenance or writing
 state.
 
+The local-MVP caller-trust and network contract is frozen in ADR-0010. An
+unauthenticated read adapter is permitted only behind an explicit numeric
+loopback host edge on a single-user or fully trusted machine. Wildcard, LAN,
+remote, tunneled, proxied, forwarded, shared-host, production, and ambiguous
+exposure requires real authentication or fails closed. This is deployment
+trust, not caller authentication.
+
 Account-access validation exposed a pre-existing migration-test isolation
 defect: the checkpoint migration module restored hard-coded migration `0008`
 instead of the current ledger leaf `0009`, so modules executed afterward saw
@@ -46,10 +53,9 @@ reconciled Historical-only resolution policy.
 ## Functional checkpoint
 
 The latest committed checkpoint is
-`a50438588413b97bec3e27f39d1e0e33a32fe702` (`docs: define trusted account
-access boundary`). The Account-access implementation, focused tests, and
-status documentation are currently uncommitted; Git commands at cold start
-determine exact state.
+`146014e69f1cd3a46a5ef87539a63f9fc896770d` (`feat: add trusted account access
+service`). The caller-trust/network design documentation and durable state are
+currently uncommitted; Git commands at cold start determine exact state.
 
 ## Observation/resolution checkpoint
 
@@ -275,18 +281,36 @@ fetching an Account directly.
 
 Revisit ownership persistence before a second independently authenticated
 principal, different Account visibility, individual/shared Account behavior,
-household membership, or persisted grants. No ADR is created because those
-durable semantics remain intentionally deferred.
+household membership, or persisted grants. ADR-0010 records only the temporary
+network exposure contract; durable ownership semantics remain deferred.
+
+## Local delivery trust checkpoint
+
+The current repository exposes no backend HTTP service. `config.urls` is
+empty; DRF, auth, CORS, CSRF middleware, and frontend code are absent. Compose
+publishes only PostgreSQL at `127.0.0.1:5432`. ASGI/WSGI objects do not open a
+listener. Django runserver defaults to loopback, but its bind can be overridden
+and current settings do not define a runnable web profile, so that default is
+not Gouda enforcement.
+
+`docs/security/local-mvp-network-boundary.md` defines local as machine-local
+numeric IP loopback, not process locality or LAN proximity. A server-side
+validated local-delivery mode may inject the existing principal with no
+request input only when the host edge and trusted-host conditions hold.
+Container-internal wildcard binding is allowed only behind explicit loopback
+host publication and a trusted private application network. Host, CORS, CSRF,
+port obscurity, and Account UUID secrecy are defense or selectors, not
+authentication.
 
 ## Next checkpoint
 
-Design the smallest local-MVP caller-trust/bootstrap and network-exposure
-contract before implementing HTTP. Account authorization is implemented, but
-DRF is not installed and no trusted request-to-principal mechanism exists.
-Client input must never issue principal context. Keep the checkpoint to
-authentication/bootstrap and delivery trust design; do not add HTTP/DRF,
-ownership persistence, models, migrations, UI, or writes. Recommended
-reasoning level: Sol High.
+Implement the fail-closed local-delivery bootstrap/settings/launch boundary
+before installing DRF or adding an endpoint. The supported launch path must own
+explicit numeric loopback binding, reject wildcard/LAN/ambiguous addresses,
+and establish trusted mode before server composition obtains the principal.
+Do not add DRF, routes, authentication, ownership persistence, models,
+migrations, UI, Docker publication, or writes. Recommended reasoning level:
+Sol High.
 
 ## Roadmap reassessment
 
@@ -298,11 +322,10 @@ remain absent.
 
 Priorities are:
 
-1. Freeze the local-MVP trusted caller bootstrap/authentication and network
-   exposure contract. Account authorization is now enforced, but DRF is not
-   installed and request-to-principal trust remains undefined.
+1. Implement fail-closed local-delivery bootstrap and numeric loopback launch
+   enforcement. The trust contract is frozen, but runtime enforcement is not.
 2. Install/configure DRF and implement a narrow read-only delivery layer only
-   after that trust boundary is explicit.
+   after that startup boundary is enforced.
 3. Define classification semantics and persistence for the MVP types before
    implementing category/type filters. Provider categories and amount signs
    are not canonical income/expense semantics.

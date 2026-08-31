@@ -14,6 +14,10 @@ Financial data is sensitive by default.
 - Resolve client-supplied Account selectors through the explicit
   [Account access boundary](../architecture/account-access.md); an Account UUID,
   provider identifier, or source artifact is never proof of access.
+- Constrain any unauthenticated local read delivery to the fail-closed
+  [local MVP network boundary](local-mvp-network-boundary.md). LAN membership,
+  wildcard binds, Host headers, CORS, CSRF, and port obscurity are not caller
+  authentication.
 - Preserve provenance for corrections, but provide a documented retention and deletion process.
 
 ## Unstructured and AI-assisted ingestion
