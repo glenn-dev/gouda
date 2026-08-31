@@ -84,3 +84,8 @@ parser evidence are not exposed as provenance.
 This is an internal application service only. It defines no HTTP/DRF,
 authentication, authorization, household ownership, classification,
 transfer, lifecycle, provisional-view, or write behavior.
+
+The pre-HTTP caller-to-Account boundary is defined separately in
+[Account access and read-only delivery](account-access.md). Delivery must
+resolve an untrusted Account selector through that boundary before invoking
+reporting; possession of an Account UUID is never authorization.

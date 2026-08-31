@@ -11,6 +11,9 @@ Financial data is sensitive by default.
 - Keep secrets in a dedicated secret manager, never in source or configuration committed to git.
 - Redact descriptions, account identifiers, and raw payloads from logs and error messages.
 - Restrict access by least privilege and audit administrative access.
+- Resolve client-supplied Account selectors through the explicit
+  [Account access boundary](../architecture/account-access.md); an Account UUID,
+  provider identifier, or source artifact is never proof of access.
 - Preserve provenance for corrections, but provide a documented retention and deletion process.
 
 ## Unstructured and AI-assisted ingestion

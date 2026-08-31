@@ -37,9 +37,9 @@ reconciled Historical-only resolution policy.
 ## Functional checkpoint
 
 The latest committed checkpoint is
-`d1645d33bd46ea6dc987ae1a4b2da1f364fce62d` (`docs: reprioritize roadmap
-around movement reporting`). The reporting implementation and documentation
-are currently uncommitted; Git commands at cold start determine exact state.
+`1097f9104f9a5279eb396c842a4f2f5f2094b60e` (`feat: add canonical movement
+reporting service`). The Account-access design documentation is currently
+uncommitted; Git commands at cold start determine exact state.
 
 ## Observation/resolution checkpoint
 
@@ -237,14 +237,37 @@ tests exercise recognition, parsing, provenance, formula/type rejection, and
 money/date validation without adding an XLS writer or binary fixture. The
 available private artifacts are recognized read-only with no rejected rows.
 
+## Account access design checkpoint
+
+Gouda currently has no Django authentication app and no persisted user,
+principal, household, member, role, permission, Account owner, or Account grant.
+The product makes multi-user sharing out of scope and does not document
+named-person access or individual/shared Account behavior. Household net-worth
+language defines canonical sign, not ownership.
+
+The bounded MVP design therefore uses one trusted local principal with read
+access to every persisted Account. This is a temporary non-persistent access
+policy, not ownership. A future delivery adapter must pass untrusted internal
+Account UUID selectors through one read-access resolver; it cannot instantiate
+or fetch an Account and call reporting directly. The resolver returns a
+persisted authorized `Account`, uses one `account_not_accessible` result for
+unknown and unauthorized selectors, and grants no import/write capability.
+
+Revisit ownership persistence before a second independently authenticated
+principal, different Account visibility, individual/shared Account behavior,
+household membership, or persisted grants. No ADR is created because those
+durable semantics remain intentionally deferred.
+
 ## Next checkpoint
 
-Design the trusted account-access/authentication boundary and narrow read-only
-delivery contract for the implemented reporting service. Determine how an
-authenticated caller may be authorized for exactly one Account and whether
-the absent user/household ownership model blocks implementation. Do not add
-HTTP/DRF, authentication code, models, migrations, UI, writes, or financial
-semantics in this design checkpoint. Recommended reasoning level: Sol High.
+Implement the temporary single-principal read-Account resolver and authorized
+reporting orchestration service defined in
+`docs/architecture/account-access.md`. Keep principal context opaque and
+trusted by application composition, resolve untrusted Account UUIDs before
+calling reporting, and use one indistinguishable `account_not_accessible`
+failure for unknown or unauthorized Accounts. Do not add HTTP/DRF,
+authentication, ownership persistence, models, migrations, UI, or writes.
+Recommended reasoning level: Sol High.
 
 ## Roadmap reassessment
 
@@ -256,11 +279,11 @@ remain absent.
 
 Priorities are:
 
-1. Design the account-access/authentication boundary and a narrow read-only
-   delivery contract. DRF is accepted by ADR-0002 but is not installed or
-   configured, and no user/household ownership model exists.
-2. Implement the accepted access boundary and expose the reporting service
-   only after its security and ownership decisions are explicit.
+1. Implement the temporary single-principal read-Account resolver and
+   authorized reporting orchestration boundary without HTTP or authentication.
+2. Choose and implement authentication plus a narrow read-only delivery layer
+   only after the resolver is enforced. DRF is accepted by ADR-0002 but is not
+   installed or configured.
 3. Define classification semantics and persistence for the MVP types before
    implementing category/type filters. Provider categories and amount signs
    are not canonical income/expense semantics.

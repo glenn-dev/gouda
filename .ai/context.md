@@ -106,11 +106,21 @@ Movement correction is implemented.
 The first canonical read/reporting boundary is implemented. Persisted
 `Movement` rows are the accepted query set; observation state is not a query
 filter, and superseding evidence does not retract an existing Movement while
-canonical correction remains deferred. The next bounded task is to design the
-trusted account-access/authentication boundary and a narrow read-only delivery
-contract for this service before adding HTTP. It must not implement DRF,
-authentication, ownership persistence, UI, writes, or broaden financial
-semantics during that design checkpoint.
+canonical correction remains deferred.
+
+The pre-HTTP Account-access design is now documented in
+`docs/architecture/account-access.md`. Gouda has no user, principal,
+household, member, role, permission, or Account ownership persistence, and the
+product does not define named-person, shared-Account, or multi-user access.
+The temporary MVP read policy therefore recognizes one trusted local principal
+with access to all persisted Accounts. This is non-persistent access policy,
+not ownership. Unknown and unauthorized Account selectors share one
+`account_not_accessible` failure, and downstream reporting continues to
+receive an authorized `Account` object.
+
+The next bounded task is to implement that read-only resolver and an authorized
+reporting orchestration service without authentication, HTTP, DRF, models,
+migrations, writes, or broader ownership semantics.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.

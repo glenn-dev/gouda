@@ -2,52 +2,67 @@
 
 ## Objective
 
-Design the trusted account-access/authentication boundary and narrow read-only
-delivery contract for the implemented canonical Movement reporting service.
+Implement the temporary single-principal read-Account access boundary and the
+authorized canonical Movement reporting orchestration service.
 
 ## Current state
 
-The internal reporting service accepts one trusted persisted `Account` and an
-inclusive `Movement.occurrence_date` range. It returns immutable canonical
-Movement items ordered by occurrence date and Movement UUID, exact Decimal net
-signed account effect and count, and safe provenance identifiers plus source
-kind, variant, parser, import status, and reconciliation status. It performs no
-writes and avoids source filenames, bytes, digests, raw cells, references,
-balances, and parser payloads.
+`docs/architecture/account-access.md` defines the pre-HTTP boundary. Gouda has
+no persisted user, principal, household, member, role, permission, or Account
+ownership model. Multi-user sharing is outside MVP scope, and no documented
+product rule establishes named-person access or individual/shared Accounts.
 
-Persisted `Movement` is the existing accepted canonical query boundary.
-Unresolved, rejected, or superseded observations do not independently appear
-in reports. Observation state does not filter existing Movements; canonical
-Movement correction or retraction remains unimplemented.
+The temporary MVP policy recognizes one trusted local principal supplied by
+trusted application composition and allows that principal to read all
+persisted Accounts. This is an access policy, not ownership. An untrusted
+Account UUID must be resolved together with principal context; unknown and
+unauthorized Accounts are indistinguishable as `account_not_accessible`.
 
-No HTTP API, DRF dependency/configuration, authentication, authorization,
-user/household ownership model, or frontend exists. ADR-0002 accepts DRF as a
-technology direction but does not establish an account-access policy.
+The existing `report_canonical_movements` service already accepts a trusted
+persisted `Account` and returns the canonical immutable report.
 
-BCI Current-to-Historical validation remains an event-triggered deferred task
-because BCI emits only three Historical current-account statements per year.
-It does not block this system-level design work.
+## Scope
 
-## Constraints
+Implement a small read-only application service that:
 
-This is a design checkpoint. Do not add endpoints, authentication code,
-models, migrations, writes, UI, classification, household-flow semantics,
-transfers, provisional observations, BCI Current persistence, cross-source
-identity/deduplication, lifecycle policy, or Movement correction.
+- represents an opaque trusted principal context without authentication
+  mechanics or persistence;
+- is configured for exactly one recognized local principal;
+- validates one untrusted internal Account UUID selector;
+- resolves principal access and Account lookup in one boundary;
+- returns the authorized persisted `Account` object;
+- uses `principal_context_invalid`, `account_selector_invalid`, and uniform
+  `account_not_accessible` failures; and
+- provides one orchestration function that resolves access and then invokes
+  `report_canonical_movements`, returning the existing `MovementReport`.
 
-## Next action
+Expected code areas are small modules under `gouda/ledger/services/` and
+focused PostgreSQL-backed tests under `tests/ledger/`.
 
-Review product, security, account-model, API, and deployment documentation and
-propose the smallest explicit boundary that can turn authenticated caller
-context into one authorized Account before invoking the reporting service.
-Specify a narrow read-only request/result/error contract, privacy-safe source
-trace representation, and test strategy. Identify whether the absent
-user/household ownership model blocks implementation; do not invent ownership
-semantics to avoid that decision.
+## Non-goals
 
-Expected artifacts are an architecture/design note and durable state updates.
-Create an ADR only if the accepted decision establishes persistent ownership,
-security, integration, or domain semantics. Do not implement the delivery
-surface during the design checkpoint.
+Do not add authentication, DRF/HTTP, serializers, permissions frameworks,
+frontend, models, migrations, users, households, members, roles, persisted
+grants, tokens, sessions, JWT, imports/writes, classification, transfers, BCI
+lifecycle behavior, or new financial semantics. Read access must not imply
+write/import permission.
+
+## Acceptance criteria
+
+- Only the configured trusted principal can resolve Accounts.
+- A valid principal can resolve every current persisted Account under the
+  explicitly temporary policy.
+- Invalid principal context and selector shapes fail deterministically.
+- Unknown and unauthorized Account selectors produce the same safe failure.
+- Arbitrary Account UUIDs never reach reporting without resolver success.
+- Authorized reporting preserves inclusive dates, Account isolation,
+  canonical ordering, exact Decimal totals, and the existing result type.
+- The boundary is read-only, deterministic, and does not expose Account
+  existence or private source data through errors.
+- Tests cover repeated calls and multiple Accounts without private values.
+
+Principal risks are accidentally treating a client value as trusted principal
+context, leaking Account existence through distinguishable failures, or
+letting the temporary all-Accounts policy masquerade as ownership.
 
 Recommended reasoning level: Sol High.
