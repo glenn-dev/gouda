@@ -63,6 +63,9 @@ context. `.ai/` is not canonical product documentation.
   `runlocal` command accepts only explicit numeric `127.0.0.1` or `::1`, owns
   Django's downstream bind, and activates one non-persisted opaque runtime only
   during the server runner lifetime. Principal issuance requires that runtime.
+- Django REST Framework 3.16.x is configured without authentication and with
+  JSON-only rendering. One GET endpoint explicitly serializes authorized
+  canonical Movement reports and fails closed without the active runtime.
 
 ## Implemented target evolution
 
@@ -131,20 +134,21 @@ publication, tunnel, proxy, forwarding, or production exposure. Request data
 never establishes principal trust. LAN, remote, shared-host, ambiguous, or
 broader exposure requires real authentication.
 
-The repository still exposes no backend endpoint. Compose publishes only
-PostgreSQL on `127.0.0.1`; URLs are empty; DRF, auth, CORS, CSRF middleware,
-and frontend code are absent. `runlocal` is now the supported host launch: it
-requires exact numeric loopback, rejects wildcard/LAN/hostname/ambiguous
-values before delegation, validates the port, and derives Django's bind. It
-disables autoreload so its in-memory trust capability and server share one
-process lifetime. Direct `runserver`, WSGI, or ASGI composition has no active
-capability and must remain unavailable to a future unauthenticated adapter.
+The repository exposes exactly one backend operation:
+`GET /api/v1/accounts/<account_uuid>/movements/` with strict inclusive
+`start_date` and `end_date`. It requires the active `runlocal` runtime before
+principal issuance, resolves the Account through `account_access`, and
+serializes only approved `MovementReport` fields. Decimal amounts are exact
+strings; unknown and denied Accounts share `account_not_accessible`; errors
+have minimal stable codes. Generic `runserver`, WSGI, ASGI, headers, cookies,
+query values, and bodies do not establish trust.
 
-This runtime checkpoint satisfies ADR-0010's implementation prerequisite for
-installing/configuring DRF and adding one narrow read-only canonical Movement
-report endpoint. That next adapter must require the active runtime, obtain the
-existing principal without request input, call
-`report_authorized_canonical_movements`, and serialize only approved fields.
+DRF has no authentication classes or Django anonymous auth user, and only the
+JSON renderer is enabled. Django auth, sessions, tokens, users, ownership,
+CORS, frontend code, additional routes, and backend containers remain absent.
+The next bounded task should define and implement privacy-safe Account summary
+discovery under the same authorized runtime so a later client need not begin
+with an externally supplied internal Account UUID.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.

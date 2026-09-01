@@ -23,6 +23,7 @@ ALLOWED_HOSTS = ["127.0.0.1", "[::1]"]
 
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
+    "rest_framework",
     "gouda.ledger",
 ]
 
@@ -48,3 +49,11 @@ TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [],
+    "DEFAULT_PERMISSION_CLASSES": [],
+    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+    "UNAUTHENTICATED_USER": None,
+    "UNAUTHENTICATED_TOKEN": None,
+}

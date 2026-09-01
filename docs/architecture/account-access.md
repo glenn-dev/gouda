@@ -2,10 +2,10 @@
 
 ## Status and scope
 
-This document defines the implemented pre-HTTP application boundary for
-deciding which `Account` one trusted caller principal may read. It does not
-choose an authentication mechanism, add ownership persistence, or define
-write access.
+This document defines the implemented application boundary for deciding which
+`Account` one trusted caller principal may read. The first local HTTP adapter
+uses it without choosing an authentication mechanism, adding ownership
+persistence, or defining write access.
 
 The bounded flow is:
 
@@ -15,7 +15,7 @@ validated local-delivery bootstrap or authentication adapter
 -> read-account access resolver
 -> authorized persisted Account
 -> canonical Movement reporting service
--> delivery adapter (future)
+-> explicit local HTTP delivery adapter
 ```
 
 Authentication establishes who the caller is. Account authorization decides
@@ -158,8 +158,8 @@ the Account disappears between access resolution and reporting, the
 orchestration operation translates the lower-level absence to
 `account_not_accessible`, not a distinct existence signal.
 
-The delivery layer must explicitly serialize approved result fields. The
-current result contains Account and Movement UUIDs, occurrence date, exact
+The implemented delivery layer explicitly serializes approved result fields.
+The current result contains Account and Movement UUIDs, occurrence date, exact
 canonical signed amount, currency, optional canonical `Movement.description`,
 and the bounded source trace documented in
 [Architecture overview](overview.md). It must not introspect Django models or
@@ -180,7 +180,7 @@ from concrete multi-principal requirements rather than anticipated here.
 
 The local caller-trust and exposure contract is frozen in
 [Local MVP caller trust and network boundary](../security/local-mvp-network-boundary.md).
-A future unauthenticated read adapter may obtain the singleton only through a
+The unauthenticated read adapter may obtain the singleton only through a
 validated server-side loopback delivery mode. Request bodies, headers, query
 parameters, cookies, Account selectors, and source data cannot issue that
 context.
@@ -190,10 +190,10 @@ The required fail-closed bind/bootstrap enforcement is implemented by
 validated server runner is active, the process-local `LocalDeliveryRuntime`
 may issue this module's existing principal context without request input. A
 direct `runserver`, WSGI, or ASGI launch has no active local-delivery runtime,
-so a future adapter that requires it fails closed.
+so the adapter fails closed.
 
-DRF is accepted by the technology ADR but is not installed or configured. The
-runtime prerequisite is now satisfied for one narrow read-only adapter that
-requires the active runtime, calls `report_authorized_canonical_movements`,
-and explicitly serializes approved fields. LAN, remote, tunneled, proxied,
+The JSON-only DRF adapter is implemented at the versioned route documented in
+[Local canonical Movement HTTP delivery](local-http-delivery.md). It requires
+the active runtime, calls `report_authorized_canonical_movements`, and
+explicitly serializes approved fields. LAN, remote, tunneled, proxied,
 shared-host, or production access still requires real authentication instead.

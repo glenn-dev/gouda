@@ -2,10 +2,10 @@
 
 ## Status and scope
 
-This document defines the temporary network and caller-trust contract for a
-future read-only Gouda HTTP surface and records its implemented local launch
-boundary. It does not implement an endpoint, authentication, DRF, frontend
-behavior, or deployment infrastructure.
+This document defines the temporary network and caller-trust contract for the
+implemented read-only Gouda HTTP surface and its local launch boundary. It
+does not implement authentication, frontend behavior, or deployment
+infrastructure.
 
 The decision is recorded in
 [ADR-0010](../decisions/ADR-0010-loopback-only-local-mvp-delivery.md).
@@ -34,10 +34,11 @@ unsupported on a shared or otherwise untrusted host.
 
 ## Current effective exposure
 
-The repository currently exposes no backend HTTP service:
+The repository exposes one backend HTTP operation:
 
-- `config.urls` has no URL patterns;
-- DRF and Django authentication are not installed;
+- `config.urls` contains only the versioned canonical Movement report route;
+- DRF is installed with JSON-only rendering and no authentication classes;
+- Django authentication is not installed;
 - no CORS or CSRF middleware is configured;
 - `ALLOWED_HOSTS` contains only numeric IPv4 and bracketed IPv6 loopback, and
   `DEBUG` defaults to false;
@@ -113,7 +114,7 @@ implementation; container exposure enforcement remains future work.
 
 ## Caller-trust bootstrap
 
-The future delivery adapter may obtain
+The delivery adapter may obtain
 `trusted_local_principal_context()` unconditionally per request only after a
 trusted server-side startup or composition boundary has established the
 frozen loopback-only mode above. This is deployment-scoped injection of the
@@ -159,8 +160,8 @@ only an unambiguous ASCII decimal integer from 1 through 65535.
 The command validates configuration before delegation, derives Django's
 address/port argument itself, and disables autoreload so the in-memory trust
 lifetime and server process are the same. During that runner lifetime it
-activates one opaque, non-persisted `LocalDeliveryRuntime`. A future adapter
-must require that active runtime and use its no-argument principal issuance
+activates one opaque, non-persisted `LocalDeliveryRuntime`. The adapter
+requires that active runtime and uses its no-argument principal issuance
 method before calling `report_authorized_canonical_movements`. The runtime is
 cleared when the runner exits or raises. Direct `runserver` and arbitrary
 WSGI/ASGI composition do not activate it.
@@ -172,7 +173,7 @@ infer the machine's external network topology.
 
 ## Fail-closed behavior
 
-The unauthenticated delivery adapter must not start or must remain unavailable
+The unauthenticated delivery adapter must remain unavailable
 when the host-facing exposure cannot be established as loopback-only, local
 delivery mode is unset or ambiguous, or an unsupported launch path bypasses
 the controlled bind. It must not fall back to issuing principal context.

@@ -81,9 +81,10 @@ bytes, raw cells, source payloads, source references, and running balances.
 item; it is not copied into the source trace, and raw source descriptions or
 parser evidence are not exposed as provenance.
 
-This is an internal application service only. It defines no HTTP/DRF,
-authentication, authorization, household ownership, classification,
-transfer, lifecycle, provisional-view, or write behavior.
+This service remains transport-independent. The first HTTP adapter now exposes
+only its authorized orchestration path and explicit result projection. It adds
+no authentication, household ownership, classification, transfer, lifecycle,
+provisional-view, or write behavior.
 
 The pre-HTTP caller-to-Account boundary is defined separately in
 [Account access and read-only delivery](account-access.md). Delivery must
@@ -97,5 +98,11 @@ HTTP, model, migration, or write semantics. The conditional unauthenticated
 local delivery contract is enforced by the dedicated `runlocal` command and
 its process-local bootstrap capability. The command owns an explicit numeric
 loopback bind and activates principal issuance only for the lifetime of its
-server runner. Direct `runserver` has no active capability. DRF delivery
-remains unimplemented, and client input cannot create principal context.
+server runner. Direct `runserver` has no active capability, and client input
+cannot create principal context.
+
+The implemented JSON-only DRF adapter provides exactly one GET route for an
+Account UUID and inclusive date range. It requires the active runtime before
+principal issuance, delegates to `report_authorized_canonical_movements`, and
+serializes only the approved `MovementReport` projection with exact decimal
+strings. See [Local canonical Movement HTTP delivery](local-http-delivery.md).
