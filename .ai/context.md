@@ -64,8 +64,11 @@ context. `.ai/` is not canonical product documentation.
   Django's downstream bind, and activates one non-persisted opaque runtime only
   during the server runner lifetime. Principal issuance requires that runtime.
 - Django REST Framework 3.16.x is configured without authentication and with
-  JSON-only rendering. One GET endpoint explicitly serializes authorized
-  canonical Movement reports and fails closed without the active runtime.
+  JSON-only rendering. Account discovery and canonical Movement report GET
+  endpoints fail closed without the active runtime.
+- A minimal Vite + React + TypeScript client implements Account discovery,
+  internal UUID selection, inclusive date input, and canonical Movement report
+  rendering. It preserves exact decimal strings and omits source provenance.
 
 ## Implemented target evolution
 
@@ -146,14 +149,14 @@ headers, cookies, query values, and bodies do not establish trust.
 
 DRF has no authentication classes or Django anonymous auth user, and only the
 JSON renderer is enabled. Django auth, sessions, tokens, users, ownership,
-CORS, frontend code, Account CRUD, and backend containers remain absent. The
-backend now has the minimum read surface for a local client to discover an
-Account and request its canonical Movements for an inclusive date range.
+CORS, Account CRUD, and backend containers remain absent. The local React
+client binds Vite to `127.0.0.1:5173` and proxies only `/api` to the validated
+`runlocal` backend at `127.0.0.1:8000`; this is transport convenience, not
+authentication or principal issuance.
 
-The next bounded task should implement a minimal read-only local React client
-that discovers Accounts, selects one UUID, accepts an inclusive date range,
-and renders the existing canonical Movement report. It must add no write path,
-authentication fiction, broad CORS rule, or financial re-interpretation.
+The first end-to-end browser read flow is implemented. The next bounded task
+should define and freeze canonical Movement classification semantics and
+persistence for the MVP types before adding classification UI or filters.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.

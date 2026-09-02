@@ -36,5 +36,9 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 
+# Frontend dependencies and generated build output.
+node_modules/
+dist/
+
 # macOS Finder metadata.
 .DS_Store

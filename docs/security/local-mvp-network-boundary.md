@@ -4,8 +4,8 @@
 
 This document defines the temporary network and caller-trust contract for the
 implemented read-only Gouda HTTP surface and its local launch boundary. It
-does not implement authentication, frontend behavior, or deployment
-infrastructure.
+does not implement authentication or deployment infrastructure. The local
+frontend development edge described below remains inside this contract.
 
 The decision is recorded in
 [ADR-0010](../decisions/ADR-0010-loopback-only-local-mvp-delivery.md).
@@ -46,7 +46,8 @@ The repository exposes two backend HTTP operations:
 - ASGI and WSGI application objects exist but do not open listeners;
 - the dedicated `runlocal` command enforces the supported host-process bind,
   but no container image or backend Compose service is defined; and
-- no frontend implementation or browser-to-backend connection exists.
+- the local React development client binds Vite to `127.0.0.1:5173` and
+  proxies only `/api` to the validated backend at `127.0.0.1:8000`.
 
 The only Compose host-port publication is PostgreSQL on
 `127.0.0.1:5432`. It is a loopback-bound database development port, not an
@@ -205,8 +206,12 @@ still expose adapter code incorrectly.
 ## Frontend compatibility
 
 A React client running in a browser on the same trusted host can use a
-loopback-only backend. A same-origin local development proxy is the simplest
-browser arrangement. If frontend and backend use distinct loopback origins,
+loopback-only backend. The implemented Vite development server binds to
+`127.0.0.1:5173` and proxies only `/api` to `127.0.0.1:8000`, providing the
+same-origin browser arrangement without backend CORS. Both listeners remain
+inside the numeric-loopback perimeter. The proxy does not authenticate the
+browser, issue principal context, or make the setup production-ready. If a
+future frontend and backend use distinct loopback origins,
 any future CORS allowlist must name only the exact required local origin; CORS
 still does not establish caller trust.
 

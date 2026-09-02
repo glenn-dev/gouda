@@ -149,3 +149,33 @@ prevent deliberate internal Python bypasses or unsupported launchers, or
 detect tunnels, proxies, NAT, SSH forwarding, relays, or external
 re-publication. Real authentication is required before expanding the trust
 perimeter.
+
+## Local React development client
+
+The repository's first browser client is a Vite + React + TypeScript app under
+`frontend/`. It calls only the two documented GET operations through relative
+`/api` URLs. The Vite development server binds explicitly to
+`127.0.0.1:5173` and proxies only the `/api` path to the validated backend at
+`http://127.0.0.1:8000`. No backend CORS configuration is added.
+
+The supported startup sequence is:
+
+```text
+Terminal 1: python manage.py runlocal --host 127.0.0.1 --port 8000
+Terminal 2: cd frontend && npm run dev
+Browser:    http://127.0.0.1:5173/
+```
+
+This proxy keeps browser API requests same-origin during local development,
+but it is not authentication and does not issue trusted principal context.
+The backend still fails closed unless `runlocal` owns the numeric-loopback
+bind and its active `LocalDeliveryRuntime` issues the principal. The frontend
+server and proxy are local development machinery, not a production deployment
+or authorization boundary.
+
+The client preserves monetary strings exactly and performs no financial
+arithmetic. It renders Account display name, kind, and currency; inclusive
+report dates; backend count and net signed amount; and each Movement's date,
+canonical description, signed amount, and currency. It intentionally drops
+the bounded `source_trace` from its client-side report projection and does not
+render provenance in the primary UI.

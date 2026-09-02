@@ -40,12 +40,18 @@ only while Django's server runner is active. The runtime may issue the existing
 principal without request input. Direct `runserver`, WSGI, or ASGI launches do
 not activate it.
 
-The current worktree adds one privacy-safe JSON-only discovery route at
-`GET /api/v1/accounts/` to the committed Movement report route. Both require
-the active runtime before financial database access and enter through the
-Account-access service. Discovery uses an explicit four-field projection and
-rejects all query parameters. It adds no authentication, ownership, Account
-CRUD, write route, frontend, CORS, or backend container.
+The current worktree adds the first local React/TypeScript client over the two
+committed read endpoints. It discovers Accounts, keeps UUIDs as internal
+selectors, accepts inclusive dates, and renders backend count, exact net signed
+amount, and canonical Movement date/description/amount/currency. It does not
+retain or render `source_trace`, recompute totals, convert decimal strings to
+numbers, or issue writes or authentication material.
+
+Vite binds explicitly to `127.0.0.1:5173` and proxies only `/api` to
+`http://127.0.0.1:8000`. The frontend proxy avoids backend CORS but does not
+authenticate callers or issue principal context; Django still requires the
+active `runlocal` runtime. No backend production code changes are part of the
+frontend checkpoint.
 
 Account-access validation exposed a pre-existing migration-test isolation
 defect: the checkpoint migration module restored hard-coded migration `0008`
@@ -67,10 +73,10 @@ reconciled Historical-only resolution policy.
 ## Functional checkpoint
 
 The latest committed checkpoint is
-`64fbbb7923f1ec6645449eb38249e9609d30fea4` (`feat: expose canonical
-movement report API`). The Account discovery implementation, tests, and
-documentation are currently uncommitted; Git commands at cold start determine
-exact state.
+`45f41e344ab204a9ba00b4211096c43f9a1f8b41` (`feat: expose account
+discovery API`). The local React client, tests, dependency lock, documentation,
+and operational-state updates are currently uncommitted; Git commands at cold
+start determine exact state.
 
 The Account discovery checkpoint passes 77 focused discovery/access/Movement
 API/runtime/reporting tests, 85 Santander/BCI import and service regression
@@ -78,6 +84,15 @@ tests, and the full 409-test repository suite. Migration isolation passes in
 both discovery-before-migration and migration-before-discovery orders (21 tests
 each). Django system check, migration drift, `pip check`, Markdown link
 resolution, diff whitespace, and privacy/private-file checks pass.
+
+The current frontend checkpoint passes 14 Vitest component/contract tests,
+TypeScript checking, the Vite production build, dependency resolution, and an
+actual loopback-only Vite listener check. The unchanged backend passes 77
+focused API/runtime/access/reporting tests, 116 Santander/BCI service
+regressions, both 21-test migration-isolation orders, and the full 409-test
+suite. Django system check, migration drift, `pip check`, static network and
+client-exposure checks, Markdown link resolution, diff whitespace, and
+privacy/private-file checks pass.
 
 ## Observation/resolution checkpoint
 
@@ -314,8 +329,9 @@ network exposure contract; durable ownership semantics remain deferred.
 The repository exposes two JSON-only endpoints at `/api/v1/accounts/` and
 `/api/v1/accounts/<account_uuid>/movements/`. DRF is configured with no
 authentication classes, no Django anonymous user, and no browsable renderer.
-Django auth, CORS, CSRF middleware, frontend code, Account CRUD, and a backend
-container remain absent. Compose publishes only PostgreSQL at
+Django auth, CORS, CSRF middleware, Account CRUD, and a backend container
+remain absent. The frontend uses only relative GET requests and retains no
+authentication or source-provenance state. Compose publishes only PostgreSQL at
 `127.0.0.1:5432`.
 
 The canonical host launch remains `python manage.py runlocal --host 127.0.0.1
@@ -340,31 +356,29 @@ NAT, SSH forwarding, unsupported launchers, or hostile local processes.
 
 ## Next checkpoint
 
-Implement one minimal read-only local React client that discovers Accounts,
-selects an Account UUID and inclusive date range, and renders the existing
-canonical Movement report. Keep it within the frozen loopback trust boundary;
-do not add writes, broad CORS behavior, authentication fiction, or new
-financial interpretation. Recommended reasoning level: Sol High.
+Define and freeze canonical Movement classification semantics and persistence
+for the MVP types before adding classification filters or UI. Do not derive
+classification from provider categories or signed amount alone. Recommended
+reasoning level: Sol High.
 
 ## Roadmap reassessment
 
 The implemented foundation now includes two Santander canonical-write routes,
 BCI Historical evidence and resolution, Current/Recent source-only parsers,
 the first internal canonical query/period-total/source-trace service, and the
-minimum backend API read surface for Account selection plus Movement reporting.
-Classification, authentication/ownership, and frontend product surfaces remain
-absent.
+minimum backend API read surface for Account selection plus Movement reporting,
+and the first local browser read client. Classification and
+authentication/ownership remain absent.
 
 Priorities are:
 
-1. Implement the bounded read-only local React client described above.
-2. Define classification semantics and persistence for the MVP types before
+1. Define classification semantics and persistence for the MVP types before
    implementing category/type filters. Provider categories and amount signs
    are not canonical income/expense semantics.
-3. Add an operational import/API surface for the already implemented
+2. Add an operational import/API surface for the already implemented
    Santander services only after the account-access and upload-security
    boundary is explicit.
-4. Resume Current-to-Historical validation only on the external artifact
+3. Resume Current-to-Historical validation only on the external artifact
    trigger described above.
 
 Cross-source identity/deduplication, transfer pairing, household-flow

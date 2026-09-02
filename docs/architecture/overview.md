@@ -111,3 +111,20 @@ database access. Discovery delegates to `list_read_accounts`; reporting
 delegates to `report_authorized_canonical_movements` and retains the approved
 `MovementReport` projection with exact decimal strings. See
 [Local read-only HTTP delivery](local-http-delivery.md).
+
+## Local read-only frontend
+
+The first React/TypeScript presentation slice is implemented in `frontend/`.
+It is a thin consumer of the existing Account discovery and authorized
+Movement report contracts: it discovers Accounts, keeps the selected UUID as
+an internal selector, accepts an inclusive date range, and renders the
+backend-provided canonical report without recomputing totals or converting
+decimal strings to JavaScript numbers.
+
+For local development, Vite binds to numeric loopback and proxies only `/api`
+to the numeric-loopback `runlocal` backend. This avoids adding CORS and does
+not change caller trust: the Vite proxy is not authentication, and Django's
+active `LocalDeliveryRuntime` remains required. The client stores no auth
+tokens, issues no write methods, retains no source trace in its report model,
+and adds no persistence, financial semantics, production packaging, or
+deployment behavior.

@@ -22,7 +22,9 @@ observations and auditable deterministic resolution before canonical ledger
 acceptance. Provisional product views, AI execution, and canonical Movement
 correction are not implemented. The local HTTP surface discovers accessible
 Accounts and delivers authorized, read-only canonical Movement reports under
-the loopback-only local runtime boundary.
+the loopback-only local runtime boundary. A minimal React/TypeScript client now
+provides the complete Account-selection, inclusive-date-range, and Movement
+report flow through that existing backend contract.
 
 ## Local persistence setup
 
@@ -64,8 +66,35 @@ authentication. Account UUID possession is not authorization.
 
 Generic `runserver` is not a supported launch path for unauthenticated
 financial delivery. The local mode assumes a single-user or otherwise fully
-trusted host and must not be re-published through a proxy, tunnel, forwarding
-rule, or container port mapping.
+trusted host and must not be re-published beyond loopback through a remote
+proxy, tunnel, forwarding rule, or container port mapping.
+
+## Local frontend development
+
+The supported browser-development setup keeps both processes on numeric IPv4
+loopback and requires the backend's validated runtime.
+
+Terminal 1:
+
+```text
+python manage.py runlocal --host 127.0.0.1 --port 8000
+```
+
+Terminal 2, using Node `^20.19.0`, `^22.13.0`, or `>=24.0.0` and after one
+initial `npm install` in `frontend/`:
+
+```text
+cd frontend
+npm run dev
+```
+
+Open `http://127.0.0.1:5173/` in the same trusted host's browser. Vite is
+configured to bind only `127.0.0.1` and proxy only `/api` to
+`http://127.0.0.1:8000`. This avoids adding backend CORS. The proxy does not
+authenticate the browser or establish principal trust; the active
+`LocalDeliveryRuntime` remains the backend trust gate. Wildcard, LAN, remote,
+tunneled, proxied beyond this loopback-only development edge, shared-host, and
+production exposure remain unsupported.
 
 ## Documentation map
 
