@@ -1,10 +1,11 @@
-# Local canonical Movement HTTP delivery
+# Local read-only HTTP delivery
 
 ## Scope
 
-Gouda exposes exactly one local-MVP HTTP operation:
+Gouda exposes exactly two local-MVP HTTP operations:
 
 ```text
+GET /api/v1/accounts/
 GET /api/v1/accounts/<account_uuid>/movements/
 ```
 
@@ -14,13 +15,23 @@ numeric-loopback `runlocal` launcher defined by
 supported through generic `runserver`, WSGI, ASGI, LAN, remote, proxied,
 tunneled, forwarded, shared-host, or production exposure.
 
-The adapter uses Django REST Framework without Django auth, sessions, tokens,
+The adapters use Django REST Framework without Django auth, sessions, tokens,
 users, ownership persistence, CORS, routers, ViewSets, model serializers,
 pagination, or a browsable API. Only JSON rendering is enabled.
 
 ## Trust and application flow
 
-The request path is:
+The discovery request path is:
+
+```text
+validated runlocal runtime
+-> active LocalDeliveryRuntime
+-> trusted local principal context
+-> list_read_accounts(...)
+-> explicit privacy-safe Account summary serialization
+```
+
+The Movement report request path is:
 
 ```text
 validated runlocal runtime
@@ -31,13 +42,44 @@ validated runlocal runtime
 -> explicit privacy-safe JSON serialization
 ```
 
-Runtime trust is checked before selector parsing or database access. Headers,
-cookies, query parameters, request bodies, Host, origin, and remote address do
-not create or select principal trust. The Account UUID remains an untrusted
-selector and is resolved through the
+Runtime trust is checked before Account/query validation or database access.
+Headers, cookies, query parameters, request bodies, Host, origin, and remote
+address do not create or select principal trust. The Account UUID remains an
+untrusted selector and is resolved through the
 [Account access boundary](account-access.md).
 
-## Request
+## Account discovery request
+
+`GET /api/v1/accounts/` accepts no query parameters. Any query parameter is
+rejected with `query_parameters_not_allowed`; the operation has no filtering,
+search, caller-supplied ordering, or pagination.
+
+The response is:
+
+```json
+{
+  "count": 1,
+  "accounts": [
+    {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "display_name": "Synthetic current account",
+      "kind": "CURRENT",
+      "currency": "CLP"
+    }
+  ]
+}
+```
+
+Each entry is an explicit `AccountSummary` projection containing only the
+internal UUID needed by the Movement route, canonical display name, canonical
+product kind, and currency. Entries are ordered by `display_name`, then UUID.
+Economic orientation is canonical but redundant with the current closed
+kind/orientation invariant, so it is not exposed. Provider or institution
+identity, external or masked account/card identifiers, source/import bindings,
+balances, totals, transaction counts, Movements, observations, and provenance
+are excluded.
+
+## Movement report request
 
 The route requires one canonical lowercase hyphenated Account UUID. The query
 requires exactly one value for each parameter:
@@ -45,10 +87,10 @@ requires exactly one value for each parameter:
 - `start_date` — inclusive start date in strict `YYYY-MM-DD` form;
 - `end_date` — inclusive end date in strict `YYYY-MM-DD` form.
 
-The endpoint supports GET only. POST, PUT, PATCH, DELETE, OPTIONS, and HEAD are
-rejected with HTTP 405. HTML and the DRF browsable API are not enabled.
+Both endpoints support GET only. POST, PUT, PATCH, DELETE, OPTIONS, and HEAD
+are rejected with HTTP 405. HTML and the DRF browsable API are not enabled.
 
-## Successful response
+## Movement report response
 
 The JSON response explicitly contains:
 
@@ -91,6 +133,7 @@ Errors use the minimal JSON shape `{"code": "<stable_code>"}`.
 | Start date missing, duplicated, or invalid | `start_date_invalid` | 400 |
 | End date missing, duplicated, or invalid | `end_date_invalid` | 400 |
 | Start date after end date | `date_range_invalid` | 400 |
+| Any Account discovery query parameter | `query_parameters_not_allowed` | 400 |
 | Method other than GET | `method_not_allowed` | 405 |
 | Requested representation is not JSON-compatible | `not_acceptable` | 406 |
 

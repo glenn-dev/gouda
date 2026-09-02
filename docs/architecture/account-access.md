@@ -7,7 +7,7 @@ This document defines the implemented application boundary for deciding which
 uses it without choosing an authentication mechanism, adding ownership
 persistence, or defining write access.
 
-The bounded flow is:
+The bounded reporting flow is:
 
 ```text
 validated local-delivery bootstrap or authentication adapter
@@ -15,6 +15,16 @@ validated local-delivery bootstrap or authentication adapter
 -> read-account access resolver
 -> authorized persisted Account
 -> canonical Movement reporting service
+-> explicit local HTTP delivery adapter
+```
+
+Discovery uses the same boundary without resolving a client selector:
+
+```text
+validated local-delivery bootstrap or authentication adapter
+-> trusted principal context
+-> read-account discovery policy
+-> explicit safe Account summaries
 -> explicit local HTTP delivery adapter
 ```
 
@@ -40,10 +50,10 @@ ownership.
 
 The read boundary is implemented in
 `gouda.ledger.services.account_access`. It issues one opaque singleton
-`TrustedPrincipalContext` from trusted application composition, resolves an
-untrusted UUID selector to an authorized persisted `Account`, and composes
-that resolver with canonical Movement reporting. It adds no model or write
-path.
+`TrustedPrincipalContext` from trusted application composition, lists explicit
+safe summaries of Accounts allowed by the read policy, resolves an untrusted
+UUID selector to an authorized persisted `Account`, and composes that resolver
+with canonical Movement reporting. It adds no model, migration, or write path.
 
 The MVP requires account/date querying, totals, and traceability. Multi-user
 sharing and collaborative editing are explicitly out of scope. No product or
@@ -92,6 +102,31 @@ different Account visibility, individual/shared Account behavior, household
 membership, or any persisted grant.
 
 ## Trusted read-account boundary
+
+The application-facing `list_read_accounts` service accepts one trusted,
+opaque principal context. It validates the principal before database access,
+applies the same read policy used by selector resolution, and returns an
+immutable tuple of `AccountSummary` values. The summary is not a model
+serializer and contains exactly:
+
+- `id`, the internal Account UUID required by the Movement report selector;
+- `display_name`, the persisted canonical human-readable label;
+- `kind`, the persisted canonical product/account kind; and
+- `currency`, the persisted canonical Account currency.
+
+The deterministic order is `display_name`, then Account UUID. Economic
+orientation is safe canonical data but is unnecessary in this first summary
+because the current database invariant permits only `CURRENT` + `ASSET` and
+`CREDIT_CARD` + `LIABILITY`. Provider/institution data, external or masked
+identifiers, Santander TDC bindings, source artifacts, import batches, raw
+records, Movements, observations, balances, totals, and provenance are not
+part of the projection. Provider identity is source evidence rather than a
+canonical Account field, and external Account identifiers remain deferred.
+
+Under the frozen temporary policy, the recognized principal receives one
+summary for every persisted Account. The HTTP adapter cannot query `Account`
+directly; a future policy may therefore narrow the returned tuple without
+changing the delivery contract or treating Account existence as access.
 
 The application-facing `resolve_read_account` service accepts:
 
@@ -192,8 +227,9 @@ may issue this module's existing principal context without request input. A
 direct `runserver`, WSGI, or ASGI launch has no active local-delivery runtime,
 so the adapter fails closed.
 
-The JSON-only DRF adapter is implemented at the versioned route documented in
-[Local canonical Movement HTTP delivery](local-http-delivery.md). It requires
-the active runtime, calls `report_authorized_canonical_movements`, and
-explicitly serializes approved fields. LAN, remote, tunneled, proxied,
-shared-host, or production access still requires real authentication instead.
+The JSON-only DRF adapter is implemented at the versioned routes documented in
+[Local read-only HTTP delivery](local-http-delivery.md). It requires the active
+runtime before financial database access. Discovery calls `list_read_accounts`;
+reporting calls `report_authorized_canonical_movements`. Both explicitly
+serialize approved fields. LAN, remote, tunneled, proxied, shared-host, or
+production access still requires real authentication instead.

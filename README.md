@@ -20,9 +20,9 @@ Historical policy before canonical signed movements are created.
 The evidence-first boundary is implemented for durable immutable financial
 observations and auditable deterministic resolution before canonical ledger
 acceptance. Provisional product views, AI execution, and canonical Movement
-correction are not implemented. The first HTTP surface delivers one
-authorized, read-only canonical Movement report under the loopback-only local
-runtime boundary.
+correction are not implemented. The local HTTP surface discovers accessible
+Accounts and delivers authorized, read-only canonical Movement reports under
+the loopback-only local runtime boundary.
 
 ## Local persistence setup
 
@@ -44,9 +44,11 @@ are accepted; hostnames, wildcard, LAN, public, empty, and ambiguous binds fail
 before Django's server runner starts. The command requires the same Django and
 database environment as other management commands.
 
-The one supported operation is a JSON-only canonical Movement report:
+The supported local client sequence is:
 
 ```text
+GET /api/v1/accounts/
+-> select an Account UUID
 GET /api/v1/accounts/<account-uuid>/movements/?start_date=2026-04-01&end_date=2026-04-30
 ```
 
@@ -56,7 +58,7 @@ For example, using an obviously synthetic UUID:
 curl 'http://127.0.0.1:8000/api/v1/accounts/11111111-1111-4111-8111-111111111111/movements/?start_date=2026-04-01&end_date=2026-04-30'
 ```
 
-See [Local canonical Movement HTTP delivery](docs/architecture/local-http-delivery.md)
+See [Local read-only HTTP delivery](docs/architecture/local-http-delivery.md)
 for the request, response, and error contract. This local mode has no user
 authentication. Account UUID possession is not authorization.
 

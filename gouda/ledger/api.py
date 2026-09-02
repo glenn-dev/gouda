@@ -1,4 +1,4 @@
-"""Narrow local-MVP HTTP delivery for canonical Movement reporting."""
+"""Narrow local-MVP HTTP delivery for Account discovery and reporting."""
 
 from __future__ import annotations
 
@@ -19,7 +19,9 @@ from gouda.local_delivery import (
 )
 
 from .services.account_access import (
+    AccountSummary,
     AccountAccessServiceError,
+    list_read_accounts,
     report_authorized_canonical_movements,
 )
 from .services.movement_reporting import (
@@ -40,8 +42,50 @@ _ERROR_STATUS = {
     "start_date_invalid": 400,
     "end_date_invalid": 400,
     "date_range_invalid": 400,
+    "query_parameters_not_allowed": 400,
     "not_acceptable": 406,
 }
+
+
+class AccountDiscoveryView(APIView):
+    """Discover privacy-safe summaries of Accounts authorized for reading."""
+
+    authentication_classes = ()
+    permission_classes = ()
+    parser_classes = ()
+    renderer_classes = (JSONRenderer,)
+    http_method_names = ("get",)
+
+    def get(self, request: Request) -> Response:
+        try:
+            runtime = require_active_local_delivery_runtime()
+            principal_context = runtime.trusted_principal_context()
+        except LocalDeliveryBootstrapError:
+            return _error_response("local_delivery_not_active")
+
+        if request.query_params:
+            return _error_response("query_parameters_not_allowed")
+
+        try:
+            accounts = list_read_accounts(principal_context=principal_context)
+        except AccountAccessServiceError as error:
+            return _error_response(error.code)
+
+        return Response(
+            {
+                "count": len(accounts),
+                "accounts": [_serialize_account(account) for account in accounts],
+            },
+            status=200,
+        )
+
+    def http_method_not_allowed(self, request: Request, *args, **kwargs) -> Response:
+        return Response({"code": "method_not_allowed"}, status=405)
+
+    def handle_exception(self, exc: Exception) -> Response:
+        if isinstance(exc, NotAcceptable):
+            return _error_response("not_acceptable")
+        return super().handle_exception(exc)
 
 
 class CanonicalMovementReportView(APIView):
@@ -96,6 +140,15 @@ def _parse_account_uuid(value: object) -> UUID:
     if str(parsed) != value:
         raise AccountAccessServiceError("account_selector_invalid")
     return parsed
+
+
+def _serialize_account(account: AccountSummary) -> dict[str, str]:
+    return {
+        "id": str(account.id),
+        "display_name": account.display_name,
+        "kind": account.kind,
+        "currency": account.currency,
+    }
 
 
 def _required_query_date(request: Request, name: str) -> date:

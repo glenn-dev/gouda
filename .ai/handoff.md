@@ -19,12 +19,13 @@ count and signed-account-effect total from the returned tuple, and exposes a
 bounded source trace without filenames, bytes, digests, raw cells, source
 references, running balances, or parser payloads.
 
-The temporary pre-HTTP read-Account boundary and authorized reporting
+The Account read boundary, discovery operation, and authorized reporting
 orchestration are implemented. One opaque module-issued local principal may
-read all persisted Accounts under the temporary non-ownership policy. Unknown
-and policy-denied selectors are indistinguishable, and the orchestration path
-returns the existing `MovementReport` without widening provenance or writing
-state.
+read all persisted Accounts under the temporary non-ownership policy.
+`list_read_accounts` returns only Account UUID, canonical display name, product
+kind, and currency in display-name/UUID order. Unknown and policy-denied
+selectors remain indistinguishable, and reporting returns the existing
+`MovementReport` without widening provenance or writing state.
 
 The local-MVP caller-trust and network contract is frozen in ADR-0010. An
 unauthenticated read adapter is permitted only behind an explicit numeric
@@ -39,12 +40,12 @@ only while Django's server runner is active. The runtime may issue the existing
 principal without request input. Direct `runserver`, WSGI, or ASGI launches do
 not activate it.
 
-The current worktree adds Django REST Framework 3.16.x and exactly one
-JSON-only GET route for canonical Movement reporting. The view requires the
-active runtime before obtaining the principal, resolves the route Account UUID
-through `report_authorized_canonical_movements`, and explicitly serializes the
-existing safe report. It adds no authentication, ownership, write route,
-frontend, CORS, or backend container.
+The current worktree adds one privacy-safe JSON-only discovery route at
+`GET /api/v1/accounts/` to the committed Movement report route. Both require
+the active runtime before financial database access and enter through the
+Account-access service. Discovery uses an explicit four-field projection and
+rejects all query parameters. It adds no authentication, ownership, Account
+CRUD, write route, frontend, CORS, or backend container.
 
 Account-access validation exposed a pre-existing migration-test isolation
 defect: the checkpoint migration module restored hard-coded migration `0008`
@@ -66,9 +67,17 @@ reconciled Historical-only resolution policy.
 ## Functional checkpoint
 
 The latest committed checkpoint is
-`6083f5b7404562cd97a2d76161167d6fd912cdda` (`feat: enforce loopback-only
-local delivery`). The first HTTP delivery implementation and its documentation
-are currently uncommitted; Git commands at cold start determine exact state.
+`64fbbb7923f1ec6645449eb38249e9609d30fea4` (`feat: expose canonical
+movement report API`). The Account discovery implementation, tests, and
+documentation are currently uncommitted; Git commands at cold start determine
+exact state.
+
+The Account discovery checkpoint passes 77 focused discovery/access/Movement
+API/runtime/reporting tests, 85 Santander/BCI import and service regression
+tests, and the full 409-test repository suite. Migration isolation passes in
+both discovery-before-migration and migration-before-discovery orders (21 tests
+each). Django system check, migration drift, `pip check`, Markdown link
+resolution, diff whitespace, and privacy/private-file checks pass.
 
 ## Observation/resolution checkpoint
 
@@ -280,6 +289,9 @@ non-persistent access policy, not ownership or authentication.
 `resolve_read_account` validates that principal and an untrusted UUID selector,
 returns a persisted authorized `Account`, and uses one
 `account_not_accessible` result for unknown and policy-denied selectors.
+`list_read_accounts` validates the same principal before database access,
+applies the same temporary read policy, and returns immutable privacy-safe
+summaries rather than ORM objects.
 `report_authorized_canonical_movements` composes the resolver with the existing
 canonical report and returns `MovementReport` unchanged. It translates only a
 post-resolution Account disappearance to the non-enumerating access failure;
@@ -299,11 +311,11 @@ network exposure contract; durable ownership semantics remain deferred.
 
 ## Local delivery trust checkpoint
 
-The repository exposes one JSON-only endpoint at
+The repository exposes two JSON-only endpoints at `/api/v1/accounts/` and
 `/api/v1/accounts/<account_uuid>/movements/`. DRF is configured with no
 authentication classes, no Django anonymous user, and no browsable renderer.
-Django auth, CORS, CSRF middleware, frontend code, additional routes, and a
-backend container remain absent. Compose publishes only PostgreSQL at
+Django auth, CORS, CSRF middleware, frontend code, Account CRUD, and a backend
+container remain absent. Compose publishes only PostgreSQL at
 `127.0.0.1:5432`.
 
 The canonical host launch remains `python manage.py runlocal --host 127.0.0.1
@@ -328,25 +340,24 @@ NAT, SSH forwarding, unsupported launchers, or hostile local processes.
 
 ## Next checkpoint
 
-Define and implement one privacy-safe, read-only Account summary discovery
-operation under the same active local runtime and authorization policy. Freeze
-the minimal fields needed to choose an Account without exposing provider
-identifiers or ownership claims. Do not add Account CRUD, authentication,
-ownership persistence, writes, UI, CORS convenience, Docker publication, or
-new financial semantics. Recommended reasoning level: Sol High.
+Implement one minimal read-only local React client that discovers Accounts,
+selects an Account UUID and inclusive date range, and renders the existing
+canonical Movement report. Keep it within the frozen loopback trust boundary;
+do not add writes, broad CORS behavior, authentication fiction, or new
+financial interpretation. Recommended reasoning level: Sol High.
 
 ## Roadmap reassessment
 
 The implemented foundation now includes two Santander canonical-write routes,
 BCI Historical evidence and resolution, Current/Recent source-only parsers,
-and the first internal canonical query/period-total/source-trace service.
-Classification, API, authentication/ownership, and frontend product surfaces
-remain absent.
+the first internal canonical query/period-total/source-trace service, and the
+minimum backend API read surface for Account selection plus Movement reporting.
+Classification, authentication/ownership, and frontend product surfaces remain
+absent.
 
 Priorities are:
 
-1. Define and implement privacy-safe read-only Account summary discovery under
-   the enforced local bootstrap.
+1. Implement the bounded read-only local React client described above.
 2. Define classification semantics and persistence for the MVP types before
    implementing category/type filters. Provider categories and amount signs
    are not canonical income/expense semantics.

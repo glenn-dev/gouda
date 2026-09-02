@@ -134,21 +134,26 @@ publication, tunnel, proxy, forwarding, or production exposure. Request data
 never establishes principal trust. LAN, remote, shared-host, ambiguous, or
 broader exposure requires real authentication.
 
-The repository exposes exactly one backend operation:
-`GET /api/v1/accounts/<account_uuid>/movements/` with strict inclusive
-`start_date` and `end_date`. It requires the active `runlocal` runtime before
-principal issuance, resolves the Account through `account_access`, and
-serializes only approved `MovementReport` fields. Decimal amounts are exact
-strings; unknown and denied Accounts share `account_not_accessible`; errors
-have minimal stable codes. Generic `runserver`, WSGI, ASGI, headers, cookies,
-query values, and bodies do not establish trust.
+The repository exposes two backend operations under the same active `runlocal`
+runtime. `GET /api/v1/accounts/` returns only authorized Account UUID,
+canonical display name, product kind, and currency, ordered by display name
+then UUID. It rejects all query parameters.
+`GET /api/v1/accounts/<account_uuid>/movements/` retains its strict inclusive
+`start_date` and `end_date` contract and approved `MovementReport` projection.
+Discovery uses `list_read_accounts`; reporting resolves through
+`report_authorized_canonical_movements`. Generic `runserver`, WSGI, ASGI,
+headers, cookies, query values, and bodies do not establish trust.
 
 DRF has no authentication classes or Django anonymous auth user, and only the
 JSON renderer is enabled. Django auth, sessions, tokens, users, ownership,
-CORS, frontend code, additional routes, and backend containers remain absent.
-The next bounded task should define and implement privacy-safe Account summary
-discovery under the same authorized runtime so a later client need not begin
-with an externally supplied internal Account UUID.
+CORS, frontend code, Account CRUD, and backend containers remain absent. The
+backend now has the minimum read surface for a local client to discover an
+Account and request its canonical Movements for an inclusive date range.
+
+The next bounded task should implement a minimal read-only local React client
+that discovers Accounts, selects one UUID, accepts an inclusive date range,
+and renders the existing canonical Movement report. It must add no write path,
+authentication fiction, broad CORS rule, or financial re-interpretation.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.

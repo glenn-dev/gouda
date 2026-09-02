@@ -97,6 +97,11 @@ class AccountAccessTests(TransactionTestCase):
             account_selector=self.account.pk if selector is _UNSET else selector,
         )
 
+    def list_accounts(self, *, principal=_UNSET):
+        return account_access.list_read_accounts(
+            principal_context=self.principal if principal is _UNSET else principal,
+        )
+
     def report(
         self,
         *,
@@ -127,6 +132,61 @@ class AccountAccessTests(TransactionTestCase):
         self.assertEqual(first.pk, self.account.pk)
         self.assertEqual(second.pk, self.other_account.pk)
         self.assertIsNot(first, self.account)
+
+    def test_recognized_principal_lists_minimal_summaries_in_stable_order(self):
+        tie_high = self.make_account("Same")
+        tie_low = Account.objects.create(
+            id=UUID("00000000-0000-4000-8000-000000000001"),
+            display_name=tie_high.display_name,
+            kind=Account.Kind.CREDIT_CARD,
+            economic_orientation=Account.EconomicOrientation.LIABILITY,
+            currency="USD",
+        )
+
+        summaries = self.list_accounts()
+
+        expected = sorted(
+            (self.account, self.other_account, tie_high, tie_low),
+            key=lambda account: (account.display_name, account.pk),
+        )
+        self.assertEqual([summary.id for summary in summaries], [item.pk for item in expected])
+        self.assertEqual(
+            set(asdict(summaries[0])),
+            {"id", "display_name", "kind", "currency"},
+        )
+        by_id = {summary.id: summary for summary in summaries}
+        self.assertEqual(by_id[tie_low.pk].display_name, "Synthetic Same")
+        self.assertEqual(by_id[tie_low.pk].kind, Account.Kind.CREDIT_CARD)
+        self.assertEqual(by_id[tie_low.pk].currency, "USD")
+
+    def test_discovery_invalid_principal_fails_before_account_lookup(self):
+        for invalid in (
+            None,
+            object(),
+            "trusted-local-principal",
+            account_access.TrustedPrincipalContext(),
+            self.account,
+        ):
+            with self.subTest(principal_type=type(invalid).__name__):
+                with self.assertNumQueries(0):
+                    self.assert_access_error(
+                        "principal_context_invalid",
+                        self.list_accounts,
+                        principal=invalid,
+                    )
+
+    def test_discovery_returns_only_accounts_allowed_by_policy_seam(self):
+        with patch.object(
+            account_access,
+            "_principal_may_read_account",
+            side_effect=lambda *, principal_context, account_id: (
+                principal_context is self.principal
+                and account_id != self.other_account.pk
+            ),
+        ):
+            summaries = self.list_accounts()
+
+        self.assertEqual([summary.id for summary in summaries], [self.account.pk])
 
     def test_invalid_principal_context_fails_before_account_lookup(self):
         for invalid in (
@@ -330,3 +390,30 @@ class AccountAccessTests(TransactionTestCase):
             )
         )
         self.assertTrue(all(isinstance(item.movement_id, UUID) for item in first.movements))
+
+    def test_discovery_is_read_only_and_deterministic(self):
+        tracked_models = (
+            Account,
+            SourceArtifact,
+            ImportBatch,
+            RawRecord,
+            Movement,
+            FinancialObservation,
+            ObservationResolution,
+        )
+        before = {model: model.objects.count() for model in tracked_models}
+
+        with CaptureQueriesContext(connection) as queries:
+            first = self.list_accounts()
+            second = self.list_accounts()
+
+        after = {model: model.objects.count() for model in tracked_models}
+        self.assertEqual(first, second)
+        self.assertEqual(after, before)
+        self.assertTrue(queries.captured_queries)
+        self.assertTrue(
+            all(
+                query["sql"].lstrip().upper().startswith("SELECT")
+                for query in queries.captured_queries
+            )
+        )

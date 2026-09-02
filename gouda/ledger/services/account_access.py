@@ -1,7 +1,8 @@
-"""Trusted read-Account resolution and authorized Movement reporting."""
+"""Trusted Account-read discovery, resolution, and Movement reporting."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
 from uuid import UUID
 
@@ -36,6 +37,16 @@ class TrustedPrincipalContext:
 _TRUSTED_LOCAL_PRINCIPAL = TrustedPrincipalContext()
 
 
+@dataclass(frozen=True)
+class AccountSummary:
+    """Minimal canonical Account fields approved for read discovery."""
+
+    id: UUID
+    display_name: str
+    kind: str
+    currency: str
+
+
 def trusted_local_principal_context() -> TrustedPrincipalContext:
     """Return the temporary principal for trusted server-side composition.
 
@@ -45,6 +56,37 @@ def trusted_local_principal_context() -> TrustedPrincipalContext:
     """
 
     return _TRUSTED_LOCAL_PRINCIPAL
+
+
+def list_read_accounts(*, principal_context: object) -> tuple[AccountSummary, ...]:
+    """Return privacy-safe summaries for Accounts the principal may read.
+
+    The temporary policy grants the recognized local principal read access to
+    every persisted Account.  Authorization remains inside this service so a
+    future policy can narrow visibility without making the HTTP adapter query
+    the Account model directly.
+    """
+
+    _validate_principal_context(principal_context)
+    accounts = Account.objects.only(
+        "id",
+        "display_name",
+        "kind",
+        "currency",
+    ).order_by("display_name", "pk")
+    return tuple(
+        AccountSummary(
+            id=account.pk,
+            display_name=account.display_name,
+            kind=account.kind,
+            currency=account.currency,
+        )
+        for account in accounts
+        if _principal_may_read_account(
+            principal_context=principal_context,
+            account_id=account.pk,
+        )
+    )
 
 
 def resolve_read_account(

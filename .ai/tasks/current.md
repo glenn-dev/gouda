@@ -2,42 +2,39 @@
 
 ## Objective
 
-Define and implement one privacy-safe read-only Account summary discovery
-operation through the existing validated local-delivery runtime.
+Close the privacy-safe read-only Account discovery checkpoint and validate the
+minimum backend read surface for a local frontend.
 
 ## Current state
 
-The fail-closed local-MVP host bootstrap and the first HTTP delivery surface
-are implemented in the current worktree. `runlocal` requires an explicit
+The fail-closed local-MVP host bootstrap and both HTTP read operations are
+implemented in the current worktree. `runlocal` requires an explicit
 numeric loopback bind, activates a process-local `LocalDeliveryRuntime`, and
 is the only supported path that permits trusted local principal issuance.
 
 Django REST Framework is configured for JSON-only rendering without an
-authentication backend. The sole route is:
+authentication backend. The routes are:
 
 ```text
+GET /api/v1/accounts/
 GET /api/v1/accounts/<account_uuid>/movements/?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
 ```
 
-It fails closed without the active runtime, resolves Account access through
-the existing non-enumerating account-access service, and explicitly serializes
-only the approved canonical Movement report fields. No user authentication,
-ownership, write operation, CORS support, frontend, or backend container is
-implemented.
+Both fail closed without the active runtime and enter through the Account
+access service. Discovery explicitly serializes only Account UUID, display
+name, kind, and currency in display-name/UUID order; Movement reporting is
+unchanged. No user authentication, ownership, write operation, CORS support,
+frontend, or backend container is implemented.
 
 ## Next bounded scope
 
-The next slice should:
+Implement one minimal read-only local React client that:
 
-- define the minimum privacy-safe Account summary fields needed to discover an
-  Account before requesting its Movement report;
-- add exactly one read-only Account summary operation under the same active
-  runtime and trusted-principal boundary;
-- reuse the account-access policy rather than querying arbitrary Accounts in
-  the HTTP adapter;
-- keep identifiers and labels synthetic in tests; and
-- document a small stable response contract without adding generic Account
-  serialization or CRUD.
+- discovers Accounts from `GET /api/v1/accounts/`;
+- selects an Account UUID and inclusive date range;
+- requests and renders the existing canonical Movement report; and
+- preserves the same loopback-only runtime, JSON, and privacy boundary without
+  adding write operations or broad CORS behavior.
 
 ## Non-goals
 
@@ -48,11 +45,11 @@ or new financial semantics.
 
 ## Preconditions and guardrails
 
-- Review and commit the current HTTP checkpoint before beginning this slice.
-- Account discovery must fail closed without the active local-delivery
-  runtime; request data cannot establish principal trust.
-- Expose only fields justified for local report selection. Do not leak source
-  evidence, account numbers, card identifiers, or provider secrets.
+- Review and commit the current Account discovery checkpoint before beginning
+  the frontend slice.
+- Treat both backend responses as already bounded contracts; do not expand
+  them merely for display convenience.
+- Keep the browser/backend edge within the frozen loopback-only trust contract.
 - Loopback remains a single-host operational trust assumption, not user
   authentication.
 

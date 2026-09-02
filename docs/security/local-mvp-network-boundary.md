@@ -34,9 +34,10 @@ unsupported on a shared or otherwise untrusted host.
 
 ## Current effective exposure
 
-The repository exposes one backend HTTP operation:
+The repository exposes two backend HTTP operations:
 
-- `config.urls` contains only the versioned canonical Movement report route;
+- `config.urls` contains only versioned Account discovery and canonical
+  Movement report routes;
 - DRF is installed with JSON-only rendering and no authentication classes;
 - Django authentication is not installed;
 - no CORS or CSRF middleware is configured;
@@ -129,20 +130,22 @@ The Account UUID remains untrusted after principal context exists. It must pass
 through `resolve_read_account` via
 `report_authorized_canonical_movements`.
 
-The initial HTTP operation is conceptually:
+The HTTP operations are conceptually:
 
 ```text
 request
 -> server-side validated loopback delivery mode
 -> trusted_local_principal_context()
--> untrusted Account UUID and date parsing
--> report_authorized_canonical_movements(...)
+-> list_read_accounts(...)
+   or untrusted Account UUID and date parsing
+      -> report_authorized_canonical_movements(...)
 -> explicit privacy-safe serialization
 ```
 
-Only the Account UUID selector, inclusive start date, and inclusive end date
-may come from the request. Principal identity or trust, ownership claims,
-provider/account binding claims, and authorization decisions must not.
+Discovery accepts no client parameters. For reporting, only the Account UUID
+selector, inclusive start date, and inclusive end date may come from the
+request. Principal identity or trust, ownership claims, provider/account
+binding claims, and authorization decisions must not.
 
 ### Implemented host-process bootstrap
 

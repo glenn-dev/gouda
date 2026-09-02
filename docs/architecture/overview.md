@@ -81,8 +81,8 @@ bytes, raw cells, source payloads, source references, and running balances.
 item; it is not copied into the source trace, and raw source descriptions or
 parser evidence are not exposed as provenance.
 
-This service remains transport-independent. The first HTTP adapter now exposes
-only its authorized orchestration path and explicit result projection. It adds
+This service remains transport-independent. The HTTP adapter exposes only its
+authorized orchestration path and explicit result projection. It adds
 no authentication, household ownership, classification, transfer, lifecycle,
 provisional-view, or write behavior.
 
@@ -92,17 +92,22 @@ resolve an untrusted Account selector through that boundary before invoking
 reporting; possession of an Account UUID is never authorization.
 
 That boundary is implemented as an opaque module-issued local principal, a
-read-only Account resolver, and an authorized reporting orchestration service.
-It returns the existing `MovementReport` and adds no ownership, authentication,
-HTTP, model, migration, or write semantics. The conditional unauthenticated
-local delivery contract is enforced by the dedicated `runlocal` command and
+read-only Account discovery operation, an Account resolver, and an authorized
+reporting orchestration service. Discovery returns only internal UUID,
+canonical display name, product kind, and currency, ordered by display name
+and UUID. Reporting returns the existing `MovementReport`. Neither path adds
+ownership, authentication, model, migration, or write semantics. The
+conditional unauthenticated local delivery contract is enforced by the
+dedicated `runlocal` command and
 its process-local bootstrap capability. The command owns an explicit numeric
 loopback bind and activates principal issuance only for the lifetime of its
 server runner. Direct `runserver` has no active capability, and client input
 cannot create principal context.
 
-The implemented JSON-only DRF adapter provides exactly one GET route for an
-Account UUID and inclusive date range. It requires the active runtime before
-principal issuance, delegates to `report_authorized_canonical_movements`, and
-serializes only the approved `MovementReport` projection with exact decimal
-strings. See [Local canonical Movement HTTP delivery](local-http-delivery.md).
+The implemented JSON-only DRF adapter provides one GET route to discover
+authorized Account summaries and one GET route for an Account UUID and
+inclusive date range. Both require the active runtime before financial
+database access. Discovery delegates to `list_read_accounts`; reporting
+delegates to `report_authorized_canonical_movements` and retains the approved
+`MovementReport` projection with exact decimal strings. See
+[Local read-only HTTP delivery](local-http-delivery.md).
