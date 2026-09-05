@@ -2,30 +2,45 @@
 
 ## Objective
 
-Close the first minimal local React read-only client checkpoint over the
-existing Account discovery and canonical Movement report APIs.
+Close the bounded local developer/demo bootstrap checkpoint for the existing
+read-only Account/Movement flow.
 
 ## Current state
 
-The fail-closed local-MVP host bootstrap and both HTTP read operations are
-committed. `runlocal` requires an explicit numeric loopback bind, activates a
-process-local `LocalDeliveryRuntime`, and is the only supported path that
-permits trusted local principal issuance.
+The worktree adds a complete three-service Docker Compose path:
 
-Django REST Framework is configured for JSON-only rendering without an
-authentication backend. The routes are:
+- PostgreSQL 16 with its existing named volume and `127.0.0.1:5432`
+  publication;
+- Django with automatic migrations, no host publication, and the validated
+  `runlocal --trusted-container-network` bootstrap; and
+- Vite with the only browser-facing publication at `127.0.0.1:5173` and a
+  fixed `/api` proxy to the internal backend service.
 
-```text
-GET /api/v1/accounts/
-GET /api/v1/accounts/<account_uuid>/movements/?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
-```
+The internal application network is limited to Vite and Django. Django's
+container mode permits only the exact internal `0.0.0.0:8000` endpoint and does
+not claim to verify Docker host publication. Repository-owned Compose
+configuration and static tests own that guarantee. Direct host `runlocal`
+remains loopback-only.
 
-Both fail closed without the active runtime and enter through the Account
-access service. The current worktree adds a Vite + React + TypeScript client
-that discovers Accounts, selects one internal UUID, accepts inclusive dates,
-and renders canonical Movement fields and backend totals without numeric
-conversion. Vite binds to `127.0.0.1:5173` and proxies only `/api` to
-`127.0.0.1:8000`; no backend change or CORS rule is added.
+The explicit `seed_demo` command creates two Accounts and eleven canonical
+Movements over fixed January-April 2026 dates. Synthetic provenance envelopes
+satisfy the existing mandatory Movement origin contract without invoking
+production import routes. Fixed UUIDv5 identities make seeding repeatable and
+allow `clear_demo` to delete only that graph without an `is_demo` financial
+field. One narrow migration adds truthful synthetic source/record choices to
+the existing closed provenance constraints, avoiding false bank-source claims.
+
+## Validation state
+
+The focused 42-test demo/Compose/local-delivery suite and the full 433-test
+Django suite pass inside a fresh PostgreSQL 16 Compose stack. Both
+migration/demo orderings pass 18 tests. Image builds, automatic migrations,
+all service health checks, repeated seeding, the frontend root, Account
+discovery, and an April Movement report through `127.0.0.1:5173` pass. The 14
+frontend tests, typecheck, build, dependency checks, Django system check,
+migration drift check, Python dependency check, Compose rendering, Markdown
+links, privacy boundary, and diff hygiene pass. Live cleanup is idempotent and
+the stack stops while preserving its named volume.
 
 ## Next bounded scope
 
@@ -35,19 +50,8 @@ categories and amount signs must not be treated as canonical classification.
 
 ## Non-goals
 
-Do not add login, Django auth, sessions, tokens, users, households, roles,
-ownership/grants, write/import endpoints, generic Account CRUD, broad CORS,
-Docker backend publication, remote proxying, TLS, classification behavior, or
-new financial semantics as part of the frontend checkpoint.
-
-## Preconditions and guardrails
-
-- Review the committed Account discovery checkpoint before changing the
-  frontend slice.
-- Treat both backend responses as already bounded contracts; do not expand
-  them merely for display convenience.
-- Keep the browser/backend edge within the frozen loopback-only trust contract.
-- Loopback remains a single-host operational trust assumption, not user
-  authentication.
+Do not add classification, login, Django auth, sessions, tokens, users,
+households, roles, ownership/grants, write/import HTTP endpoints, broad CORS,
+LAN/remote exposure, TLS, production orchestration, or new source semantics.
 
 Recommended reasoning level: Sol High.

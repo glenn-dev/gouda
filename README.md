@@ -26,16 +26,69 @@ the loopback-only local runtime boundary. A minimal React/TypeScript client now
 provides the complete Account-selection, inclusive-date-range, and Movement
 report flow through that existing backend contract.
 
-## Local persistence setup
+## Local Docker demo
 
-Copy `.env.example` to `.env`, fill in a local Django secret and PostgreSQL
-password, then start PostgreSQL with `docker compose up -d postgres`. The
-`.env` file is ignored and must not be committed.
+The primary local path requires Docker with Compose, but does not require host
+Python or Node. Copy the environment template once and fill both values with
+local-only secrets:
 
-## Local delivery launch
+```text
+cp .env.example .env
+# Edit .env and set DJANGO_SECRET_KEY and POSTGRES_PASSWORD.
+```
 
-The canonical launch path for Gouda's unauthenticated local-MVP financial
-delivery is an explicit numeric-loopback bind:
+Neither value has an insecure fallback. `.env` is ignored and must not be
+committed. Start PostgreSQL, the validated Django backend, and the Vite client:
+
+```text
+docker compose up --build
+```
+
+The backend applies migrations before starting. When all three services are
+healthy, open `http://127.0.0.1:5173/`. Compose publishes only these host ports:
+
+- `127.0.0.1:5173` — browser-facing Vite client;
+- `127.0.0.1:5432` — optional host access to PostgreSQL; and
+- no backend host port. Vite reaches Django at internal service port `8000`.
+
+Populate the deterministic, synthetic-only demo dataset explicitly:
+
+```text
+docker compose exec backend python manage.py seed_demo
+```
+
+Running the command again is safe and creates no duplicates. The demo contains
+one CLP current Account, one CLP credit-card Account, and canonical Movements
+from `2026-01-05` through `2026-04-23`. Use `2026-01-01` through `2026-04-30`
+for the complete sample; March intentionally has no Movements. Positive and
+negative values retain canonical signed-account-effect meaning for each
+Account orientation. Demo rows are independent Account-effect examples; equal
+or nearby values do not assert transfer pairing or shared economic-event
+identity.
+
+Remove only this fixed demo graph, leaving every unrelated Account, import,
+Movement, private file, and the PostgreSQL volume untouched:
+
+```text
+docker compose exec backend python manage.py clear_demo
+```
+
+Stop the services without deleting PostgreSQL data:
+
+```text
+docker compose down
+```
+
+Do not use `docker compose down -v` as demo cleanup. Source directories are
+mounted read-only into the development containers. Frontend source changes use
+Vite reload; restart `backend` after Python changes and rebuild after dependency
+changes.
+
+## Manual host development
+
+The direct host launch path for Gouda's unauthenticated local-MVP financial
+delivery remains an explicit numeric-loopback bind. Start PostgreSQL alone with
+`docker compose up -d postgres`, then run:
 
 ```text
 python manage.py runlocal --host 127.0.0.1 --port 8000
@@ -69,9 +122,7 @@ financial delivery. The local mode assumes a single-user or otherwise fully
 trusted host and must not be re-published beyond loopback through a remote
 proxy, tunnel, forwarding rule, or container port mapping.
 
-## Local frontend development
-
-The supported browser-development setup keeps both processes on numeric IPv4
+The manual browser-development setup keeps both processes on numeric IPv4
 loopback and requires the backend's validated runtime.
 
 Terminal 1:

@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.15-alpine3.24
     environment:
       POSTGRES_DB: gouda
       POSTGRES_USER: gouda
@@ -14,6 +14,96 @@ services:
       interval: 2s
       timeout: 5s
       retries: 15
+    networks:
+      - data
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY in .env}
+      DJANGO_DEBUG: "false"
+      POSTGRES_DB: gouda
+      POSTGRES_USER: gouda
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+    command:
+      - sh
+      - -c
+      - >-
+        python manage.py migrate --noinput &&
+        exec python manage.py runlocal --host 0.0.0.0 --port 8000
+        --trusted-container-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://127.0.0.1:8000/api/v1/accounts/', timeout=2)
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+    volumes:
+      - ./docker-compose.yml:/app/docker-compose.yml:ro
+      - ./Dockerfile:/app/Dockerfile:ro
+      - ./requirements.txt:/app/requirements.txt:ro
+      - ./requirements-dev.txt:/app/requirements-dev.txt:ro
+      - ./config:/app/config:ro
+      - ./frontend:/app/frontend:ro
+      - ./gouda:/app/gouda:ro
+      - ./manage.py:/app/manage.py:ro
+      - ./tests:/app/tests:ro
+    networks:
+      - application
+      - data
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      GOUDA_VITE_API_PROXY_TARGET: http://backend:8000
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:5173:5173"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch('http://127.0.0.1:5173/').then(response => {
+            if (!response.ok) process.exit(1)
+          }).catch(() => process.exit(1))
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+    volumes:
+      - ./frontend/index.html:/app/index.html:ro
+      - ./frontend/src:/app/src:ro
+      - ./frontend/tsconfig.json:/app/tsconfig.json:ro
+      - ./frontend/vite.config.ts:/app/vite.config.ts:ro
+    networks:
+      - edge
+      - application
 
 volumes:
   gouda-postgres-data:
+
+networks:
+  edge:
+  application:
+    internal: true
+  data:

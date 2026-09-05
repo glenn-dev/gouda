@@ -125,6 +125,7 @@ class ImportBatch(models.Model):
             "BCI_HISTORICAL_CURRENT_ACCOUNT_PDF",
             "BCI historical current-account PDF",
         )
+        DEMO_SYNTHETIC = "DEMO_SYNTHETIC", "Synthetic local demo"
 
     class Status(models.TextChoices):
         PROCESSING = "PROCESSING", "Processing"
@@ -193,6 +194,7 @@ class ImportBatch(models.Model):
                         "SANTANDER_CURRENT_ACCOUNT_XLSX",
                         "SANTANDER_CREDIT_CARD_PDF",
                         "BCI_HISTORICAL_CURRENT_ACCOUNT_PDF",
+                        "DEMO_SYNTHETIC",
                     ]
                 ),
                 name="batch_source_kind_known",
@@ -208,6 +210,12 @@ class ImportBatch(models.Model):
                     )
                     | Q(
                         source_kind="BCI_HISTORICAL_CURRENT_ACCOUNT_PDF",
+                        sheet_alias__isnull=True,
+                        worksheet_name__isnull=True,
+                        worksheet_ordinal__isnull=True,
+                    )
+                    | Q(
+                        source_kind="DEMO_SYNTHETIC",
                         sheet_alias__isnull=True,
                         worksheet_name__isnull=True,
                         worksheet_ordinal__isnull=True,
@@ -339,6 +347,7 @@ class RawRecord(models.Model):
             "BCI_HISTORICAL_PDF_RECORD",
             "BCI historical PDF record",
         )
+        DEMO_SYNTHETIC_RECORD = "DEMO_SYNTHETIC_RECORD", "Synthetic demo record"
 
     class RowClass(models.TextChoices):
         METADATA = "metadata", "Metadata"
@@ -384,6 +393,7 @@ class RawRecord(models.Model):
                         "SANTANDER_XLSX_ROW",
                         "SANTANDER_TDC_PDF_RECORD",
                         "BCI_HISTORICAL_PDF_RECORD",
+                        "DEMO_SYNTHETIC_RECORD",
                     ]
                 ),
                 name="raw_record_kind_known",
@@ -405,6 +415,13 @@ class RawRecord(models.Model):
                     )
                     | Q(
                         record_kind="BCI_HISTORICAL_PDF_RECORD",
+                        row_number__isnull=True,
+                        raw_cells__isnull=True,
+                        row_class__isnull=True,
+                        xlsx_amount_source_column__isnull=True,
+                    )
+                    | Q(
+                        record_kind="DEMO_SYNTHETIC_RECORD",
                         row_number__isnull=True,
                         raw_cells__isnull=True,
                         row_class__isnull=True,
@@ -433,6 +450,10 @@ class RawRecord(models.Model):
                         record_kind="BCI_HISTORICAL_PDF_RECORD",
                         xlsx_amount_source_column__isnull=True,
                     )
+                    | Q(
+                        record_kind="DEMO_SYNTHETIC_RECORD",
+                        xlsx_amount_source_column__isnull=True,
+                    )
                 ),
                 name="raw_record_xlsx_amount_shape",
             ),
@@ -450,6 +471,7 @@ class RawRecord(models.Model):
                 self.RecordKind.SANTANDER_XLSX_ROW: ImportBatch.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX,
                 self.RecordKind.SANTANDER_TDC_PDF_RECORD: ImportBatch.SourceKind.SANTANDER_CREDIT_CARD_PDF,
                 self.RecordKind.BCI_HISTORICAL_PDF_RECORD: ImportBatch.SourceKind.BCI_HISTORICAL_CURRENT_ACCOUNT_PDF,
+                self.RecordKind.DEMO_SYNTHETIC_RECORD: ImportBatch.SourceKind.DEMO_SYNTHETIC,
             }.get(self.record_kind)
             if expected_source_kind and self.import_batch.source_kind != expected_source_kind:
                 errors["record_kind"] = ["Raw record kind must match its import batch source kind."]

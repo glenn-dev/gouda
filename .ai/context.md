@@ -60,15 +60,25 @@ context. `.ai/` is not canonical product documentation.
 - The account-orientation migration test now restores the current ledger leaf
   migration, removing its pre-existing schema leakage into later test modules.
 - The fail-closed local-delivery bootstrap is implemented. The dedicated
-  `runlocal` command accepts only explicit numeric `127.0.0.1` or `::1`, owns
-  Django's downstream bind, and activates one non-persisted opaque runtime only
-  during the server runner lifetime. Principal issuance requires that runtime.
+  `runlocal` command accepts explicit numeric `127.0.0.1` or `::1` for direct
+  host delivery and the exact internal `0.0.0.0:8000` endpoint only under its
+  explicit trusted Compose-network mode. It owns Django's downstream bind and
+  activates one
+  non-persisted opaque runtime only during the server runner lifetime.
+  Principal issuance requires that runtime.
 - Django REST Framework 3.16.x is configured without authentication and with
   JSON-only rendering. Account discovery and canonical Movement report GET
   endpoints fail closed without the active runtime.
 - A minimal Vite + React + TypeScript client implements Account discovery,
   internal UUID selection, inclusive date input, and canonical Movement report
   rendering. It preserves exact decimal strings and omits source provenance.
+- The primary local Compose path starts pinned PostgreSQL, Django, and Node
+  images with health dependencies. Only Vite and PostgreSQL are published on
+  numeric host loopback; Django is unpublished behind the internal application
+  network. Explicit commands seed and clear a deterministic two-Account,
+  eleven-Movement synthetic demo graph through fixed UUIDv5 identities. Narrow
+  `DEMO_SYNTHETIC` source/record choices preserve truthful mandatory provenance
+  without adding an Account/Movement demo field or production import route.
 
 ## Implemented target evolution
 
@@ -149,10 +159,12 @@ headers, cookies, query values, and bodies do not establish trust.
 
 DRF has no authentication classes or Django anonymous auth user, and only the
 JSON renderer is enabled. Django auth, sessions, tokens, users, ownership,
-CORS, Account CRUD, and backend containers remain absent. The local React
-client binds Vite to `127.0.0.1:5173` and proxies only `/api` to the validated
-`runlocal` backend at `127.0.0.1:8000`; this is transport convenience, not
-authentication or principal issuance.
+CORS, and Account CRUD remain absent. In direct host development, React binds
+Vite to `127.0.0.1:5173` and proxies only `/api` to the validated backend at
+`127.0.0.1:8000`. In Compose, only Vite is browser-facing at that loopback URL;
+it proxies `/api` to the unpublished Django service. Neither proxy arrangement
+is authentication or principal issuance. The container runtime does not claim
+to verify Docker publication; repository configuration and tests enforce it.
 
 The first end-to-end browser read flow is implemented. The next bounded task
 should define and freeze canonical Movement classification semantics and

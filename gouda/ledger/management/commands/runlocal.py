@@ -12,7 +12,7 @@ from gouda.local_delivery import (
 
 
 class Command(RunserverCommand):
-    help = "Start Gouda's unauthenticated local delivery server on numeric loopback."
+    help = "Start Gouda through its validated unauthenticated local delivery boundary."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -25,12 +25,21 @@ class Command(RunserverCommand):
             default="8000",
             help="TCP port from 1 through 65535 (default: 8000).",
         )
+        parser.add_argument(
+            "--trusted-container-network",
+            action="store_true",
+            help=(
+                "Permit only the internal 0.0.0.0:8000 bind behind repository-owned "
+                "numeric-loopback browser edge and trusted Compose networks."
+            ),
+        )
 
     def handle(self, *args, **options):
         try:
             run_validated_local_delivery(
                 bind_host=options["host"],
                 port=options["port"],
+                trusted_container_network=options["trusted_container_network"],
                 server_runner=self._serve,
             )
         except LocalDeliveryBootstrapError as error:

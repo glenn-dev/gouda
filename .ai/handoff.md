@@ -34,31 +34,44 @@ remote, tunneled, proxied, forwarded, shared-host, production, and ambiguous
 exposure requires real authentication or fails closed. This is deployment
 trust, not caller authentication.
 
-The runtime checkpoint implements that host-process boundary. `runlocal` owns an
-explicit `127.0.0.1` or `::1` bind and activates an opaque in-memory runtime
-only while Django's server runner is active. The runtime may issue the existing
-principal without request input. Direct `runserver`, WSGI, or ASGI launches do
-not activate it.
+The runtime checkpoint implements the direct host and Compose boundaries.
+`runlocal` owns an explicit `127.0.0.1` or `::1` host bind. Its separate
+trusted-container-network mode owns only an internal `0.0.0.0` bind and is
+restricted to Compose's fixed port `8000`; it is valid solely with the
+repository Compose perimeter. Both activate an opaque
+in-memory runtime only while Django's server runner is active. The runtime may
+issue the existing principal without request input. Direct `runserver`, WSGI,
+or ASGI launches do not activate it.
 
-The current worktree adds the first local React/TypeScript client over the two
-committed read endpoints. It discovers Accounts, keeps UUIDs as internal
+The local React/TypeScript client consumes the two read endpoints. It
+discovers Accounts, keeps UUIDs as internal
 selectors, accepts inclusive dates, and renders backend count, exact net signed
 amount, and canonical Movement date/description/amount/currency. It does not
 retain or render `source_trace`, recompute totals, convert decimal strings to
 numbers, or issue writes or authentication material.
 
-Vite binds explicitly to `127.0.0.1:5173` and proxies only `/api` to
-`http://127.0.0.1:8000`. The frontend proxy avoids backend CORS but does not
-authenticate callers or issue principal context; Django still requires the
-active `runlocal` runtime. No backend production code changes are part of the
-frontend checkpoint.
+For host development, Vite binds explicitly to `127.0.0.1:5173` and proxies
+only `/api` to `http://127.0.0.1:8000`. The primary Compose path publishes Vite
+at the same numeric-loopback URL, leaves Django unpublished, and fixes the
+container proxy target to `http://backend:8000` on an internal network. Neither
+proxy arrangement authenticates callers or issues principal context; Django
+still requires the active `runlocal` runtime.
+
+The current worktree adds the complete Compose bootstrap and deterministic
+demo commands. `seed_demo` creates two CLP Accounts and eleven fixed-date
+canonical Movements with overtly synthetic provenance envelopes. `clear_demo`
+uses the fixed UUIDv5 set and reverse dependency order to remove only that
+graph. One narrow migration adds `DEMO_SYNTHETIC` source/record choices because
+the existing closed provenance constraints would otherwise require a false
+bank-source claim. No `is_demo` financial field, classification, transfer, or
+production-import behavior is added.
 
 Account-access validation exposed a pre-existing migration-test isolation
 defect: the checkpoint migration module restored hard-coded migration `0008`
-instead of the current ledger leaf `0009`, so modules executed afterward saw
-an old schema. The migration test class now restores the current graph leaf in
-`tearDown`; explicit migration-before-reporting and reporting-before-migration
-orders are part of this checkpoint's validation.
+instead of the graph leaf, so modules executed afterward saw an old schema.
+The migration test class now restores the current graph leaf in `tearDown`;
+explicit migration-before-reporting and reporting-before-migration orders are
+part of this checkpoint's validation.
 
 The observation boundary is now implemented. `FinancialObservation` stores an
 immutable interpreted claim and mutable current lifecycle projection.
@@ -73,26 +86,25 @@ reconciled Historical-only resolution policy.
 ## Functional checkpoint
 
 The latest committed checkpoint is
-`45f41e344ab204a9ba00b4211096c43f9a1f8b41` (`feat: expose account
-discovery API`). The local React client, tests, dependency lock, documentation,
+`330daf969c50606065033157b6281925cd3e6b73` (`feat: add local read-only React
+client`). The Compose/bootstrap, synthetic demo commands, tests, documentation,
 and operational-state updates are currently uncommitted; Git commands at cold
 start determine exact state.
 
-The Account discovery checkpoint passes 77 focused discovery/access/Movement
-API/runtime/reporting tests, 85 Santander/BCI import and service regression
-tests, and the full 409-test repository suite. Migration isolation passes in
-both discovery-before-migration and migration-before-discovery orders (21 tests
-each). Django system check, migration drift, `pip check`, Markdown link
-resolution, diff whitespace, and privacy/private-file checks pass.
+The new focused demo/Compose/local-delivery suite passes 42 tests and the full
+Django suite passes 433 tests in a fresh PostgreSQL 16 Compose stack. Both
+18-test migration/demo orderings pass. Pinned image builds, clean automatic
+migrations, all service health checks, repeated seeding, the frontend root,
+Account discovery, and an April Movement report through the browser-facing
+proxy pass. Live cleanup succeeds twice, leaves the Account API empty, and
+`docker compose down` preserves the named volume.
 
-The current frontend checkpoint passes 14 Vitest component/contract tests,
-TypeScript checking, the Vite production build, dependency resolution, and an
-actual loopback-only Vite listener check. The unchanged backend passes 77
-focused API/runtime/access/reporting tests, 116 Santander/BCI service
-regressions, both 21-test migration-isolation orders, and the full 409-test
-suite. Django system check, migration drift, `pip check`, static network and
-client-exposure checks, Markdown link resolution, diff whitespace, and
-privacy/private-file checks pass.
+All 14 frontend tests, TypeScript checking, the Vite build, `npm ls`, Django
+system checking, migration drift, `pip check`, `docker compose config`, Python
+compilation, 39-file Markdown link validation, diff whitespace, and ignored
+`.env`/`private` checks pass. The default pre-existing Gouda volume was not
+deleted or altered to repair its historical migration-ledger mismatch; clean
+startup validation used the isolated `gouda-bootstrap-test` project instead.
 
 ## Observation/resolution checkpoint
 
@@ -329,10 +341,10 @@ network exposure contract; durable ownership semantics remain deferred.
 The repository exposes two JSON-only endpoints at `/api/v1/accounts/` and
 `/api/v1/accounts/<account_uuid>/movements/`. DRF is configured with no
 authentication classes, no Django anonymous user, and no browsable renderer.
-Django auth, CORS, CSRF middleware, Account CRUD, and a backend container
-remain absent. The frontend uses only relative GET requests and retains no
-authentication or source-provenance state. Compose publishes only PostgreSQL at
-`127.0.0.1:5432`.
+Django auth, CORS, CSRF middleware, and Account CRUD remain absent. The frontend
+uses only relative GET requests and retains no authentication or
+source-provenance state. Compose publishes PostgreSQL at `127.0.0.1:5432` and
+Vite at `127.0.0.1:5173`; it publishes no Django port.
 
 The canonical host launch remains `python manage.py runlocal --host 127.0.0.1
 --port 8000`, with deliberate `::1` support. The host is required and exact;
@@ -344,15 +356,18 @@ before server delegation. Generic Django startup reaches the route but receives
 validated server lifetime. Its no-argument method may obtain the existing
 trusted local principal; the active-runtime lookup fails closed outside that
 lifetime. The command constructs the only downstream Django bind argument and
-disables autoreload. Host validation allows only numeric loopback as defense
-in depth, not authentication.
+disables autoreload. Direct mode allows only numeric loopback. Explicit
+container mode allows only internal `0.0.0.0:8000`; it does not inspect Docker
+NAT or publication.
 
 `docs/security/local-mvp-network-boundary.md` still defines local as
 machine-local numeric IP loopback, not process locality or LAN proximity.
 Container-internal wildcard binding remains allowed only behind explicit
-loopback host publication and a trusted private application network; container
-enforcement is future work. Gouda cannot detect external tunnels, proxies,
-NAT, SSH forwarding, unsupported launchers, or hostile local processes.
+loopback host publication and a trusted private application network. The
+repository Compose file and static tests enforce that configuration. Gouda
+cannot detect external overrides, tunnels, proxies, NAT, SSH forwarding,
+unsupported launchers, untrusted containers attached by a Docker-privileged
+operator, or hostile local processes.
 
 ## Next checkpoint
 
@@ -367,8 +382,8 @@ The implemented foundation now includes two Santander canonical-write routes,
 BCI Historical evidence and resolution, Current/Recent source-only parsers,
 the first internal canonical query/period-total/source-trace service, and the
 minimum backend API read surface for Account selection plus Movement reporting,
-and the first local browser read client. Classification and
-authentication/ownership remain absent.
+the first local browser read client, and the reproducible three-service demo
+bootstrap. Classification and authentication/ownership remain absent.
 
 Priorities are:
 

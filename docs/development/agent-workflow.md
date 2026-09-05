@@ -64,6 +64,12 @@ review that tries to invalidate correctness. Concrete reproducible findings
 normally become regression tests. Fix concrete findings only; do not redesign
 unrelated architecture during a correction pass.
 
+For local-stack changes, validate `docker compose config`, build and start the
+complete stack against an isolated or known-current database, exercise the
+supported browser-facing path, and stop with `docker compose down`. Do not use
+`down -v` as routine validation or demo cleanup; named database volumes are
+persistent user state.
+
 ## Checkpoint
 
 Before declaring a non-trivial checkpoint ready, confirm validations pass;

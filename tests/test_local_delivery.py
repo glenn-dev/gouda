@@ -40,6 +40,7 @@ class LocalDeliveryBootstrapTests(SimpleTestCase):
                     self.assertEqual(runtime.port, 8000)
                     self.assertEqual(runtime.django_addrport, addrport)
                     self.assertEqual(runtime.uses_ipv6, uses_ipv6)
+                    self.assertFalse(runtime.uses_trusted_container_network)
                     self.assertEqual(repr(runtime), "LocalDeliveryRuntime(<opaque>)")
                     self.assertIs(
                         local_delivery.require_active_local_delivery_runtime(),
@@ -80,6 +81,65 @@ class LocalDeliveryBootstrapTests(SimpleTestCase):
                 self.assert_bootstrap_error(
                     "local_delivery_not_active",
                     local_delivery.require_active_local_delivery_runtime,
+                )
+
+    def test_container_mode_accepts_only_internal_ipv4_wildcard(self):
+        def inspect(runtime):
+            self.assertEqual(runtime.bind_host, "0.0.0.0")
+            self.assertEqual(runtime.django_addrport, "0.0.0.0:8000")
+            self.assertFalse(runtime.uses_ipv6)
+            self.assertTrue(runtime.uses_trusted_container_network)
+            self.assertIs(
+                local_delivery.require_active_local_delivery_runtime(),
+                runtime,
+            )
+
+        local_delivery.run_validated_local_delivery(
+            bind_host="0.0.0.0",
+            port="8000",
+            trusted_container_network=True,
+            server_runner=inspect,
+        )
+
+        for host in ("127.0.0.1", "::1", "::", "192.168.1.10", ""):
+            with self.subTest(host=host):
+                self.assert_bootstrap_error(
+                    "bind_host_invalid",
+                    local_delivery.run_validated_local_delivery,
+                    bind_host=host,
+                    port="8000",
+                    trusted_container_network=True,
+                    server_runner=lambda runtime: self.fail(
+                        f"invalid container runtime issued: {runtime!r}"
+                    ),
+                )
+
+    def test_container_mode_must_be_an_explicit_boolean_startup_value(self):
+        for value in ("true", 1, None, object()):
+            with self.subTest(value=value):
+                self.assert_bootstrap_error(
+                    "container_network_mode_invalid",
+                    local_delivery.run_validated_local_delivery,
+                    bind_host="0.0.0.0",
+                    port="8000",
+                    trusted_container_network=value,
+                    server_runner=lambda runtime: self.fail(
+                        f"ambiguous container runtime issued: {runtime!r}"
+                    ),
+                )
+
+    def test_container_mode_accepts_only_the_compose_backend_port(self):
+        for port in ("1", "7999", "8001", "65535"):
+            with self.subTest(port=port):
+                self.assert_bootstrap_error(
+                    "port_invalid",
+                    local_delivery.run_validated_local_delivery,
+                    bind_host="0.0.0.0",
+                    port=port,
+                    trusted_container_network=True,
+                    server_runner=lambda runtime: self.fail(
+                        f"unexpected container runtime issued: {runtime!r}"
+                    ),
                 )
 
     def test_port_must_be_an_unambiguous_tcp_port(self):
@@ -235,6 +295,7 @@ class LocalDeliveryBootstrapTests(SimpleTestCase):
             local_delivery.LocalDeliveryRuntime(
                 bind_host="127.0.0.1",
                 port=8000,
+                trusted_container_network=False,
                 issuer=object(),
             )
 
@@ -270,6 +331,46 @@ class RunlocalCommandTests(SimpleTestCase):
 
             self.assertEqual(str(caught.exception), "bind_host_invalid")
             serve.assert_not_called()
+
+    def test_container_bind_requires_explicit_trusted_network_flag(self):
+        with patch.object(RunlocalCommand, "_serve") as serve, self.assertRaises(
+            CommandError
+        ) as caught:
+            call_command("runlocal", host="0.0.0.0", port="8000")
+
+        self.assertEqual(str(caught.exception), "bind_host_invalid")
+        serve.assert_not_called()
+
+    def test_container_flag_rejects_loopback_and_delegates_internal_wildcard(self):
+        with patch.object(RunlocalCommand, "_serve") as serve, self.assertRaises(
+            CommandError
+        ) as caught:
+            call_command(
+                "runlocal",
+                host="127.0.0.1",
+                port="8000",
+                trusted_container_network=True,
+            )
+
+        self.assertEqual(str(caught.exception), "bind_host_invalid")
+        serve.assert_not_called()
+
+        captured = []
+
+        def capture(runtime):
+            captured.append(runtime)
+
+        with patch.object(RunlocalCommand, "_serve", side_effect=capture) as serve:
+            call_command(
+                "runlocal",
+                host="0.0.0.0",
+                port="8000",
+                trusted_container_network=True,
+            )
+
+        serve.assert_called_once_with(captured[0])
+        self.assertEqual(captured[0].django_addrport, "0.0.0.0:8000")
+        self.assertTrue(captured[0].uses_trusted_container_network)
 
     def test_missing_host_fails_before_server_delegation(self):
         with patch.object(RunlocalCommand, "_serve") as serve, self.assertRaises(
@@ -336,6 +437,7 @@ class RunlocalCommandTests(SimpleTestCase):
             local_delivery.LocalDeliveryRuntime(
                 bind_host="127.0.0.1",
                 port=8000,
+                trusted_container_network=False,
                 issuer=object(),
             )
 

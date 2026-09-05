@@ -44,19 +44,22 @@ The repository exposes two backend HTTP operations:
 - `ALLOWED_HOSTS` contains only numeric IPv4 and bracketed IPv6 loopback, and
   `DEBUG` defaults to false;
 - ASGI and WSGI application objects exist but do not open listeners;
-- the dedicated `runlocal` command enforces the supported host-process bind,
-  but no container image or backend Compose service is defined; and
-- the local React development client binds Vite to `127.0.0.1:5173` and
-  proxies only `/api` to the validated backend at `127.0.0.1:8000`.
+- the dedicated `runlocal` command enforces either a numeric-loopback
+  host-process bind or the explicit trusted-container-network mode;
+- Compose publishes Vite only at `127.0.0.1:5173`, publishes no backend port,
+  and starts Django through the validated container mode on an internal
+  `0.0.0.0:8000` listener; and
+- Vite proxies only `/api` to the literal `http://backend:8000` target on an
+  internal network shared only with the backend.
 
-The only Compose host-port publication is PostgreSQL on
-`127.0.0.1:5432`. It is a loopback-bound database development port, not an
-HTTP caller-trust boundary.
+The other Compose host-port publication is PostgreSQL on `127.0.0.1:5432`.
+It is a loopback-bound database development port, not an HTTP caller-trust
+boundary. Django has no host publication.
 
 Generic Django `runserver`, WSGI, and ASGI launches remain unsupported for
 unauthenticated financial delivery because they do not activate Gouda's local
 delivery capability. The supported `runlocal` path requires an explicit host,
-accepts only `127.0.0.1` or `::1`, validates the port, and constructs the
+validates the selected direct or container mode and port, and constructs the
 downstream Django address itself.
 
 ## Exposure models considered
@@ -103,16 +106,23 @@ allowlist deliberately require the numeric form instead.
 
 ### Docker boundary
 
-A future backend container may listen on `0.0.0.0` inside its isolated
-container network when required for host publication. The host-facing
-publication must still name `127.0.0.1` explicitly and may separately publish
-on `::1`. A short form such as `8000:8000`, which publishes on unspecified or
-all host interfaces, is forbidden for the unauthenticated mode.
+The implemented Compose path keeps Django unpublished and lets it listen on
+`0.0.0.0` only inside an internal application network. That network contains
+only the trusted Vite and Django services. Vite is the browser-facing edge and
+its publication explicitly names `127.0.0.1`. A short form such as
+`5173:5173`, which publishes on unspecified or all host interfaces, remains
+forbidden for the unauthenticated mode.
 
-Only trusted application containers may share the backend's internal network.
-Publishing a loopback host port does not make an otherwise reachable container
-network trusted. No backend container is added by the current host-process
-implementation; container exposure enforcement remains future work.
+`runlocal --trusted-container-network` is protected startup configuration, not
+a Docker introspection mechanism. It permits only the exact internal
+`0.0.0.0:8000` bind and remains invalid with another port, loopback, IPv6
+wildcard, LAN, hostname, or public values. Gouda does not claim that Django can
+verify host NAT or port publication from inside its container. Static tests own
+the repository Compose contract: frontend and PostgreSQL publications are
+numeric-loopback-only, backend publication is absent, proxy target/path are
+fixed, and application network membership is bounded. Operators remain
+responsible for not adding an override, tunnel, forwarding rule, or untrusted
+container that expands this perimeter.
 
 ## Caller-trust bootstrap
 
@@ -148,7 +158,7 @@ selector, inclusive start date, and inclusive end date may come from the
 request. Principal identity or trust, ownership claims, provider/account
 binding claims, and authorization decisions must not.
 
-### Implemented host-process bootstrap
+### Implemented launch bootstrap
 
 The supported direct host launch is:
 
@@ -175,6 +185,16 @@ internal Python code deliberately importing or bypassing internals. It couples
 Gouda's supported unauthenticated launcher to its validated bind; it does not
 infer the machine's external network topology.
 
+The Compose backend instead uses:
+
+```text
+python manage.py runlocal --host 0.0.0.0 --port 8000 --trusted-container-network
+```
+
+Without the explicit flag, `0.0.0.0` remains invalid. With the flag, every bind
+other than `0.0.0.0:8000` is invalid. The same opaque runtime lifecycle and
+request-independent principal issuance apply in both modes.
+
 ## Fail-closed behavior
 
 The unauthenticated delivery adapter must remain unavailable
@@ -195,9 +215,10 @@ defense in depth against browser-origin confusion and DNS-rebinding-style
 attacks.
 
 The implemented boundary guarantees that Gouda's supported unauthenticated
-host launch delegates only an exact numeric loopback bind and makes trusted
-local principal issuance available only during that validated runner. It does
-not prevent a developer from starting an unsupported server, detect or block
+launch delegates only an exact numeric loopback bind or the explicit internal
+container bind and makes trusted local principal issuance available only during
+that validated runner. It does not prevent a developer from starting an
+unsupported server, detect or block
 OS-level proxies, tunnels, NAT, or SSH forwarding, exclude other local users
 and processes, or make loopback equivalent to user authentication. A future
 adapter must require the active runtime; otherwise an unsupported launch could
@@ -206,17 +227,18 @@ still expose adapter code incorrectly.
 ## Frontend compatibility
 
 A React client running in a browser on the same trusted host can use a
-loopback-only backend. The implemented Vite development server binds to
+loopback-only edge. In direct host development, Vite binds to
 `127.0.0.1:5173` and proxies only `/api` to `127.0.0.1:8000`, providing the
-same-origin browser arrangement without backend CORS. Both listeners remain
-inside the numeric-loopback perimeter. The proxy does not authenticate the
-browser, issue principal context, or make the setup production-ready. If a
-future frontend and backend use distinct loopback origins,
+same-origin browser arrangement without backend CORS. In Compose, Vite's
+container wildcard is published only on host loopback and the unpublished
+backend stays behind it. The proxy does not authenticate the browser, issue
+principal context, or make the setup production-ready. If a future frontend
+and backend use distinct loopback origins,
 any future CORS allowlist must name only the exact required local origin; CORS
 still does not establish caller trust.
 
-For a containerized frontend/backend, containers may communicate over a
-private trusted application network while only the browser-facing host edge is
+The implemented containerized frontend/backend communicate over the internal
+trusted application network while only Vite's browser-facing host edge is
 published on loopback. A browser on another device is LAN/remote access and is
 outside this unauthenticated contract.
 

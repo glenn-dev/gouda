@@ -32,6 +32,14 @@ successful parse is sufficient for the current frozen Santander application
 routes, but is not a universal authorization for future sources to create a
 movement.
 
+`DEMO_SYNTHETIC` and `DEMO_SYNTHETIC_RECORD` are narrow local-demo provenance
+envelopes, not a provider, import route, source adapter, or financial
+classification. They prevent deterministic seed data from making a false bank
+source claim. Fixed UUIDv5 identities, rather than these choices, define the
+bounded cleanup set. Demo Movements are independent synthetic Account-effect
+examples; their descriptions, dates, and values assert no transfer pairing or
+shared economic-event identity.
+
 ### Observation and resolution
 
 `FinancialObservation` is one interpreted financial claim derived from one

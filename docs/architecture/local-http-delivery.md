@@ -10,10 +10,12 @@ GET /api/v1/accounts/<account_uuid>/movements/
 ```
 
 It is an unauthenticated read adapter supported only through the validated
-numeric-loopback `runlocal` launcher defined by
+`runlocal` launcher defined by
 [ADR-0010](../decisions/ADR-0010-loopback-only-local-mvp-delivery.md). It is not
-supported through generic `runserver`, WSGI, ASGI, LAN, remote, proxied,
-tunneled, forwarded, shared-host, or production exposure.
+supported through generic `runserver`, WSGI, ASGI, LAN, remote, externally
+proxied, tunneled, forwarded, shared-host, or production exposure. `runlocal`
+supports either a direct numeric-loopback bind or the explicit repository-owned
+Compose mode described below.
 
 The adapters use Django REST Framework without Django auth, sessions, tokens,
 users, ownership persistence, CORS, routers, ViewSets, model serializers,
@@ -158,7 +160,25 @@ The repository's first browser client is a Vite + React + TypeScript app under
 `127.0.0.1:5173` and proxies only the `/api` path to the validated backend at
 `http://127.0.0.1:8000`. No backend CORS configuration is added.
 
-The supported startup sequence is:
+The primary startup sequence is:
+
+```text
+docker compose up --build
+docker compose exec backend python manage.py seed_demo
+Browser: http://127.0.0.1:5173/
+```
+
+Compose publishes Vite at `127.0.0.1:5173` and does not publish Django. Vite
+binds to `0.0.0.0` only inside its container and proxies only `/api` to the
+literal `http://backend:8000` target across the internal application network.
+Django starts through `runlocal --host 0.0.0.0
+--trusted-container-network`; that explicit mode permits only the internal IPv4
+wildcard on port `8000`. It does not inspect or attest Docker host publication.
+The repository-owned Compose file enforces the loopback browser edge, absence
+of a backend publication, and membership of only the backend and frontend on
+the internal application network.
+
+For host-process development, use:
 
 ```text
 Terminal 1: python manage.py runlocal --host 127.0.0.1 --port 8000
@@ -166,7 +186,7 @@ Terminal 2: cd frontend && npm run dev
 Browser:    http://127.0.0.1:5173/
 ```
 
-This proxy keeps browser API requests same-origin during local development,
+Both proxy arrangements keep browser API requests same-origin during local development,
 but it is not authentication and does not issue trusted principal context.
 The backend still fails closed unless `runlocal` owns the numeric-loopback
 bind and its active `LocalDeliveryRuntime` issues the principal. The frontend

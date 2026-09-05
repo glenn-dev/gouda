@@ -121,10 +121,21 @@ an internal selector, accepts an inclusive date range, and renders the
 backend-provided canonical report without recomputing totals or converting
 decimal strings to JavaScript numbers.
 
-For local development, Vite binds to numeric loopback and proxies only `/api`
-to the numeric-loopback `runlocal` backend. This avoids adding CORS and does
-not change caller trust: the Vite proxy is not authentication, and Django's
-active `LocalDeliveryRuntime` remains required. The client stores no auth
-tokens, issues no write methods, retains no source trace in its report model,
-and adds no persistence, financial semantics, production packaging, or
-deployment behavior.
+For direct host development, Vite binds to numeric loopback and proxies only
+`/api` to the numeric-loopback `runlocal` backend. The primary Compose path
+instead publishes only Vite on numeric loopback, leaves Django unpublished,
+and uses a trusted internal application network. Django's narrowly validated
+container mode permits only its internal `0.0.0.0:8000` endpoint without
+claiming to inspect Docker publication. Both arrangements avoid CORS and retain
+the active `LocalDeliveryRuntime` trust gate. The client stores no auth tokens, issues no
+write methods, retains no source trace in its report model, and adds no
+financial semantics or production deployment behavior.
+
+The explicit `seed_demo` and `clear_demo` commands manage a deterministic
+synthetic-only Account/Movement graph for local demonstration. Fixed UUIDv5
+identities provide the cleanup boundary without adding an `is_demo` field to
+Account or Movement. Because canonical Movement requires provenance and the
+source/record choices are closed, a narrow migration adds explicit
+`DEMO_SYNTHETIC` envelope choices instead of falsely labeling the data as a bank
+import. The seed creates those synthetic artifacts, batches, and records
+directly; it does not invoke or generalize production import workflows.
