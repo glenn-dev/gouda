@@ -2,56 +2,57 @@
 
 ## Objective
 
-Close the bounded local developer/demo bootstrap checkpoint for the existing
-read-only Account/Movement flow.
+Define and freeze MVP Movement classification semantics and persistence before
+implementation. This documentation-only design is complete; production
+classification implementation remains deferred.
 
 ## Current state
 
-The worktree adds a complete three-service Docker Compose path:
+On 2026-09-05, branch `main`, HEAD, and freshly fetched `origin/main` all matched
+`76a1647ab005175418e7b7175fc3e3ec9abb3589` (`feat: add local demo bootstrap`).
+The design session started with a clean tree. The subsequent commit review
+verified the same baseline and exactly the ten expected documentation paths.
+The user authorized one commit, `docs: freeze movement classification semantics`,
+without pushing. Git history records its exact SHA; implementation remains
+the next task.
 
-- PostgreSQL 16 with its existing named volume and `127.0.0.1:5432`
-  publication;
-- Django with automatic migrations, no host publication, and the validated
-  `runlocal --trusted-container-network` bootstrap; and
-- Vite with the only browser-facing publication at `127.0.0.1:5173` and a
-  fixed `/api` proxy to the internal backend service.
+[ADR-0011](../../docs/decisions/ADR-0011-movement-classification.md) records the
+alternatives and decision. The
+[classification contract](../../docs/architecture/movement-classification.md)
+owns fields, cardinality, corrections, source values, migration, demo,
+reporting, privacy, and ownership revisit triggers. Product scope now separates
+category organization from deferred economic-event types and transfers.
 
-The internal application network is limited to Vite and Django. Django's
-container mode permits only the exact internal `0.0.0.0:8000` endpoint and does
-not claim to verify Docker host publication. Repository-owned Compose
-configuration and static tests own that guarantee. Direct host `runlocal`
-remains loopback-only.
-
-The explicit `seed_demo` command creates two Accounts and eleven canonical
-Movements over fixed January-April 2026 dates. Synthetic provenance envelopes
-satisfy the existing mandatory Movement origin contract without invoking
-production import routes. Fixed UUIDv5 identities make seeding repeatable and
-allow `clear_demo` to delete only that graph without an `is_demo` financial
-field. One narrow migration adds truthful synthetic source/record choices to
-the existing closed provenance constraints, avoiding false bank-source claims.
+Use one optional local dataset Category through a separate mutable
+MovementClassification, with manual source, revision, and update time.
+Previous assignments are not retained. An absent row is never assigned; a
+retained null-category row is cleared. Both are unclassified. No financial
+fact, source contract, code, migration, API, or demo has changed.
 
 ## Validation state
 
-The focused 42-test demo/Compose/local-delivery suite and the full 433-test
-Django suite pass inside a fresh PostgreSQL 16 Compose stack. Both
-migration/demo orderings pass 18 tests. Image builds, automatic migrations,
-all service health checks, repeated seeding, the frontend root, Account
-discovery, and an April Movement report through `127.0.0.1:5173` pass. The 14
-frontend tests, typecheck, build, dependency checks, Django system check,
-migration drift check, Python dependency check, Compose rendering, Markdown
-links, privacy boundary, and diff hygiene pass. Live cleanup is idempotent and
-the stack stops while preserving its named volume.
+Markdown local-link validation passes for 41 files and 55 links (no fragment
+links present). Documentation-only scope, added-text privacy checks, ignored
+and untracked private paths, diff review, and `git diff --check` pass. The
+handoff records the complete results. No runtime suite was rerun; prior
+bootstrap results are historical validation of the committed baseline.
 
 ## Next bounded scope
 
-Define and freeze canonical Movement classification semantics and persistence
-for the MVP types before implementing classification filters or UI. Provider
-categories and amount signs must not be treated as canonical classification.
+Implement Category and MovementClassification persistence plus the internal
+manual assign/change/clear service exactly under ADR-0011. Add meaningful
+PostgreSQL tests for cardinality, category retirement, source rejection,
+revision conflicts including first-write and clear/reassign races, financial
+immutability through the command, migrations/no backfill/reverse guard, and
+existing import/report/demo compatibility. Keep `clear_demo`'s atomic protected
+failure for classified demo Movements. Run applicable regression and migration
+checks. Category provisioning is a trusted internal boundary, without taxonomy
+seeding or category-management UI/API.
 
 ## Non-goals
 
-Do not add classification, login, Django auth, sessions, tokens, users,
-households, roles, ownership/grants, write/import HTTP endpoints, broad CORS,
-LAN/remote exposure, TLS, production orchestration, or new source semantics.
+No HTTP write capability, classification UI, API/report filters or projection
+changes, heuristics, AI/rules, transfer pairing, income/expense enum, bulk edits,
+tags, hierarchy, notes, ownership, history engine, or demo seed changes.
 
 Recommended reasoning level: Sol High.

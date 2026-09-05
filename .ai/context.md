@@ -166,9 +166,25 @@ it proxies `/api` to the unpublished Django service. Neither proxy arrangement
 is authentication or principal issuance. The container runtime does not claim
 to verify Docker publication; repository configuration and tests enforce it.
 
-The first end-to-end browser read flow is implemented. The next bounded task
-should define and freeze canonical Movement classification semantics and
-persistence for the MVP types before adding classification UI or filters.
+The first end-to-end browser read flow and local demo bootstrap are committed
+at `76a1647ab005175418e7b7175fc3e3ec9abb3589` (`feat: add local demo bootstrap`).
+The 2026-09-05 classification-design session verified clean `main` with HEAD
+and refreshed `origin/main` at that exact baseline.
+
+Classification design is now frozen in
+[ADR-0011](../docs/decisions/ADR-0011-movement-classification.md) and
+[Movement classification](../docs/architecture/movement-classification.md).
+The `docs: freeze movement classification semantics` checkpoint contains only
+documentation and operational state. It selects zero/one local
+dataset category through a separate mutable current-state relation, with
+manual-only provenance and revision-checked corrections. There is no
+classification persistence or service yet; economic types and transfers are
+separate deferred semantics.
+
+The next bounded task is implementing the two empty tables and internal
+manual assign/change/clear service with focused invariant, migration, and
+concurrency tests. Keep reporting/HTTP/client/demo contracts unchanged.
+Recommended reasoning level: Sol High.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.

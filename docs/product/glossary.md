@@ -20,7 +20,28 @@ worth increases and negative when it decreases. A movement is not provisional.
 
 **Signed amount** — The normalized numeric value that captures direction as well as magnitude.
 
-**Transfer** — A movement between two accounts owned by the same user; it should not be counted as income or spending in consolidated totals.
+**Classification** — An explicit, revisable category assignment to an accepted
+Movement, separate from financial facts, economic-event meaning, and provider
+metadata. MVP persistence is frozen but not implemented; see
+[Movement classification](../architecture/movement-classification.md).
+
+**Category** — A local dataset topic grouping with a stable UUID and display
+name. A Movement has zero or one current category; a category has no inherent
+income/expense type or sign.
+
+**Unclassified / uncategorized** — No current category is assigned. An absent
+assignment row means never assigned; a retained null-category row means
+cleared. Both are unclassified, not a category or a completed-review state.
+
+**Economic meaning** — What an event represents, such as income, spending,
+refund, adjustment, or transfer. It cannot be inferred from signed amount
+alone and has no persisted type in the first classification slice.
+
+**Transfer** — A shared event between own accounts represented by account
+Movements. A future verified relationship establishes the relevant own-account
+scope and excludes transfer effects from consolidated income/spending. Gouda
+has no ownership or transfer persistence yet; a category cannot establish
+either relationship.
 
 **Provisional view** — An explicitly labeled view that may combine canonical
 movements with unresolved recent evidence. It is not an authoritative or

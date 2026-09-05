@@ -57,7 +57,7 @@ container proxy target to `http://backend:8000` on an internal network. Neither
 proxy arrangement authenticates callers or issues principal context; Django
 still requires the active `runlocal` runtime.
 
-The current worktree adds the complete Compose bootstrap and deterministic
+The committed baseline includes the complete Compose bootstrap and deterministic
 demo commands. `seed_demo` creates two CLP Accounts and eleven fixed-date
 canonical Movements with overtly synthetic provenance envelopes. `clear_demo`
 uses the fixed UUIDv5 set and reverse dependency order to remove only that
@@ -85,15 +85,19 @@ reconciled Historical-only resolution policy.
 
 ## Functional checkpoint
 
-The latest committed checkpoint is
-`330daf969c50606065033157b6281925cd3e6b73` (`feat: add local read-only React
-client`). The Compose/bootstrap, synthetic demo commands, tests, documentation,
-and operational-state updates are currently uncommitted; Git commands at cold
-start determine exact state.
+The latest implementation checkpoint is
+`76a1647ab005175418e7b7175fc3e3ec9abb3589` (`feat: add local demo bootstrap`).
+On 2026-09-05, a fresh fetch verified HEAD and `origin/main` at this commit on
+`main`, with a clean starting tree. The classification design below is the
+subsequent documentation-only checkpoint, identified in Git history by
+`docs: freeze movement classification semantics`. Its commit review verified
+the same baseline and exactly the ten expected paths. The user authorized one
+commit and no push; Git commands at cold start determine exact state.
 
-The new focused demo/Compose/local-delivery suite passes 42 tests and the full
-Django suite passes 433 tests in a fresh PostgreSQL 16 Compose stack. Both
-18-test migration/demo orderings pass. Pinned image builds, clean automatic
+At that bootstrap checkpoint, the focused demo/Compose/local-delivery suite
+passed 42 tests and the full Django suite passed 433 tests in a fresh
+PostgreSQL 16 Compose stack. Both 18-test migration/demo orderings passed.
+Pinned image builds, clean automatic
 migrations, all service health checks, repeated seeding, the frontend root,
 Account discovery, and an April Movement report through the browser-facing
 proxy pass. Live cleanup succeeds twice, leaves the Account API empty, and
@@ -369,12 +373,75 @@ cannot detect external overrides, tunnels, proxies, NAT, SSH forwarding,
 unsupported launchers, untrusted containers attached by a Docker-privileged
 operator, or hostile local processes.
 
+## Classification design checkpoint
+
+The 2026-09-05 session freezes category organization in
+[ADR-0011](../docs/decisions/ADR-0011-movement-classification.md) and the
+[classification contract](../docs/architecture/movement-classification.md).
+It compares nullable Movement fields, separate current state, append-only
+assignments, many-to-many labels, and current state plus revisions.
+
+The choice is zero/one local dataset Category in a separate mutable
+MovementClassification, with manual-only source, optimistic revision, and
+last-change timestamp. An absent row means never assigned; a retained null
+category means cleared. Both remain unclassified. Category has UUID, short
+display name, and active flag; no code, hierarchy, notes, economic type, or
+fake household owner. Prior assignments are not recoverable, and automated
+classification/history/ownership have explicit revisit triggers.
+
+The design does not infer classification from signs or provider categories,
+does not permit a Transfer category workaround, and keeps income/expense and
+shared-event semantics deferred. Product scope/glossary/vision and architecture
+entry points reflect this decision. The earlier MVP type list is deliberately
+narrowed; no income/spending report is promised by topic categories.
+
+The two new tables will start empty, with no financial rewrite or backfill.
+The current demo stays classification-free. A later demo extension should use
+explicit deterministic fixture mappings after a separate provenance decision,
+preserve manual edits/clears, and validate bounded cleanup. No future source
+value is frozen or reserved by this checkpoint.
+The first persistence task retains existing `clear_demo` protected failure
+when a demo Movement has classification state.
+
+Classification code, migrations, report/API/client changes, and demo edits have
+not been implemented. The runtime test counts above belong to the prior
+bootstrap and were not rerun for this documentation-only session.
+
+Classification-design checks passed on 2026-09-05:
+
+- Markdown local-link validation: 41 files and 55 local links; no fragment
+  links were present. All destinations exist.
+- `git diff --check` plus whitespace/final-newline checks on new files pass.
+- All 10 changed files are Markdown under product, architecture, decisions,
+  or `.ai/`; no production code, migration, source contract, or demo changed.
+- Added-text privacy scanning found no credential/token, private-key, long
+  numeric-identifier, or email patterns. Manual review confirmed only generic
+  labels and synthetic examples, with no private source content copied.
+- `.env`, `private/`, and `data/private/` remain ignored and untracked.
+  No database, private evidence, or source artifact was read
+  or modified for this design.
+- Design adversarial review checked stale-write/clear/reassign behavior,
+  retired categories, history limitations, sign and provider separation,
+  reporting row cardinality, and demo protected cleanup.
+
+The commit review checked all 31 requested requirements. It removed the
+preselection of future demo provenance, marked detailed API shapes as
+illustrative rather than frozen, and made PostgreSQL uniqueness, atomic
+revision enforcement, and financial/import-state preservation explicit.
+Only the eight modified and two new expected documentation paths belong in
+the commit. No production code or migration is included. No push is authorized;
+`origin/main` remains at the bootstrap baseline. Check local Git state for the
+classification commit SHA and any subsequent work.
+
 ## Next checkpoint
 
-Define and freeze canonical Movement classification semantics and persistence
-for the MVP types before adding classification filters or UI. Do not derive
-classification from provider categories or signed amount alone. Recommended
-reasoning level: Sol High.
+Implement the two classification models and transport-independent manual
+assign/change/clear service under the frozen contract, with focused PostgreSQL
+invariant, migration, concurrency, and import/report/demo regression coverage.
+This is one persistence/service task; no reporting/HTTP/UI, taxonomy seeding,
+demo extension, automated classification, transfer, or ownership scope.
+Read ADR-0011 and the classification contract first after the standard resume
+sequence. Recommended reasoning level: Sol High.
 
 ## Roadmap reassessment
 
@@ -383,13 +450,13 @@ BCI Historical evidence and resolution, Current/Recent source-only parsers,
 the first internal canonical query/period-total/source-trace service, and the
 minimum backend API read surface for Account selection plus Movement reporting,
 the first local browser read client, and the reproducible three-service demo
-bootstrap. Classification and authentication/ownership remain absent.
+bootstrap. Classification design is frozen, while classification persistence
+and authentication/ownership remain absent.
 
 Priorities are:
 
-1. Define classification semantics and persistence for the MVP types before
-   implementing category/type filters. Provider categories and amount signs
-   are not canonical income/expense semantics.
+1. Implement the frozen manual category persistence/service boundary before
+   category filters or UI. Economic types and transfer semantics remain deferred.
 2. Add an operational import/API surface for the already implemented
    Santander services only after the account-access and upload-security
    boundary is explicit.

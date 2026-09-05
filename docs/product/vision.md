@@ -24,5 +24,10 @@ preserved without being guessed into the ledger, and sensitive data is handled
 conservatively. AI may reduce ingestion friction, while deterministic rules
 remain responsible for accounting correctness.
 
+The first category feature is intentionally narrower: manual organizational
+assignments retain current state only, while financial evidence and resolution
+retain their audit guarantees. Historical category replay and economic-event
+reporting are deferred under the [MVP scope](mvp-scope.md).
+
 The stable principles are defined in
 [Ingestion and evidence principles](ingestion-evidence-principles.md).

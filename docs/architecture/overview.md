@@ -59,6 +59,18 @@ and atomically persists source evidence and canonical liability movements.
 Classification, transfer pairing, FX, and asynchronous processing remain
 outside this foundation.
 
+## Accepted classification design
+
+[ADR-0011](../decisions/ADR-0011-movement-classification.md) freezes an optional
+local dataset Category per Movement in a separate mutable current-state
+relation. The [classification contract](movement-classification.md) specifies
+manual-only provenance, revision-checked corrections, explicit unclassified
+semantics, and two new empty tables for a later implementation. No financial
+fields or source contracts change. Classification is not implemented, and
+the existing report/API/client and synthetic demo remain classification-free.
+Economic-event types, transfer relationships, and assignment history remain
+deferred with explicit revisit triggers.
+
 ## Internal Movement reporting boundary
 
 The first read-only canonical reporting service is implemented under

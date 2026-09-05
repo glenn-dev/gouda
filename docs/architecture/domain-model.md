@@ -106,6 +106,22 @@ The sign does not itself classify a movement as income, expense, refund, fee,
 tax, or transfer. A transfer relationship connects two account movements and
 is excluded from consolidated flow reporting when paired.
 
+### Category and Movement classification
+
+The accepted, not yet implemented MVP design gives each Movement zero or one
+local dataset Category through a separate `MovementClassification` current
+state. Category has UUID, display name, and active flag; assignment has
+Movement identity, nullable category, manual source, revision, and update time.
+No row means never assigned; a retained null category means cleared. Both are
+unclassified. Corrections mutate only this separate organizational state,
+without retaining prior assignments or changing any Movement field.
+
+There is no economic type, transfer category workaround, hierarchy, tag, note,
+or fabricated owner. Provider categories remain evidence. See the complete
+[classification contract](movement-classification.md) and
+[ADR-0011](../decisions/ADR-0011-movement-classification.md) for migration,
+history tradeoffs, reporting, and revisit triggers.
+
 ### Import batch
 
 An import batch groups one ingestion attempt, its source kind, validation
@@ -120,6 +136,9 @@ row-derived import status.
 ## Invariants
 
 - A movement has exactly one canonical signed amount.
+- Category assignment does not change canonical financial facts or establish
+  income, expense, or transfer meaning. Unclassified Movements remain in
+  canonical reports and totals.
 - Account orientation is an economic domain concept distinct from provider or
   product kind.
 - A transfer relationship is deferred; it is not inferred by this persistence slice.
