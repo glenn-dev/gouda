@@ -56,18 +56,20 @@ The Santander parsers remain pure-Python components. Synchronous application
 services now support current-account XLSX and Santander TDC PDF. The TDC route
 requires an explicit account/card-suffix binding, parses outside transactions,
 and atomically persists source evidence and canonical liability movements.
-Classification, transfer pairing, FX, and asynchronous processing remain
-outside this foundation.
+Classification is a separate internal organizational service. Transfer pairing,
+FX, and asynchronous processing remain outside this foundation.
 
-## Accepted classification design
+## Movement classification persistence
 
 [ADR-0011](../decisions/ADR-0011-movement-classification.md) freezes an optional
 local dataset Category per Movement in a separate mutable current-state
 relation. The [classification contract](movement-classification.md) specifies
 manual-only provenance, revision-checked corrections, explicit unclassified
-semantics, and two new empty tables for a later implementation. No financial
-fields or source contracts change. Classification is not implemented, and
-the existing report/API/client and synthetic demo remain classification-free.
+semantics, and two new initially empty tables implemented by migration `0011`.
+The internal manual assign/change/clear command locks Account, Movement, then
+the selected Category and checks revision within one transaction. No financial
+fields or source contracts change. The existing report/API/client projections
+and synthetic demo seed remain classification-free.
 Economic-event types, transfer relationships, and assignment history remain
 deferred with explicit revisit triggers.
 

@@ -2,10 +2,12 @@
 
 ## Status
 
-Accepted MVP design, 2026-09-05; persistence and services are not implemented.
+Implemented persistence and internal manual service, 2026-09-05.
 [ADR-0011](../decisions/ADR-0011-movement-classification.md) freezes the
 cardinality, ownership, correction, and persistence decisions. This document
-defines the concrete contract for the next implementation checkpoint.
+defines the concrete contract implemented by migration `0011` and
+`gouda.ledger.services.movement_classification`. Reporting/HTTP/UI extensions
+remain deferred.
 
 ## Domain boundary
 
@@ -31,8 +33,9 @@ to unresolved observations or source records.
 
 ## Existing constraints
 
-The verified implementation baseline is `76a1647ab005175418e7b7175fc3e3ec9abb3589`
-(`feat: add local demo bootstrap`).
+The verified pre-implementation baseline is
+`964e85ef82c9af7cfdb551f3bf2cb188ac06d966`
+(`docs: freeze movement classification semantics`).
 
 - Account has UUID, display name, kind, economic orientation, and currency.
   Only `CURRENT` / `ASSET` and `CREDIT_CARD` / `LIABILITY` are supported.
@@ -95,8 +98,17 @@ household foreign key, or ownership backfill is introduced.
 | `is_active` | Required boolean, default true; retirement prevents new assignments while preserving existing ones and their reports. |
 
 Use a case-insensitive unique display name within this dataset, including
-inactive rows, with database uniqueness on `Lower(display_name)` and service
-validation of whitespace/control characters. UUID is identity; names are not
+inactive rows, with database uniqueness on `Lower(display_name)`. Trusted
+provisioning uses Category model saves, which normalize NFC and trim whitespace,
+preserve casing, and reject blank/overlong labels and remaining `Cc` control
+characters under the repository's string semantics. An additional database
+check rejects the empty string; full label normalization belongs to the model
+boundary. `bulk_create`, `QuerySet.update`, and raw SQL bypass that application
+normalization: whitespace-only or unnormalized nonempty strings can persist
+through those unsupported provisioning paths. They cannot bypass NOT NULL,
+the empty-string check, or case-insensitive uniqueness. The database check is
+nonempty, not a claim to enforce Python's Unicode-aware nonblank semantics.
+UUID is identity; names are not
 selectors. Database collation determines case folding; do not claim universal
 Unicode synonym detection. Presentation ordering is deferred; there is no
 persisted sort order or category-ordering contract in this checkpoint.
@@ -156,7 +168,7 @@ commands are not manual decisions merely because a person launched them.
 Future human acceptance of a machine suggestion must first define how proposal
 origin and human acceptance are distinguished; do not erase that provenance.
 
-The future transport-independent command accepts a trusted persisted Account,
+The transport-independent command accepts a trusted persisted Account,
 a Movement UUID scoped to that Account, a Category UUID or null, and required
 `expected_revision` (0 for an absent row). It accepts no financial fields,
 source string, timestamps, notes, or arbitrary update dictionary.
@@ -198,6 +210,55 @@ automated replacement, bulk edits, audit/undo, or as-of reports, revisit
 append-only assignment history and actor/proposal provenance. A future
 migration can capture current state as a baseline, but cannot reconstruct
 overwritten assignments or label history and must not fabricate them.
+
+## Internal command API
+
+`set_movement_classification(*, account, movement_id, category_id,
+expected_revision)` handles initial assign, category change, clear, and
+reassignment. It accepts a persisted trusted Account model and UUID selectors;
+Movement and non-null Category must exist when re-fetched under their locks.
+Movement is scoped to that Account. It accepts no financial fields or caller
+source/timestamp. This is trusted server-side composition, not an HTTP write
+capability or an extension of the read principal.
+
+The immutable `MovementClassificationState` result contains `movement_id`,
+`category_id`, `source`, `revision`, and `updated_at`, without an ORM mutation
+interface. Absent state returns null category/source/time and revision 0.
+`MovementClassificationServiceError(ValueError)` exposes only a stable `code`:
+
+| Code | Meaning |
+| --- | --- |
+| `account_not_persisted` | Account input is not a persisted model in the configured default database. |
+| `account_not_found` | The Account no longer exists. |
+| `movement_id_invalid` | Movement selector is not a UUID. |
+| `movement_not_found` | No persisted Movement exists under the supplied Account. |
+| `category_id_invalid` | Category selector is neither a UUID nor null. |
+| `category_not_found` | The selected Category does not exist. |
+| `expected_revision_invalid` | Revision is not a non-boolean integer from 0 through PostgreSQL bigint's maximum. |
+| `classification_not_present` | A positive expected revision was supplied for an absent row. |
+| `classification_revision_conflict` | An existing row has a different revision, including competing initial assignments using 0. |
+| `category_inactive` | A new assignment would select an inactive Category. |
+| `classification_revision_exhausted` | An actual change cannot increment the maximum bigint revision; no write occurs. |
+
+Validation of selector shape precedes database access. Inside the transaction,
+revision checking precedes target lookup and no-op detection. The service
+locks Account, then Movement, then a non-null target Category with PostgreSQL
+`SELECT FOR UPDATE`; it reads and saves current classification while those
+locks remain held. The Account/Movement locks protect even an absent row.
+No-op commands never call save or change time. Successful actual changes use
+the server clock without `auto_now`. An enclosing transaction is supported;
+the returned result is durable only when that outer transaction commits.
+Callers composing multiple commands inside an outer transaction must preserve
+a consistent lock order across the whole transaction; this single-command
+boundary does not provide a bulk or multi-Account transaction protocol.
+
+Trusted retirement may lock the Category in `transaction.atomic()` and save
+`is_active=false`. It must not acquire Account/Movement locks afterward. The
+Category lock serializes retirement with assignment: existing references stay,
+same-category no-ops and clears remain allowed, and new inactive targets fail.
+Ordinary classification saves validate local fields and reject reparenting,
+including deferred model instances; direct SQL/bulk updates are not supported
+correction commands. Neither model is registered in a new management API.
 
 ## Transfer and economic-type boundaries
 
@@ -270,13 +331,27 @@ Assignments do not change unfiltered Movement membership, counts, or totals.
 
 ## Migration and demo sequence
 
-The next persistence task adds two empty tables and their constraints/indexes
-after `0010_demo_synthetic_provenance` (expected migration `0011`, subject to
-the actual graph leaf). It does not alter Account/Movement tables or source
+Migration `0011_movement_classification` adds two empty tables and their
+constraints/indexes after `0010_demo_synthetic_provenance`.
+It does not alter Account/Movement tables or source
 choices. No category seed, financial rewrite, assignment backfill, or inferred
 classification is allowed. Existing and newly imported Movements start
-unclassified. Reverse migration should fail closed if either new table has
-data; removing classifications requires a separate explicit data-loss decision.
+unclassified. Reverse migration locks both new tables exclusively and fails
+closed if either has data; removing classifications requires a separate
+explicit data-loss decision. Its forward `RunPython` operation is a no-op,
+solely paired with that reverse guard; there is no data migration/backfill.
+This intentionally follows the repository's guarded rollback policy (for
+example the Account-binding migration). An empty development schema can reverse
+and reapply normally; a populated schema cannot use migration reversal as
+implicit data deletion. Preserve data and use a forward repair, or make a
+separate explicit data-loss decision before removing classification data in
+an isolated development database. Run schema rollback with writers stopped;
+the exclusive locks are transactional DDL protection, not an online rollback
+protocol. Failed reversal preserves the applied migration and its tables.
+
+Django `PROTECT` raises during ORM deletion. PostgreSQL foreign keys separately
+reject dangling references, including SQL deletion of referenced parents;
+there is no database cascade or automatic unclassification.
 
 `seed_demo` currently creates two CLP Accounts and eleven independent
 Movements over January-April 2026, with March empty. Its repeated/nearby values
@@ -294,10 +369,10 @@ by this checkpoint. Repeated seeding must preserve subsequent
 manual choices and cleared states. Category/assignment cleanup must validate
 the fixed demo graph and protect categories referenced outside it.
 
-With the proposed `PROTECT` Movement relationship, existing `clear_demo`
-will fail atomically if a demo Movement has a classification row, including
-a cleared row. Retain and test that conservative behavior in the first
-persistence task; extending cleanup is part of the later demo task. Do not
+With the implemented `PROTECT` Movement relationship, existing `clear_demo`
+fails atomically if a demo Movement has a classification row, including
+a cleared row. Tests cover this conservative behavior and reseeding preserves
+manual assignments/clears. Extending cleanup is part of the later demo task. Do not
 add cascading financial deletion to make cleanup convenient.
 
 ## Privacy and ownership revisit

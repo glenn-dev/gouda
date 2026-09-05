@@ -85,14 +85,15 @@ reconciled Historical-only resolution policy.
 
 ## Functional checkpoint
 
-The latest implementation checkpoint is
-`76a1647ab005175418e7b7175fc3e3ec9abb3589` (`feat: add local demo bootstrap`).
-On 2026-09-05, a fresh fetch verified HEAD and `origin/main` at this commit on
-`main`, with a clean starting tree. The classification design below is the
-subsequent documentation-only checkpoint, identified in Git history by
-`docs: freeze movement classification semantics`. Its commit review verified
-the same baseline and exactly the ten expected paths. The user authorized one
-commit and no push; Git commands at cold start determine exact state.
+The persistence/service checkpoint implements ADR-0011 and is recorded as
+`feat: implement movement classification domain` on `main`; Git history gives
+its exact SHA. At implementation start on 2026-09-05, the working tree was
+clean and HEAD/`origin/main` both equaled
+`964e85ef82c9af7cfdb551f3bf2cb188ac06d966`
+(`docs: freeze movement classification semantics`). Commit review verified that
+same HEAD/`origin/main` and exactly the 16 expected changed paths. One local
+commit is authorized; no push is authorized. The section below records current
+capabilities and validation. The following bootstrap results are historical.
 
 At that bootstrap checkpoint, the focused demo/Compose/local-delivery suite
 passed 42 tests and the full Django suite passed 433 tests in a fresh
@@ -373,75 +374,95 @@ cannot detect external overrides, tunnels, proxies, NAT, SSH forwarding,
 unsupported launchers, untrusted containers attached by a Docker-privileged
 operator, or hostile local processes.
 
-## Classification design checkpoint
+## Classification implementation checkpoint
 
-The 2026-09-05 session freezes category organization in
-[ADR-0011](../docs/decisions/ADR-0011-movement-classification.md) and the
-[classification contract](../docs/architecture/movement-classification.md).
-It compares nullable Movement fields, separate current state, append-only
-assignments, many-to-many labels, and current state plus revisions.
+The frozen [ADR-0011](../docs/decisions/ADR-0011-movement-classification.md)
+is unchanged. The [classification contract](../docs/architecture/movement-classification.md)
+now documents the implemented fields, internal API, stable errors, and locks.
 
-The choice is zero/one local dataset Category in a separate mutable
-MovementClassification, with manual-only source, optimistic revision, and
-last-change timestamp. An absent row means never assigned; a retained null
-category means cleared. Both remain unclassified. Category has UUID, short
-display name, and active flag; no code, hierarchy, notes, economic type, or
-fake household owner. Prior assignments are not recoverable, and automated
-classification/history/ownership have explicit revisit triggers.
+- Category has exactly UUID, display name, and active flag. Model saves apply
+  repository NFC/trim/control-character semantics while preserving casing.
+  PostgreSQL enforces unique `Lower(display_name)` across active/inactive rows.
+- MovementClassification has exactly the protected Movement primary key,
+  nullable protected Category, MANUAL-only source, positive bigint revision,
+  and explicit server update time. No Movement column or provenance changes.
+- `set_movement_classification(account, movement_id, category_id,
+  expected_revision)` is a keyword-only trusted internal command returning
+  immutable state. It accepts UUID selectors and verifies persisted objects.
+  It locks Account -> Movement -> selected Category in one atomic transaction.
+  First assignment starts at 1; changes/clear/reassign increment once; correct
+  no-ops do not save. Stale revisions fail before no-op detection.
+- Inactive references remain attached. Same-category no-ops and clear work;
+  new inactive targets fail. Retirement coordinates on the Category row lock.
+- Migration `0011_movement_classification` follows `0010`, adds only two empty
+  tables with constraints, and has no forward data migration/backfill. Reverse
+  takes exclusive table locks and refuses if either new table has data.
+- Demo implementation is untouched. Seed/reseed creates no categories or
+  classifications and preserves later manual assignments/clears. Protected
+  cleanup fails atomically for assigned or cleared demo Movements.
+- Existing reports, discovery/access, HTTP API, React, and imports are unchanged.
+  No API writes, filters, UI, default taxonomy, automation, history, ownership,
+  transfer/economic types, notes/tags/hierarchy, or provider mapping was added.
 
-The design does not infer classification from signs or provider categories,
-does not permit a Transfer category workaround, and keeps income/expense and
-shared-event semantics deferred. Product scope/glossary/vision and architecture
-entry points reflect this decision. The earlier MVP type list is deliberately
-narrowed; no income/spending report is promised by topic categories.
+Tests added: six Category tests, twelve service/model/compatibility tests,
+six real PostgreSQL concurrency tests, five migration tests, and one demo
+protection/reseed test (30 total). Concurrency tests use separate connections
+and verify overlapping database lock waits through `pg_blocking_pids`, covering
+first-write, identical first-write, competing update, clear/change,
+reassignment, and category retirement. Migration tests restore the graph leaf.
 
-The two new tables will start empty, with no financial rewrite or backfill.
-The current demo stays classification-free. A later demo extension should use
-explicit deterministic fixture mappings after a separate provenance decision,
-preserve manual edits/clears, and validate bounded cleanup. No future source
-value is frozen or reserved by this checkpoint.
-The first persistence task retains existing `clear_demo` protected failure
-when a demo Movement has classification state.
+Validation on isolated PostgreSQL 16.14, host Django 4.2.30/Python 3.9.6:
 
-Classification code, migrations, report/API/client changes, and demo edits have
-not been implemented. The runtime test counts above belong to the prior
-bootstrap and were not rerun for this documentation-only session.
+- Focused classification/model/service/concurrency: 24 passed.
+- Migration/isolation order and reverse order: 52 passed each, sequentially.
+- Demo/report/API/Account access/discovery/local delivery/Compose: 102 passed.
+- Santander XLSX/TDC and BCI Historical/Current/Recent regression matrix:
+  271 passed.
+- Full Django suite: 463 passed (baseline 433 plus 30 added).
+- Fresh schema and explicit `0010 -> 0011` upgrade passed; new tables stay empty.
+- Django system check, migration drift, and `pip check` passed.
+- Frontend: 14 tests, TypeScript check, and Vite build passed on Node 24.16.0.
+- Markdown links: 41 files and 55 local links passed.
+- Added-text privacy scans found no keys/tokens, email addresses, long numeric
+  identifiers, or credential literals. Ignored `.env`, `private/`, and
+  `data/private/` remain untracked. No private evidence was inspected.
+- `git diff --check`, final-newline/whitespace checks including untracked files,
+  and review of all 16 changed/new paths passed. Operational state was checked
+  for stale implementation claims; only intentionally deferred scope remains.
+- Local adversarial review checked lock order, absent-row serialization,
+  stale no-ops, inactive targets, protected deletion, deferred-instance
+  reparenting, reverse-migration data loss, and financial/provenance isolation.
 
-Classification-design checks passed on 2026-09-05:
+The commit review checked all 57 requested requirements. No production defect
+or ADR contradiction was found. Two review tests explicitly prove raw-SQL
+uniqueness/NULL/empty-string rejection and bulk/update/SQL bypass of application
+normalization. The database nonempty check does not claim whitespace-only or
+Unicode normalization enforcement. Those are model-save rules. Parent FK
+integrity is database-enforced; Django `PROTECT` supplies the ORM deletion error.
+The reverse guard is retained intentionally, consistent with prior migrations:
+empty rollback works; populated rollback requires an explicit data-loss
+decision or a forward repair. Schema rollback assumes writers are stopped.
+All existing model definitions were compared structurally and remain unchanged.
 
-- Markdown local-link validation: 41 files and 55 local links; no fragment
-  links were present. All destinations exist.
-- `git diff --check` plus whitespace/final-newline checks on new files pass.
-- All 10 changed files are Markdown under product, architecture, decisions,
-  or `.ai/`; no production code, migration, source contract, or demo changed.
-- Added-text privacy scanning found no credential/token, private-key, long
-  numeric-identifier, or email patterns. Manual review confirmed only generic
-  labels and synthetic examples, with no private source content copied.
-- `.env`, `private/`, and `data/private/` remain ignored and untracked.
-  No database, private evidence, or source artifact was read
-  or modified for this design.
-- Design adversarial review checked stale-write/clear/reassign behavior,
-  retired categories, history limitations, sign and provider separation,
-  reporting row cardinality, and demo protected cleanup.
-
-The commit review checked all 31 requested requirements. It removed the
-preselection of future demo provenance, marked detailed API shapes as
-illustrative rather than frozen, and made PostgreSQL uniqueness, atomic
-revision enforcement, and financial/import-state preservation explicit.
-Only the eight modified and two new expected documentation paths belong in
-the commit. No production code or migration is included. No push is authorized;
-`origin/main` remains at the bootstrap baseline. Check local Git state for the
-classification commit SHA and any subsequent work.
+The first focused run found a deferred-model reparenting validation gap and a
+zero-migration test helper error. Both were corrected before the successful
+matrix. No unresolved test failures remain. Validation logs are local-only at
+`/private/tmp/gouda-classification-validation/`; the runner is
+`/private/tmp/gouda-classification-validate.py`. The isolated test container is
+`gouda-classification-pg16` on loopback port 55439 used synthetic credentials
+and has been stopped and automatically removed. No existing database or private corpus
+was read or modified. Full-stack/browser launch was not rerun because runtime,
+Compose, HTTP and frontend source are unchanged; their automated regressions
+passed.
 
 ## Next checkpoint
 
-Implement the two classification models and transport-independent manual
-assign/change/clear service under the frozen contract, with focused PostgreSQL
-invariant, migration, concurrency, and import/report/demo regression coverage.
-This is one persistence/service task; no reporting/HTTP/UI, taxonomy seeding,
-demo extension, automated classification, transfer, or ownership scope.
-Read ADR-0011 and the classification contract first after the standard resume
-sequence. Recommended reasoning level: Sol High.
+Extend only the internal canonical Movement report to project current
+classification in one consistent read, including absent/cleared assignments
+and inactive labels. Preserve Account/date membership, ordering, exact signed
+totals, and source trace. Defer HTTP/UI/filter changes to separate work.
+Read ADR-0011 and the classification contract after the standard resume
+sequence. Recommended reasoning level: High.
 
 ## Roadmap reassessment
 
@@ -450,12 +471,12 @@ BCI Historical evidence and resolution, Current/Recent source-only parsers,
 the first internal canonical query/period-total/source-trace service, and the
 minimum backend API read surface for Account selection plus Movement reporting,
 the first local browser read client, and the reproducible three-service demo
-bootstrap. Classification design is frozen, while classification persistence
-and authentication/ownership remain absent.
+bootstrap. Manual classification persistence/service is implemented;
+authentication/ownership remain absent.
 
 Priorities are:
 
-1. Implement the frozen manual category persistence/service boundary before
+1. Extend the internal read projection with current classification before
    category filters or UI. Economic types and transfer semantics remain deferred.
 2. Add an operational import/API surface for the already implemented
    Santander services only after the account-access and upload-security

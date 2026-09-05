@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime
+import unicodedata
 import uuid
 
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import F, Q
+from django.db.models.functions import Lower
+from django.utils import timezone
 
 from gouda.santander_tdc_pdf.provenance import (
     PROVENANCE_SCHEMA_VERSION,
@@ -524,6 +528,86 @@ class Movement(models.Model):
                 errors["currency"] = ["Movement currency must match the trusted account currency."]
         if errors:
             raise ValidationError(errors)
+
+
+class Category(models.Model):
+    """Reviewed local topic vocabulary; retirement preserves references."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    display_name = models.CharField(max_length=80)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(Lower("display_name"), name="category_display_name_ci_unique"),
+            models.CheckConstraint(
+                check=~Q(display_name=""), name="category_display_name_nonempty"
+            ),
+        ]
+
+    def clean(self) -> None:
+        super().clean()
+        if not isinstance(self.display_name, str):
+            raise ValidationError({"display_name": ["category_display_name_invalid"]})
+        self.display_name = unicodedata.normalize("NFC", self.display_name).strip()
+        if (
+            not self.display_name
+            or len(self.display_name) > 80
+            or any(unicodedata.category(char) == "Cc" for char in self.display_name)
+        ):
+            raise ValidationError({"display_name": ["category_display_name_invalid"]})
+
+    def save(self, *args, **kwargs) -> None:
+        self.clean()
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        return f"Category {self.pk}"
+
+
+class MovementClassification(models.Model):
+    """Current organizational state; corrections belong to the manual service."""
+
+    class Source(models.TextChoices):
+        MANUAL = "MANUAL", "Manual"
+
+    movement = models.OneToOneField(
+        Movement, primary_key=True, on_delete=models.PROTECT, related_name="classification"
+    )
+    category = models.ForeignKey(Category, null=True, blank=True, on_delete=models.PROTECT)
+    source = models.CharField(max_length=16, choices=Source.choices)
+    revision = models.PositiveBigIntegerField(default=1)
+    updated_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(check=Q(source="MANUAL"), name="classification_source_manual"),
+            models.CheckConstraint(check=Q(revision__gte=1), name="classification_revision_positive"),
+        ]
+
+    @classmethod
+    def from_db(cls, db, field_names, values):
+        instance = super().from_db(db, field_names, values)
+        instance._persisted_movement_id = instance.pk
+        return instance
+
+    def clean(self) -> None:
+        super().clean()
+        if getattr(self, "_persisted_movement_id", self.pk) != self.pk:
+            raise ValidationError({"movement": ["classification_movement_immutable"]})
+        if self.updated_at is not None and (
+            not isinstance(self.updated_at, datetime) or timezone.is_naive(self.updated_at)
+        ):
+            raise ValidationError({"updated_at": ["classification_timestamp_invalid"]})
+
+    def save(self, *args, **kwargs) -> None:
+        # Reject a changed primary key before deferred fields can be fetched
+        # using that new identity during full_clean().
+        self.clean()
+        self.full_clean()
+        super().save(*args, **kwargs)
+        self._persisted_movement_id = self.pk
 
 
 class FinancialObservation(models.Model):

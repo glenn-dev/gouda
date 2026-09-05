@@ -108,7 +108,7 @@ is excluded from consolidated flow reporting when paired.
 
 ### Category and Movement classification
 
-The accepted, not yet implemented MVP design gives each Movement zero or one
+The implemented MVP persistence gives each Movement zero or one
 local dataset Category through a separate `MovementClassification` current
 state. Category has UUID, display name, and active flag; assignment has
 Movement identity, nullable category, manual source, revision, and update time.

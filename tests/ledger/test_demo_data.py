@@ -191,10 +191,16 @@ class DemoDataTests(TransactionTestCase):
     def test_seed_adds_no_classification_transfer_or_observation_semantics(self):
         seed_demo_data()
 
-        movement_fields = {field.name for field in Movement._meta.get_fields()}
+        from gouda.ledger.models import Category, MovementClassification
+
+        movement_fields = {field.name for field in Movement._meta.fields}
         self.assertTrue(
             {"classification", "category", "transfer"}.isdisjoint(movement_fields)
         )
+        self.assertFalse(Category.objects.exists())
+        self.assertFalse(MovementClassification.objects.exists())
+        seed_demo_data()
+        self.assertFalse(MovementClassification.objects.exists())
         self.assertFalse(
             FinancialObservation.objects.filter(raw_record_id__in=DEMO_RAW_RECORD_IDS).exists()
         )
@@ -222,6 +228,28 @@ class DemoDataTests(TransactionTestCase):
         self.assertFalse(ImportBatch.objects.filter(pk__in=DEMO_BATCH_IDS).exists())
         self.assertFalse(RawRecord.objects.filter(pk__in=DEMO_RAW_RECORD_IDS).exists())
         self.assertFalse(Movement.objects.filter(pk__in=DEMO_MOVEMENT_IDS).exists())
+
+    def test_manual_assignment_and_clear_protect_demo_graph_and_survive_reseeding(self):
+        from gouda.ledger.models import Category, MovementClassification
+        from gouda.ledger.services.movement_classification import set_movement_classification
+
+        seed_demo_data()
+        before = self._demo_graph_snapshot()
+        movement = Movement.objects.filter(pk__in=DEMO_MOVEMENT_IDS).first()
+        category = Category.objects.create(display_name="Groceries")
+        for revision, target in ((0, category.pk), (1, None)):
+            result = set_movement_classification(
+                account=movement.account, movement_id=movement.pk,
+                category_id=target, expected_revision=revision,
+            )
+            seed_demo_data()
+            row = MovementClassification.objects.get(pk=movement.pk)
+            self.assertEqual((row.category_id, row.revision, row.updated_at),
+                             (target, result.revision, result.updated_at))
+            with self.assertRaisesRegex(DemoDataError, "demo_cleanup_blocked_by_non_demo_data"):
+                clear_demo_data()
+            self.assertEqual(self._demo_graph_snapshot(), before)
+            self.assertTrue(Category.objects.filter(pk=category.pk).exists())
 
     def test_clear_preserves_unrelated_synthetic_and_import_like_rows(self):
         seed_demo_data()

@@ -166,25 +166,41 @@ it proxies `/api` to the unpublished Django service. Neither proxy arrangement
 is authentication or principal issuance. The container runtime does not claim
 to verify Docker publication; repository configuration and tests enforce it.
 
-The first end-to-end browser read flow and local demo bootstrap are committed
-at `76a1647ab005175418e7b7175fc3e3ec9abb3589` (`feat: add local demo bootstrap`).
-The 2026-09-05 classification-design session verified clean `main` with HEAD
-and refreshed `origin/main` at that exact baseline.
+The implementation/review parent baseline is
+`964e85ef82c9af7cfdb551f3bf2cb188ac06d966`
+(`docs: freeze movement classification semantics`). This implementation session
+verified clean `main` and matching HEAD/`origin/main` at that exact commit.
+The review verified exactly the 16 expected changed paths against that baseline.
+This checkpoint is recorded as `feat: implement movement classification domain`;
+Git history supplies its exact SHA. One local commit is authorized; do not push.
 
-Classification design is now frozen in
 [ADR-0011](../docs/decisions/ADR-0011-movement-classification.md) and
-[Movement classification](../docs/architecture/movement-classification.md).
-The `docs: freeze movement classification semantics` checkpoint contains only
-documentation and operational state. It selects zero/one local
-dataset category through a separate mutable current-state relation, with
-manual-only provenance and revision-checked corrections. There is no
-classification persistence or service yet; economic types and transfers are
-separate deferred semantics.
+[Movement classification](../docs/architecture/movement-classification.md)
+now have implemented Category and MovementClassification persistence plus
+`set_movement_classification`. Two new initially empty tables, PostgreSQL
+case-insensitive label uniqueness, protected references, manual-only source,
+positive revision, and a guarded reverse migration preserve the frozen design.
+Account -> Movement -> target Category locking protects first assignments and
+revision-checked change/clear/reassign. Correct-revision no-ops retain time and
+revision; inactive categories retain existing references, allow no-ops/clear,
+and reject new assignments. Source/financial fields remain untouched.
 
-The next bounded task is implementing the two empty tables and internal
-manual assign/change/clear service with focused invariant, migration, and
-concurrency tests. Keep reporting/HTTP/client/demo contracts unchanged.
-Recommended reasoning level: Sol High.
+Reporting, Account discovery/access, HTTP responses, the frontend, imports,
+and production demo code are unchanged. Demo seeds remain unclassified;
+classified or explicitly cleared demo Movements block cleanup atomically.
+No history, taxonomy defaults, automation, economic types, transfers, ownership,
+or write authorization was introduced. ADR-0011 was not modified.
+
+Validation passes: 463 Django tests, including 30 added tests; PostgreSQL
+concurrency; both sequential 52-test migration orders; 102 compatibility tests;
+271 Santander/BCI regressions; fresh/0010 migrations; system and drift checks;
+14 frontend tests, typecheck/build; and pip check. See the handoff for final
+hygiene checks and validation artifacts.
+
+The next bounded task is extending only the internal canonical Movement report
+to project current classification consistently, including absent/cleared state
+and inactive labels, while preserving membership, totals, ordering, and bounded
+provenance. Keep HTTP/UI/filter changes separate. Recommended reasoning: High.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.
