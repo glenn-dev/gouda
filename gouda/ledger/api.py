@@ -1,4 +1,4 @@
-"""Narrow local-MVP HTTP delivery for Account discovery and reporting."""
+"""Narrow local-MVP HTTP delivery for Account/Category discovery and reporting."""
 
 from __future__ import annotations
 
@@ -21,11 +21,14 @@ from gouda.local_delivery import (
 from .services.account_access import (
     AccountSummary,
     AccountAccessServiceError,
+    CategorySummary,
     list_read_accounts,
+    list_read_categories,
     report_authorized_canonical_movements,
 )
 from .services.movement_reporting import (
     MovementReport,
+    MovementClassificationProjection,
     MovementReportItem,
     MovementReportingServiceError,
     MovementSourceTrace,
@@ -76,6 +79,44 @@ class AccountDiscoveryView(APIView):
                 "count": len(accounts),
                 "accounts": [_serialize_account(account) for account in accounts],
             },
+            status=200,
+        )
+
+    def http_method_not_allowed(self, request: Request, *args, **kwargs) -> Response:
+        return Response({"code": "method_not_allowed"}, status=405)
+
+    def handle_exception(self, exc: Exception) -> Response:
+        if isinstance(exc, NotAcceptable):
+            return _error_response("not_acceptable")
+        return super().handle_exception(exc)
+
+
+class CategoryDiscoveryView(APIView):
+    """Discover active and inactive Categories under the local read policy."""
+
+    authentication_classes = ()
+    permission_classes = ()
+    parser_classes = ()
+    renderer_classes = (JSONRenderer,)
+    http_method_names = ("get",)
+
+    def get(self, request: Request) -> Response:
+        try:
+            runtime = require_active_local_delivery_runtime()
+            principal_context = runtime.trusted_principal_context()
+        except LocalDeliveryBootstrapError:
+            return _error_response("local_delivery_not_active")
+
+        if request.query_params:
+            return _error_response("query_parameters_not_allowed")
+
+        try:
+            categories = list_read_categories(principal_context=principal_context)
+        except AccountAccessServiceError as error:
+            return _error_response(error.code)
+
+        return Response(
+            {"categories": [_serialize_category(category) for category in categories]},
             status=200,
         )
 
@@ -151,6 +192,14 @@ def _serialize_account(account: AccountSummary) -> dict[str, str]:
     }
 
 
+def _serialize_category(category: CategorySummary) -> dict[str, object]:
+    return {
+        "id": str(category.id),
+        "display_name": category.display_name,
+        "is_active": category.is_active,
+    }
+
+
 def _required_query_date(request: Request, name: str) -> date:
     values = request.query_params.getlist(name)
     code = f"{name}_invalid"
@@ -182,6 +231,25 @@ def _serialize_movement(item: MovementReportItem) -> dict[str, object]:
         "currency": item.currency,
         "description": item.description,
         "source_trace": _serialize_source_trace(item.source_trace),
+        "classification": _serialize_classification(item.classification),
+    }
+
+
+def _serialize_classification(
+    classification: MovementClassificationProjection,
+) -> dict[str, object]:
+    category = classification.category
+    return {
+        "state": classification.state.value,
+        "category": (
+            {
+                "id": str(category.category_id),
+                "display_name": category.display_name,
+                "is_active": category.is_active,
+            }
+            if category is not None else None
+        ),
+        "revision": classification.revision,
     }
 
 

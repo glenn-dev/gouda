@@ -34,9 +34,9 @@ unsupported on a shared or otherwise untrusted host.
 
 ## Current effective exposure
 
-The repository exposes two backend HTTP operations:
+The repository exposes three read-only backend HTTP operations:
 
-- `config.urls` contains only versioned Account discovery and canonical
+- `config.urls` contains only versioned Account/Category discovery and canonical
   Movement report routes;
 - DRF is installed with JSON-only rendering and no authentication classes;
 - Django authentication is not installed;
@@ -148,6 +148,7 @@ request
 -> server-side validated loopback delivery mode
 -> trusted_local_principal_context()
 -> list_read_accounts(...)
+   or list_read_categories(...)
    or untrusted Account UUID and date parsing
       -> report_authorized_canonical_movements(...)
 -> explicit privacy-safe serialization

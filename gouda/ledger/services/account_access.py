@@ -1,4 +1,4 @@
-"""Trusted Account-read discovery, resolution, and Movement reporting."""
+"""Trusted Account/Category discovery, Account resolution, and reporting."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import date
 from uuid import UUID
 
-from ..models import Account
+from ..models import Account, Category
 from . import movement_reporting
 from .movement_reporting import MovementReport
 
@@ -45,6 +45,15 @@ class AccountSummary:
     display_name: str
     kind: str
     currency: str
+
+
+@dataclass(frozen=True)
+class CategorySummary:
+    """Minimal local dataset Category fields approved for read discovery."""
+
+    id: UUID
+    display_name: str
+    is_active: bool
 
 
 def trusted_local_principal_context() -> TrustedPrincipalContext:
@@ -86,6 +95,27 @@ def list_read_accounts(*, principal_context: object) -> tuple[AccountSummary, ..
             principal_context=principal_context,
             account_id=account.pk,
         )
+    )
+
+
+def list_read_categories(*, principal_context: object) -> tuple[CategorySummary, ...]:
+    """Read all local Categories, including retired labels still referenced.
+
+    This temporary dataset read policy uses the existing trusted principal;
+    it establishes neither Category ownership nor any write capability.
+    """
+
+    _validate_principal_context(principal_context)
+    categories = Category.objects.only("id", "display_name", "is_active").order_by(
+        "display_name", "pk"
+    )
+    return tuple(
+        CategorySummary(
+            id=category.pk,
+            display_name=category.display_name,
+            is_active=category.is_active,
+        )
+        for category in categories
     )
 
 

@@ -69,7 +69,7 @@ context. `.ai/` is not canonical product documentation.
   non-persisted opaque runtime only during the server runner lifetime.
   Principal issuance requires that runtime.
 - Django REST Framework 3.16.x is configured without authentication and with
-  JSON-only rendering. Account discovery and canonical Movement report GET
+  JSON-only rendering. Account/Category discovery and canonical Movement report GET
   endpoints fail closed without the active runtime.
 - A minimal Vite + React + TypeScript client implements Account discovery,
   internal UUID selection, inclusive date input, and canonical Movement report
@@ -149,13 +149,18 @@ publication, tunnel, proxy, forwarding, or production exposure. Request data
 never establishes principal trust. LAN, remote, shared-host, ambiguous, or
 broader exposure requires real authentication.
 
-The repository exposes two backend operations under the same active `runlocal`
+The repository exposes three backend operations under the same active `runlocal`
 runtime. `GET /api/v1/accounts/` returns only authorized Account UUID,
 canonical display name, product kind, and currency, ordered by display name
 then UUID. It rejects all query parameters.
+`GET /api/v1/categories/` returns only Category UUID, display name, and active
+flag for all active/inactive Categories, ordered by display name then UUID,
+under the same temporary dataset read policy. Its response has only a
+`categories` array; no counts, pagination, or query parameters are accepted.
 `GET /api/v1/accounts/<account_uuid>/movements/` retains its strict inclusive
 `start_date` and `end_date` contract and approved `MovementReport` projection.
-Discovery uses `list_read_accounts`; reporting resolves through
+Each Movement now includes the immutable current classification projection.
+Discovery uses `list_read_accounts` or `list_read_categories`; reporting resolves through
 `report_authorized_canonical_movements`. Generic `runserver`, WSGI, ASGI,
 headers, cookies, query values, and bodies do not establish trust.
 
@@ -169,11 +174,12 @@ is authentication or principal issuance. The container runtime does not claim
 to verify Docker publication; repository configuration and tests enforce it.
 
 The current implementation parent baseline is
-`bf70b85d56e831e2422c92562eb14ff10f77f548`
-(`feat: implement movement classification domain`). This session fetched origin
+`8973eb8c25a2334323a8bb932966059bba49259e`
+(`feat: project movement classification in reporting`). This session fetched origin
 and verified clean `main` with matching HEAD/`origin/main` at that exact commit.
-This reporting checkpoint is authorized for one commit titled
-`feat: project movement classification in reporting`. Do not push.
+Review revalidated the checkpoint for one commit titled
+`feat: expose movement classification read api`. Git history records the exact
+resulting SHA. Do not push.
 
 [ADR-0011](../docs/decisions/ADR-0011-movement-classification.md) and
 [Movement classification](../docs/architecture/movement-classification.md)
@@ -196,19 +202,20 @@ reports remain two queries independent of Movement count.
 
 Classification changes never affect Account/date membership, ordering, count,
 exact signed total, financial fields, or provenance. Inactive Category
-assignments remain visible. Account discovery/access, HTTP response fields, the
-frontend, mutation API, imports, migrations, and production demo code remain
-unchanged. ADR-0011 was not modified.
+assignments remain visible. HTTP now serializes that projection directly and
+adds only read-only Category discovery through frozen service summaries.
+Account behavior, internal reporting query, frontend, mutation service, imports,
+models, migrations, and demo code remain unchanged. ADR-0010 and ADR-0011 are
+unchanged; classification mutations remain internal only, and no filtering,
+classification UI, transfer, or income/expense semantics are added.
 
-Validation passes: 466 Django tests; focused 99-test compatibility coverage;
-both 55-test migration isolation orders; 271 Santander/BCI regressions; 75
-local-delivery/Compose/API/demo tests; fresh `0010 -> 0011` migration; system,
-drift, dependency, frontend, and Compose checks. See the handoff for final
-hygiene results.
+Current validation results and environment cleanup are recorded in the handoff.
 
-The next bounded task is internal-only Category/unclassified filtering under
-ADR-0011, with mutually exclusive selectors and signed-account-effect totals.
-Keep HTTP/UI work separate. Recommended reasoning: High.
+The recommended next bounded task is frontend read-only classification
+rendering using this API. It can make current assignments useful while keeping
+the validated read-only boundary intact. Designing the narrowest safe local
+classification write boundary remains a separate later task and must revisit
+ADR-0010 before implementation. Filtering stays deferred. Recommended reasoning: High.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.

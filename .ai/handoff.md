@@ -29,7 +29,12 @@ read all persisted Accounts under the temporary non-ownership policy.
 kind, and currency in display-name/UUID order. Unknown and policy-denied
 selectors remain indistinguishable, and reporting returns the existing
 `MovementReport` without widening provenance or writing state. The HTTP
-serializer deliberately omits its internal classification projection.
+serializer now includes its immutable current classification projection.
+`list_read_categories` adds frozen Category summaries and
+`GET /api/v1/categories/` discovers active/inactive labels with only UUID,
+display name, and active flag in display-name/UUID order. There are no counts,
+pagination, or accepted query parameters. Category visibility is a temporary
+dataset read policy, not ownership or write permission.
 
 The local-MVP caller-trust and network contract is frozen in ADR-0010. An
 unauthenticated read adapter is permitted only behind an explicit numeric
@@ -47,12 +52,12 @@ in-memory runtime only while Django's server runner is active. The runtime may
 issue the existing principal without request input. Direct `runserver`, WSGI,
 or ASGI launches do not activate it.
 
-The local React/TypeScript client consumes the two read endpoints. It
-discovers Accounts, keeps UUIDs as internal
+The local React/TypeScript client consumes Account discovery and Movement
+reporting. It discovers Accounts, keeps UUIDs as internal
 selectors, accepts inclusive dates, and renders backend count, exact net signed
 amount, and canonical Movement date/description/amount/currency. It does not
-retain or render `source_trace`, recompute totals, convert decimal strings to
-numbers, or issue writes or authentication material.
+retain or render `source_trace` or classification, recompute totals, convert
+decimal strings to numbers, or issue writes or authentication material.
 
 For host development, Vite binds explicitly to `127.0.0.1:5173` and proxies
 only `/api` to `http://127.0.0.1:8000`. The primary Compose path publishes Vite
@@ -95,9 +100,10 @@ its exact SHA. At implementation start on 2026-09-05, the working tree was
 clean and HEAD/`origin/main` both equaled
 `964e85ef82c9af7cfdb551f3bf2cb188ac06d966`
 (`docs: freeze movement classification semantics`). Commit review verified that
-same HEAD/`origin/main` and exactly the 16 expected changed paths. One local
-commit is authorized; no push is authorized. The section below records current
-capabilities and validation. The following bootstrap results are historical.
+same HEAD/`origin/main` and exactly the 16 expected changed paths. That commit
+authorization was specific to the completed persistence checkpoint; the current
+HTTP task permits neither commit nor push. The following bootstrap results are
+historical.
 
 At that bootstrap checkpoint, the focused demo/Compose/local-delivery suite
 passed 42 tests and the full Django suite passed 433 tests in a fresh
@@ -347,8 +353,9 @@ network exposure contract; durable ownership semantics remain deferred.
 
 ## Local delivery trust checkpoint
 
-The repository exposes two JSON-only endpoints at `/api/v1/accounts/` and
-`/api/v1/accounts/<account_uuid>/movements/`. DRF is configured with no
+The repository exposes three JSON-only endpoints at `/api/v1/accounts/`,
+`/api/v1/categories/`, and `/api/v1/accounts/<account_uuid>/movements/`.
+DRF is configured with no
 authentication classes, no Django anonymous user, and no browsable renderer.
 Django auth, CORS, CSRF middleware, and Account CRUD remain absent. The frontend
 uses only relative GET requests and retains no authentication or
@@ -460,13 +467,14 @@ was read or modified. Full-stack/browser launch was not rerun because runtime,
 Compose, HTTP and frontend source are unchanged; their automated regressions
 passed.
 
-## Current classification reporting checkpoint
+## Completed internal classification reporting checkpoint
 
 This checkpoint extends only `gouda.ledger.services.movement_reporting` from
 the clean, fetched baseline
-`bf70b85d56e831e2422c92562eb14ff10f77f548`. It is authorized for one commit
-titled `feat: project movement classification in reporting`; Git history
-records the exact resulting SHA. Do not push.
+`bf70b85d56e831e2422c92562eb14ff10f77f548`. The resulting committed baseline is
+`8973eb8c25a2334323a8bb932966059bba49259e`
+(`feat: project movement classification in reporting`). The following results
+are historical; the current HTTP checkpoint is described below.
 
 Every internal `MovementReportItem` has an immutable
 `MovementClassificationProjection` with bounded state, optional immutable
@@ -493,7 +501,7 @@ alter membership, inclusive occurrence-date bounds, Account scope, ordering,
 count, exact signed total, provenance, date, signed amount, currency, or
 description.
 
-The explicit HTTP serializer remains unchanged and omits classification. The
+At that internal checkpoint, the HTTP serializer omitted classification. The
 two routes, request/error contracts, React client types/parsing/rendering,
 manual mutation API, filters, models, migrations, imports, and demo seed are
 unchanged. ADR-0011 is unchanged.
@@ -519,11 +527,86 @@ Validation on isolated PostgreSQL 16.14, host Django 4.2.30/Python 3.9.6:
   stopped and removed after validation; no existing database was read or
   modified.
 
+## Current read-only classification HTTP checkpoint
+
+Started from clean fetched `main` with HEAD and `origin/main` both exactly
+`8973eb8c25a2334323a8bb932966059bba49259e`. Review revalidated the checkpoint
+for one commit titled `feat: expose movement classification read api`; Git
+history records the exact resulting SHA. Do not push.
+
+The HTTP report now maps the immutable classification projection directly:
+state, optional Category (`id`, `display_name`, `is_active`), and persisted
+revision. All three states and inactive assignments remain distinct and
+faithful. No extra classification query or semantics exist in HTTP.
+The new `GET /api/v1/categories/` returns only `{"categories": [...]}` with
+the same three Category fields. It includes inactive labels and rejects query
+parameters using the Account discovery policy. The access module's
+`list_read_categories` validates the existing opaque principal before one
+ordered query and materializes frozen summaries.
+
+No model, migration, internal reporting query, classification command, source
+adapter, demo, runtime, settings, or frontend file changed. Account behavior,
+financial membership/order/count/total/fields, and safe provenance are retained.
+ADR-0010 and ADR-0011 are unchanged: mutations remain internal only, with no
+classification filtering/UI or transfer/income-expense semantics.
+
+Validation on isolated PostgreSQL 16.14, Django 4.2.30/Python 3.9.6, and Node
+24.16.0:
+
+- Focused discovery/API/reporting/classification/concurrency/Account/local
+  delivery/Compose/demo matrix: 144 passed (initial focused slice: 50 passed).
+- Santander Current/TDC and BCI Historical/Current/Recent regressions, including
+  the legacy-XLS dependency check: 271 passed.
+- Migration isolation in forward and reverse orders, run sequentially: 98
+  passed each. The matrix includes all migration modules, reports, new
+  discovery, models, and demo; explicit 0010 upgrade is covered.
+- Full Django suite: 481 passed, including 15 new tests. No unresolved failures.
+- Fresh migrations through 0011, system check, migration drift, Python syntax,
+  `pip check`, and `docker compose config --quiet` passed. No migration added.
+- Frontend: all 14 tests, typecheck, build, and `npm ls` passed. A separate
+  local check exercised the unchanged TypeScript parser with all three
+  classification shapes, proving accept-and-discard behavior and exact amounts.
+- Real numeric-loopback `runlocal` HTTP smoke test passed for both discovery
+  operations, all classification transitions, inactive labels, unchanged
+  financial payloads, GET-only policy, JSON negotiation, and query rejection.
+  The temporary HTTP server was stopped. A full Compose/browser rebuild was
+  not rerun; frontend, runtime, and deployment files are unchanged.
+- Markdown validation: 41 files, 53 local links, and 5 HTTP JSON examples pass.
+  Added-text privacy scans found no credentials, keys/tokens, or email addresses;
+  large numeric literals are established synthetic Decimal test values.
+  `.env`, `private/`, and `data/private/` remain ignored and untracked.
+- All 17 changed/new paths were reviewed. Python syntax, final-newline and
+  whitespace checks, `git diff --check`, and empty-index checks pass. No private
+  evidence was inspected and no frontend, ADR, model, or migration file changed.
+
+The first database attempt was blocked by sandbox loopback networking; the
+approved retry and complete matrix passed. Commit review reran the 144-test
+focused matrix, 271 source regressions, both 98-test migration orders, the
+481-test full suite, and all static/frontend checks with identical passing
+results. Docker Desktop was started for validation. The implementation used
+`gouda-classification-api-pg16` on loopback port 55442; commit review used
+`gouda-classification-api-review-pg16` on port 55443. Both disposable containers
+and synthetic databases were stopped and automatically removed. No existing
+application database or volume was read or changed. Local-only logs remain at
+`/private/tmp/gouda-classification-api-validation/`; validation, HTTP smoke, and
+hygiene scripts are `/private/tmp/gouda-classification-api-validate.py`,
+`/private/tmp/gouda-classification-api-smoke.py`, and
+`/private/tmp/gouda-classification-api-hygiene.py`.
+
+Final state after review: `main` has one local commit above unchanged
+`origin/main`; the working tree and index are clean, and nothing was pushed.
+Local adversarial review found no financial, trust, or query
+regression: serializers consume explicit values, principal validation precedes
+database access, and classification joins remain owned by the unchanged report.
+
 ## Next checkpoint
 
-Add internal-only Category/unclassified filtering to canonical Movement
-reporting under ADR-0011. Keep category and unclassified selectors mutually
-exclusive, preserve signed-account-effect totals, and defer HTTP/UI work.
+Implement frontend read-only classification rendering using the existing HTTP
+projection, preserving exact strings and backend totals. This makes current
+assignments visible without requiring a new trust decision. Designing the
+narrowest safe local classification write boundary is a separate later task:
+ADR-0010 must be revisited before any HTTP write capability. Filtering remains
+deferred. Neither follow-up is implemented in this checkpoint.
 Recommended reasoning level: High.
 
 ## Roadmap reassessment
@@ -534,13 +617,15 @@ the first internal canonical query/period-total/source-trace service, and the
 minimum backend API read surface for Account selection plus Movement reporting,
 the first local browser read client, and the reproducible three-service demo
 bootstrap. Manual classification persistence/service is implemented;
-its internal report projection is also implemented. Authentication/ownership
+its internal and read-only HTTP projections are also implemented, alongside
+read-only Category discovery. Authentication/ownership
 remain absent.
 
 Priorities are:
 
-1. Add internal Category/unclassified filtering before any HTTP or UI
-   classification surface. Economic types and transfer semantics remain deferred.
+1. Add frontend read-only classification rendering, then separately design a
+   narrow safe local write capability before enabling manual HTTP edits.
+   Filtering, economic types, and transfer semantics remain deferred.
 2. Add an operational import/API surface for the already implemented
    Santander services only after the account-access and upload-security
    boundary is explicit.

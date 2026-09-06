@@ -70,8 +70,10 @@ The internal manual assign/change/clear command locks Account, Movement, then
 the selected Category and checks revision within one transaction. The internal
 canonical Movement report now projects current classification state, Category
 identity/display/active state, and revision without changing report membership
-or financial facts. The HTTP/client projections and synthetic demo seed remain
-classification-free.
+or financial facts. The HTTP report exposes that immutable projection, and
+read-only Category discovery includes active and inactive labels. React and
+the synthetic demo seed remain classification-free. Mutations remain internal;
+classification filtering and UI are not implemented.
 Economic-event types, transfer relationships, and assignment history remain
 deferred with explicit revisit triggers.
 
@@ -107,10 +109,9 @@ one-to-one/Category joins extend the existing query, preserving a constant two
 queries per report independent of Movement count.
 
 This service remains transport-independent. The HTTP adapter exposes only its
-authorized orchestration path and existing explicit result projection, which
-does not serialize internal classification metadata. It adds no authentication,
-household ownership, classification transport, transfer, lifecycle,
-provisional-view, or write behavior.
+authorized orchestration path and explicit result projection, including
+current classification. It adds no authentication, household ownership,
+transfer, lifecycle, provisional-view, or write behavior.
 
 The pre-HTTP caller-to-Account boundary is defined separately in
 [Account access and read-only delivery](account-access.md). Delivery must
@@ -131,10 +132,11 @@ server runner. Direct `runserver` has no active capability, and client input
 cannot create principal context.
 
 The implemented JSON-only DRF adapter provides one GET route to discover
-authorized Account summaries and one GET route for an Account UUID and
-inclusive date range. Both require the active runtime before financial
-database access. Discovery delegates to `list_read_accounts`; reporting
-delegates to `report_authorized_canonical_movements` and retains the approved
+authorized Account summaries, one for Category summaries, and one for an
+Account UUID and inclusive date range. All require the active runtime before
+database access. Discovery delegates to `list_read_accounts` or
+`list_read_categories`; reporting delegates to
+`report_authorized_canonical_movements` and retains the approved
 `MovementReport` projection with exact decimal strings. See
 [Local read-only HTTP delivery](local-http-delivery.md).
 

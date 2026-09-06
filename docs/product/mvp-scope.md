@@ -21,8 +21,9 @@ Classification semantics and persistence are frozen in
 [Movement classification](../architecture/movement-classification.md) and
 [ADR-0011](../decisions/ADR-0011-movement-classification.md). Persistence, the
 internal manual service, and the internal canonical reporting projection are
-implemented; filtering and API/UI integration remain deferred. Category
-assignments are mutable organizational metadata separate
+implemented, with read-only local Category discovery and current classification
+in HTTP Movement reports. Filtering, classification UI, and HTTP mutations
+remain deferred. Category assignments are mutable organizational metadata separate
 from canonical financial facts. They support current grouping, not historical
 assignment replay. Signs and bank categories never determine Gouda categories.
 This replaces the earlier unqualified MVP type list: income, expense,

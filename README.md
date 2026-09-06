@@ -21,7 +21,8 @@ The evidence-first boundary is implemented for durable immutable financial
 observations and auditable deterministic resolution before canonical ledger
 acceptance. Provisional product views, AI execution, and canonical Movement
 correction are not implemented. The local HTTP surface discovers accessible
-Accounts and delivers authorized, read-only canonical Movement reports under
+Accounts and active/inactive Categories, and delivers authorized, read-only
+canonical Movement reports with current classification state under
 the loopback-only local runtime boundary. A minimal React/TypeScript client now
 provides the complete Account-selection, inclusive-date-range, and Movement
 report flow through that existing backend contract.

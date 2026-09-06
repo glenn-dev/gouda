@@ -2,14 +2,15 @@
 
 ## Status
 
-Implemented persistence, internal manual service, and internal reporting
-projection, 2026-09-05.
+Implemented persistence, internal manual service, reporting projection, and
+read-only local HTTP discovery/reporting, 2026-09-06.
 [ADR-0011](../decisions/ADR-0011-movement-classification.md) freezes the
 cardinality, ownership, correction, and persistence decisions. This document
 defines the concrete contract implemented by migration `0011`,
 `gouda.ledger.services.movement_classification`, and the classification
-projection in `gouda.ledger.services.movement_reporting`. HTTP, UI, and
-filtering extensions remain deferred.
+projection in `gouda.ledger.services.movement_reporting`. The local HTTP API
+now exposes that projection and Category discovery. HTTP mutations, UI, and
+filtering remain deferred.
 
 ## Domain boundary
 
@@ -112,8 +113,8 @@ the empty-string check, or case-insensitive uniqueness. The database check is
 nonempty, not a claim to enforce Python's Unicode-aware nonblank semantics.
 UUID is identity; names are not
 selectors. Database collation determines case folding; do not claim universal
-Unicode synonym detection. Presentation ordering is deferred; there is no
-persisted sort order or category-ordering contract in this checkpoint.
+Unicode synonym detection. Read discovery orders by display name then UUID;
+there is no persisted or caller-supplied sort order.
 
 No machine code is needed without a fixed application taxonomy, integrations,
 or localization contract. No parent is needed without rollups; no sort order
@@ -320,10 +321,14 @@ count. The left joins cannot remove or multiply Movements. Count and exact
 signed total continue to derive from the returned tuple, with inclusive
 occurrence-date bounds and date/UUID ordering unchanged.
 
-No HTTP parameter, serializer, response, or frontend contract changes with
-this internal extension. The current two GET routes retain their
-[documented contract](local-http-delivery.md), whose explicit serializer omits
-classification metadata.
+The local HTTP Movement serializer now exposes this same projection as
+`classification`, mapping Category UUID to `id` without re-querying or adding
+classification semantics. `GET /api/v1/categories/` discovers all active and
+inactive Category summaries under the same validated runtime and trusted
+principal. Its only fields are `id`, `display_name`, and `is_active`; it has
+no counts, pagination, or query parameters. See the exact
+[HTTP contract](local-http-delivery.md). React already discards additional
+server fields and remains unchanged, with no classification state or UI.
 
 For a later filtering checkpoint, a candidate interface is one `category_id`
 UUID or `uncategorized=true`, mutually exclusive. Omission would mean all
@@ -421,7 +426,7 @@ not determine that policy.
 
 ## Explicit non-goals
 
-Classification UI, HTTP writes, API filters or response changes, category
+Classification UI, HTTP writes, API filters, category
 management, large default taxonomy, notes, tags, hierarchy, split amounts,
 rules/AI/heuristics, imported assignments, transfer pairing, EconomicEvent,
 income/expense types, bulk editing, assignment/label history, canonical

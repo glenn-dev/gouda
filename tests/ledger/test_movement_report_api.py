@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date, datetime, timezone
 from decimal import Decimal
 import hashlib
@@ -15,8 +16,12 @@ from rest_framework.test import APIClient
 
 from gouda import local_delivery
 from gouda.bci_historical_pdf import parse_bci_historical_pdf
-from gouda.ledger.models import Account, ImportBatch, Movement, RawRecord, SourceArtifact
+from gouda.ledger.models import (
+    Account, Category, ImportBatch, Movement, MovementClassification, RawRecord, SourceArtifact,
+)
 from gouda.ledger.services import account_access, santander_import, santander_tdc_import
+from gouda.ledger.services import movement_reporting
+from gouda.ledger.services.movement_classification import set_movement_classification
 from gouda.ledger.services.bci_historical_import import (
     import_bci_historical_current_account_pdf,
 )
@@ -212,6 +217,7 @@ class CanonicalMovementReportApiTests(TransactionTestCase):
                 "currency",
                 "description",
                 "source_trace",
+                "classification",
             },
         )
         self.assertEqual(first["account_id"], str(self.account.pk))
@@ -219,6 +225,9 @@ class CanonicalMovementReportApiTests(TransactionTestCase):
         self.assertEqual(first["signed_amount"], "1234567890123456.78")
         self.assertEqual(first["currency"], "CLP")
         self.assertEqual(first["description"], "Synthetic approved start")
+        self.assertEqual(first["classification"], {
+            "state": "NEVER_ASSIGNED", "category": None, "revision": 0,
+        })
         trace = first["source_trace"]
         self.assertEqual(
             set(trace),
@@ -269,6 +278,116 @@ class CanonicalMovementReportApiTests(TransactionTestCase):
             "running_balance",
         ):
             self.assertNotIn(forbidden, rendered)
+
+    def test_classification_transitions_change_only_http_classification_metadata(self):
+        first = self.make_movement(
+            occurrence_date=date(2026, 4, 1), signed_amount=Decimal("1234567890123456.78"),
+        )
+        self.make_movement(occurrence_date=date(2026, 4, 30), signed_amount=Decimal("-0.01"))
+        self.make_movement(occurrence_date=date(2026, 4, 30), description=None)
+        self.make_movement(occurrence_date=date(2026, 3, 31))
+        self.make_movement(occurrence_date=date(2026, 5, 1))
+        self.make_movement(account=self.other_account)
+        category = Category.objects.create(display_name="Synthetic Topic")
+        before = self.api_get().json()
+
+        def financial_payload(payload):
+            return {**payload, "movements": [
+                {key: value for key, value in item.items() if key != "classification"}
+                for item in payload["movements"]
+            ]}
+
+        self.assertEqual(before["movement_count"], 3)
+        self.assertEqual(before["net_signed_amount"], "1234567890123457.77")
+        for revision, target in enumerate((category, None, category), 1):
+            set_movement_classification(
+                account=self.account, movement_id=first.pk,
+                category_id=target.pk if target else None, expected_revision=revision - 1,
+            )
+            if revision == 3:
+                category.is_active = False
+                category.save(update_fields=["is_active"])
+            persisted = list(MovementClassification.objects.values())
+            with CaptureQueriesContext(connection) as queries:
+                response = self.api_get()
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+            self.assertEqual(financial_payload(payload), financial_payload(before))
+            self.assertEqual(payload["movements"][0]["classification"], {
+                "state": "CLASSIFIED" if target else "CLEARED",
+                "category": {
+                    "id": str(category.pk), "display_name": category.display_name,
+                    "is_active": category.is_active,
+                } if target else None,
+                "revision": revision,
+            })
+            self.assertEqual(len(queries), 3)
+            self.assertTrue(all(q["sql"].lstrip().upper().startswith("SELECT") for q in queries))
+            self.assertEqual(list(MovementClassification.objects.values()), persisted)
+
+    def test_http_projects_internal_snapshot_without_requerying_classification(self):
+        movement = self.make_movement()
+        category = Category.objects.create(display_name="Synthetic Snapshot")
+        set_movement_classification(account=self.account, movement_id=movement.pk,
+                                    category_id=category.pk, expected_revision=0)
+        # A bigint revision must survive transport without float conversion.
+        MovementClassification.objects.update(revision=2**63 - 1)
+        report = movement_reporting.report_canonical_movements(
+            account=self.account, start_date=date(2026, 4, 1), end_date=date(2026, 4, 30),
+        )
+        category.display_name = "Synthetic Later Label"
+        category.save(update_fields=["display_name"])
+        with patch("gouda.ledger.api.report_authorized_canonical_movements",
+                   return_value=report) as reporter:
+            with self.assertNumQueries(0):
+                response = self.api_get()
+        reporter.assert_called_once_with(
+            principal_context=account_access.trusted_local_principal_context(),
+            account_selector=self.account.pk,
+            start_date=date(2026, 4, 1), end_date=date(2026, 4, 30),
+        )
+        self.assertEqual(response.json()["movements"][0]["classification"], {
+            "state": "CLASSIFIED", "category": {
+                "id": str(category.pk), "display_name": "Synthetic Snapshot", "is_active": True,
+            }, "revision": 2**63 - 1,
+        })
+        # Null-category states also come straight from the supplied projection.
+        for state, revision in (("NEVER_ASSIGNED", 0), ("CLEARED", 7)):
+            projected = replace(report, movements=(replace(report.movements[0],
+                classification=movement_reporting.MovementClassificationProjection(
+                    state=movement_reporting.MovementClassificationProjectionState(state),
+                    category=None, revision=revision,
+                )),))
+            with patch("gouda.ledger.api.report_authorized_canonical_movements",
+                       return_value=projected), self.assertNumQueries(0):
+                payload = self.api_get().json()
+            self.assertEqual(payload["movements"][0]["classification"], {
+                "state": state, "category": None, "revision": revision,
+            })
+
+    def test_query_count_is_constant_with_mixed_classification_states(self):
+        category = Category.objects.create(display_name="Synthetic Topic")
+        for count in (0, 1, 9):
+            for index in range(count):
+                movement = self.make_movement()
+                if index % 3 != 0:
+                    set_movement_classification(
+                        account=self.account, movement_id=movement.pk,
+                        category_id=category.pk, expected_revision=0,
+                    )
+                    if index % 3 == 2:
+                        set_movement_classification(
+                            account=self.account, movement_id=movement.pk,
+                            category_id=None, expected_revision=1,
+                        )
+            with self.subTest(additional_movements=count), CaptureQueriesContext(connection) as queries:
+                response = self.api_get()
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(len(queries), 3)
+            joined = [q["sql"] for q in queries if '"ledger_movementclassification"' in q["sql"]]
+            self.assertEqual(len(joined), 1)
+            self.assertIn('LEFT OUTER JOIN "ledger_movementclassification"', joined[0])
+            self.assertIn('LEFT OUTER JOIN "ledger_category"', joined[0])
 
     def test_route_selects_and_isolates_requested_account(self):
         self.make_movement(signed_amount=Decimal("1.00"))

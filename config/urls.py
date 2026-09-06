@@ -2,10 +2,19 @@
 
 from django.urls import path
 
-from gouda.ledger.api import AccountDiscoveryView, CanonicalMovementReportView
+from gouda.ledger.api import (
+    AccountDiscoveryView,
+    CanonicalMovementReportView,
+    CategoryDiscoveryView,
+)
 
 
 urlpatterns = [
+    path(
+        "api/v1/categories/",
+        CategoryDiscoveryView.as_view(),
+        name="category-discovery",
+    ),
     path(
         "api/v1/accounts/",
         AccountDiscoveryView.as_view(),

@@ -2,10 +2,11 @@
 
 ## Scope
 
-Gouda exposes exactly two local-MVP HTTP operations:
+Gouda exposes exactly three local-MVP HTTP operations:
 
 ```text
 GET /api/v1/accounts/
+GET /api/v1/categories/
 GET /api/v1/accounts/<account_uuid>/movements/
 ```
 
@@ -23,14 +24,14 @@ pagination, or a browsable API. Only JSON rendering is enabled.
 
 ## Trust and application flow
 
-The discovery request path is:
+The Account and Category discovery request paths are:
 
 ```text
 validated runlocal runtime
 -> active LocalDeliveryRuntime
 -> trusted local principal context
--> list_read_accounts(...)
--> explicit privacy-safe Account summary serialization
+-> list_read_accounts(...) or list_read_categories(...)
+-> explicit privacy-safe summary serialization
 ```
 
 The Movement report request path is:
@@ -81,6 +82,33 @@ identity, external or masked account/card identifiers, source/import bindings,
 balances, totals, transaction counts, Movements, observations, and provenance
 are excluded.
 
+## Category discovery request
+
+`GET /api/v1/categories/` accepts no query parameters. Any query parameter
+fails closed in the same style as Account discovery. It returns all active
+and inactive Categories in the local dataset, ordered by `display_name`, then
+UUID. This is the temporary trusted-principal read policy, not ownership or
+household scope. `list_read_categories` validates the same opaque principal
+before one ordered database read and returns a tuple of frozen `CategorySummary`
+values, never ORM objects.
+
+```json
+{
+  "categories": [
+    {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "display_name": "Synthetic topic",
+      "is_active": false
+    }
+  ]
+}
+```
+
+These are the exact response fields. There are no counts, pagination,
+hierarchy, taxonomy semantics, filtering, search, or other metadata. An empty
+dataset returns HTTP 200 with `{"categories": []}`. Inactive labels remain
+discoverable because existing classifications may reference them.
+
 ## Movement report request
 
 The route requires one canonical lowercase hyphenated Account UUID. The query
@@ -89,7 +117,7 @@ requires exactly one value for each parameter:
 - `start_date` — inclusive start date in strict `YYYY-MM-DD` form;
 - `end_date` — inclusive end date in strict `YYYY-MM-DD` form.
 
-Both endpoints support GET only. POST, PUT, PATCH, DELETE, OPTIONS, and HEAD
+All three endpoints support GET only. POST, PUT, PATCH, DELETE, OPTIONS, and HEAD
 are rejected with HTTP 405. HTML and the DRF browsable API are not enabled.
 
 ## Movement report response
@@ -109,8 +137,40 @@ Each Movement contains only:
 - `occurrence_date`;
 - `signed_amount` as an exact decimal string;
 - `currency`;
-- optional canonical `description`; and
-- `source_trace`.
+- optional canonical `description`;
+- `source_trace`; and
+- `classification` with exactly `state`, `category`, and integer `revision`.
+
+The three classification shapes are:
+
+```json
+{"state": "NEVER_ASSIGNED", "category": null, "revision": 0}
+```
+
+```json
+{
+  "state": "CLASSIFIED",
+  "category": {
+    "id": "22222222-2222-4222-8222-222222222222",
+    "display_name": "Synthetic topic",
+    "is_active": false
+  },
+  "revision": 3
+}
+```
+
+```json
+{"state": "CLEARED", "category": null, "revision": 2}
+```
+
+Classified and cleared revisions are the persisted positive integer, without
+float conversion. An inactive Category remains `CLASSIFIED`. The serializer
+maps the immutable internal reporting projection directly, without additional
+classification queries or transition logic. Source, update time, history, and
+ORM metadata are excluded. HTTP reporting still performs three SELECTs:
+Account authorization, Account existence, and the existing joined Movement
+read, independent of Movement count. Classification does not change financial
+fields, membership, inclusive dates, order, count, exact total, or provenance.
 
 The source trace contains only RawRecord, ImportBatch, and SourceArtifact UUIDs,
 source kind, source variant, parser version, import status, and reconciliation
@@ -135,12 +195,16 @@ Errors use the minimal JSON shape `{"code": "<stable_code>"}`.
 | Start date missing, duplicated, or invalid | `start_date_invalid` | 400 |
 | End date missing, duplicated, or invalid | `end_date_invalid` | 400 |
 | Start date after end date | `date_range_invalid` | 400 |
-| Any Account discovery query parameter | `query_parameters_not_allowed` | 400 |
+| Any Account or Category discovery query parameter | `query_parameters_not_allowed` | 400 |
 | Method other than GET | `method_not_allowed` | 405 |
 | Requested representation is not JSON-compatible | `not_acceptable` | 406 |
 
 Unknown and policy-denied Account UUIDs are deliberately indistinguishable.
 Responses do not expose Python exception strings or source evidence.
+Existing DRF content negotiation remains in effect before the GET handler,
+including its format override behavior. Discovery does not accept even a
+JSON format query parameter. Movement date parsing and treatment of additional
+query parameters are unchanged; no classification filtering is implemented.
 
 ## Security limitations
 
@@ -152,10 +216,14 @@ detect tunnels, proxies, NAT, SSH forwarding, relays, or external
 re-publication. Real authentication is required before expanding the trust
 perimeter.
 
+Classification mutations remain internal only. ADR-0010 remains read-only;
+there is no classification write endpoint, classification UI, filtering,
+transfer pairing, or income/expense interpretation.
+
 ## Local React development client
 
 The repository's first browser client is a Vite + React + TypeScript app under
-`frontend/`. It calls only the two documented GET operations through relative
+`frontend/`. It calls only Account discovery and Movement reporting through relative
 `/api` URLs. The Vite development server binds explicitly to
 `127.0.0.1:5173` and proxies only the `/api` path to the validated backend at
 `http://127.0.0.1:8000`. No backend CORS configuration is added.
@@ -199,3 +267,6 @@ report dates; backend count and net signed amount; and each Movement's date,
 canonical description, signed amount, and currency. It intentionally drops
 the bounded `source_trace` from its client-side report projection and does not
 render provenance in the primary UI.
+Its explicit parser already tolerates additional server fields and discards
+`classification`; no Category discovery call or classification state/rendering
+is added to React.

@@ -195,7 +195,7 @@ orchestration operation translates the lower-level absence to
 `account_not_accessible`, not a distinct existence signal.
 
 The implemented delivery layer explicitly serializes its approved result
-fields and deliberately omits the internal classification projection. The HTTP
+fields, including the immutable current classification projection. The HTTP
 result contains Account and Movement UUIDs, occurrence date, exact canonical
 signed amount, currency, optional canonical `Movement.description`, and the
 bounded source trace documented in [Architecture overview](overview.md). It
@@ -231,7 +231,17 @@ so the adapter fails closed.
 
 The JSON-only DRF adapter is implemented at the versioned routes documented in
 [Local read-only HTTP delivery](local-http-delivery.md). It requires the active
-runtime before financial database access. Discovery calls `list_read_accounts`;
-reporting calls `report_authorized_canonical_movements`. Both explicitly
+runtime before financial database access. Account discovery calls
+`list_read_accounts`; Category discovery calls `list_read_categories`;
+reporting calls `report_authorized_canonical_movements`. All explicitly
 serialize approved fields. LAN, remote, tunneled, proxied, shared-host, or
 production access still requires real authentication instead.
+
+## Category discovery
+
+The same access module provides `list_read_categories`, validating the existing
+principal before database access and returning immutable `CategorySummary`
+values containing only UUID, display name, and active flag. The temporary
+principal may read every Category in the local dataset, including inactive
+ones, ordered by display name then UUID. This is a dataset read policy, not
+Category ownership or household scope. No write permission follows from it.
