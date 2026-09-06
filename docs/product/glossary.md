@@ -22,7 +22,8 @@ worth increases and negative when it decreases. A movement is not provisional.
 
 **Classification** — An explicit, revisable category assignment to an accepted
 Movement, separate from financial facts, economic-event meaning, and provider
-metadata. MVP persistence and the internal manual service are implemented; see
+metadata. MVP persistence, the internal manual service, and the internal
+reporting projection are implemented. See
 [Movement classification](../architecture/movement-classification.md).
 
 **Category** — A local dataset topic grouping with a stable UUID and display

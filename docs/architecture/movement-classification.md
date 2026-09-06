@@ -2,12 +2,14 @@
 
 ## Status
 
-Implemented persistence and internal manual service, 2026-09-05.
+Implemented persistence, internal manual service, and internal reporting
+projection, 2026-09-05.
 [ADR-0011](../decisions/ADR-0011-movement-classification.md) freezes the
 cardinality, ownership, correction, and persistence decisions. This document
-defines the concrete contract implemented by migration `0011` and
-`gouda.ledger.services.movement_classification`. Reporting/HTTP/UI extensions
-remain deferred.
+defines the concrete contract implemented by migration `0011`,
+`gouda.ledger.services.movement_classification`, and the classification
+projection in `gouda.ledger.services.movement_reporting`. HTTP, UI, and
+filtering extensions remain deferred.
 
 ## Domain boundary
 
@@ -288,28 +290,49 @@ MVP still supports useful account/date grouping and finding unclassified work.
 
 ## Reporting and API evolution
 
-No existing service result, HTTP parameter, serializer, or frontend changes in
-this design or the first persistence checkpoint. The current two GET routes
-retain their [documented contract](local-http-delivery.md).
+The internal canonical reporting service now includes one immutable bounded
+`classification` projection on every `MovementReportItem`:
 
-A later bounded read extension may add one `classification` object to each
-Movement item: `category` (null or `{id, display_name, is_active}`), `source`,
-`revision`, and `updated_at`. Absent rows project category/source/time as null
-and revision 0; cleared rows have null category, `MANUAL`, positive revision,
-and last-change time. Thus current state can be read without exposing ORM or
-source evidence. This is an illustrative candidate shape, not a frozen response
-schema. ADR-0011 freezes only current-category reporting semantics and mutually
-exclusive category/unclassified selection; field names, query spelling, and
-transport errors require the later reporting/API checkpoint.
+| Current persistence | Projection |
+| --- | --- |
+| No classification row | `state=NEVER_ASSIGNED`, null category, revision `0` |
+| Row with a Category | `state=CLASSIFIED`, category summary, persisted positive revision |
+| Row with null Category | `state=CLEARED`, null category, persisted positive revision |
 
-For that later checkpoint, a candidate interface is one `category_id` UUID or
-`uncategorized=true`, mutually exclusive. Omission would mean all categories and
-unclassified rows. Reject malformed, duplicate, unsupported, and conflicting
-selectors; do not overload an empty string or sentinel UUID. Uncategorized
-selects absent rows OR null category. Category filtering includes existing
-assignments to inactive categories. A valid accessible category with no rows
-returns an empty report; unknown or inaccessible categories share one safe
-not-accessible result. Transport status/error details belong to that later
+The nested category summary contains only Category UUID, `display_name`, and
+`is_active`. Active state is useful because a retired Category remains the
+faithful current assignment and a future client may need to identify it as
+retired rather than hide it. The projection excludes assignment source and
+last-change time: `MANUAL` is currently the only possible source, neither value
+has a current reporting consumer, and revision is the required mutation
+coordination token. It exposes no ORM object, historical value, provider
+metadata, or raw persistence field.
+
+`NEVER_ASSIGNED` and `CLEARED` remain distinct current states but are both
+unclassified for future filtering. Reporting performs no repair or mutation.
+Database constraints own classification shape; the read path does not add
+classification-service failures.
+
+The Movement query left-joins the optional current classification and Category
+alongside the existing joined safe-provenance chain. A separate Account
+existence query remains, so a report uses two queries independent of Movement
+count. The left joins cannot remove or multiply Movements. Count and exact
+signed total continue to derive from the returned tuple, with inclusive
+occurrence-date bounds and date/UUID ordering unchanged.
+
+No HTTP parameter, serializer, response, or frontend contract changes with
+this internal extension. The current two GET routes retain their
+[documented contract](local-http-delivery.md), whose explicit serializer omits
+classification metadata.
+
+For a later filtering checkpoint, a candidate interface is one `category_id`
+UUID or `uncategorized=true`, mutually exclusive. Omission would mean all
+categories and unclassified rows. Reject malformed, duplicate, unsupported,
+and conflicting selectors; do not overload an empty string or sentinel UUID.
+Uncategorized selects absent rows OR null category. Category filtering includes
+existing assignments to inactive categories. A valid accessible category with
+no rows returns an empty report; unknown or inaccessible categories share one
+safe not-accessible result. Transport status/error details belong to that later
 API checkpoint.
 
 Resolve Account access before category lookup; UUID possession is not access.

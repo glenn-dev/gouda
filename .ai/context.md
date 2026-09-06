@@ -56,7 +56,9 @@ context. `.ai/` is not canonical product documentation.
   persisted Account over an inclusive `Movement.occurrence_date` range. It
   returns deterministically ordered immutable items, exact Decimal total and
   count, and safe UUID-based provenance plus route status metadata without
-  source payloads or filenames.
+  source payloads or filenames. Each item also projects current classification
+  as `NEVER_ASSIGNED`, `CLASSIFIED`, or `CLEARED`, with bounded Category display
+  fields and revision.
 - The account-orientation migration test now restores the current ledger leaf
   migration, removing its pre-existing schema leakage into later test modules.
 - The fail-closed local-delivery bootstrap is implemented. The dedicated
@@ -166,13 +168,12 @@ it proxies `/api` to the unpublished Django service. Neither proxy arrangement
 is authentication or principal issuance. The container runtime does not claim
 to verify Docker publication; repository configuration and tests enforce it.
 
-The implementation/review parent baseline is
-`964e85ef82c9af7cfdb551f3bf2cb188ac06d966`
-(`docs: freeze movement classification semantics`). This implementation session
-verified clean `main` and matching HEAD/`origin/main` at that exact commit.
-The review verified exactly the 16 expected changed paths against that baseline.
-This checkpoint is recorded as `feat: implement movement classification domain`;
-Git history supplies its exact SHA. One local commit is authorized; do not push.
+The current implementation parent baseline is
+`bf70b85d56e831e2422c92562eb14ff10f77f548`
+(`feat: implement movement classification domain`). This session fetched origin
+and verified clean `main` with matching HEAD/`origin/main` at that exact commit.
+This reporting checkpoint is authorized for one commit titled
+`feat: project movement classification in reporting`. Do not push.
 
 [ADR-0011](../docs/decisions/ADR-0011-movement-classification.md) and
 [Movement classification](../docs/architecture/movement-classification.md)
@@ -185,22 +186,29 @@ revision-checked change/clear/reassign. Correct-revision no-ops retain time and
 revision; inactive categories retain existing references, allow no-ops/clear,
 and reject new assignments. Source/financial fields remain untouched.
 
-Reporting, Account discovery/access, HTTP responses, the frontend, imports,
-and production demo code are unchanged. Demo seeds remain unclassified;
-classified or explicitly cleared demo Movements block cleanup atomically.
-No history, taxonomy defaults, automation, economic types, transfers, ownership,
-or write authorization was introduced. ADR-0011 was not modified.
+The internal canonical report now adds a frozen current-classification
+projection to each Movement. Never-assigned rows use revision 0; classified
+rows expose Category UUID, display name, active state, and revision; cleared
+rows retain their positive revision without a Category. Never-assigned and
+cleared are distinguishable and both remain unclassified. Source and timestamp
+are excluded. Nullable joins extend the existing Movement/provenance query, so
+reports remain two queries independent of Movement count.
 
-Validation passes: 463 Django tests, including 30 added tests; PostgreSQL
-concurrency; both sequential 52-test migration orders; 102 compatibility tests;
-271 Santander/BCI regressions; fresh/0010 migrations; system and drift checks;
-14 frontend tests, typecheck/build; and pip check. See the handoff for final
-hygiene checks and validation artifacts.
+Classification changes never affect Account/date membership, ordering, count,
+exact signed total, financial fields, or provenance. Inactive Category
+assignments remain visible. Account discovery/access, HTTP response fields, the
+frontend, mutation API, imports, migrations, and production demo code remain
+unchanged. ADR-0011 was not modified.
 
-The next bounded task is extending only the internal canonical Movement report
-to project current classification consistently, including absent/cleared state
-and inactive labels, while preserving membership, totals, ordering, and bounded
-provenance. Keep HTTP/UI/filter changes separate. Recommended reasoning: High.
+Validation passes: 466 Django tests; focused 99-test compatibility coverage;
+both 55-test migration isolation orders; 271 Santander/BCI regressions; 75
+local-delivery/Compose/API/demo tests; fresh `0010 -> 0011` migration; system,
+drift, dependency, frontend, and Compose checks. See the handoff for final
+hygiene results.
+
+The next bounded task is internal-only Category/unclassified filtering under
+ADR-0011, with mutually exclusive selectors and signed-account-effect totals.
+Keep HTTP/UI work separate. Recommended reasoning: High.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.

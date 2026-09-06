@@ -17,7 +17,10 @@ one trusted persisted Account over an inclusive `Movement.occurrence_date`
 range, orders by occurrence date and Movement UUID, computes exact Decimal
 count and signed-account-effect total from the returned tuple, and exposes a
 bounded source trace without filenames, bytes, digests, raw cells, source
-references, running balances, or parser payloads.
+references, running balances, or parser payloads. Each item also carries a
+bounded immutable current-classification projection: never assigned, currently
+classified with Category UUID/display/active state, or explicitly cleared,
+plus the applicable revision.
 
 The Account read boundary, discovery operation, and authorized reporting
 orchestration are implemented. One opaque module-issued local principal may
@@ -25,7 +28,8 @@ read all persisted Accounts under the temporary non-ownership policy.
 `list_read_accounts` returns only Account UUID, canonical display name, product
 kind, and currency in display-name/UUID order. Unknown and policy-denied
 selectors remain indistinguishable, and reporting returns the existing
-`MovementReport` without widening provenance or writing state.
+`MovementReport` without widening provenance or writing state. The HTTP
+serializer deliberately omits its internal classification projection.
 
 The local-MVP caller-trust and network contract is frozen in ADR-0010. An
 unauthenticated read adapter is permitted only behind an explicit numeric
@@ -400,9 +404,10 @@ now documents the implemented fields, internal API, stable errors, and locks.
 - Demo implementation is untouched. Seed/reseed creates no categories or
   classifications and preserves later manual assignments/clears. Protected
   cleanup fails atomically for assigned or cleared demo Movements.
-- Existing reports, discovery/access, HTTP API, React, and imports are unchanged.
-  No API writes, filters, UI, default taxonomy, automation, history, ownership,
-  transfer/economic types, notes/tags/hierarchy, or provider mapping was added.
+- At this persistence checkpoint, reports, discovery/access, HTTP API, React,
+  and imports were unchanged. No API writes, filters, UI, default taxonomy,
+  automation, history, ownership, transfer/economic types,
+  notes/tags/hierarchy, or provider mapping was added.
 
 Tests added: six Category tests, twelve service/model/compatibility tests,
 six real PostgreSQL concurrency tests, five migration tests, and one demo
@@ -455,14 +460,71 @@ was read or modified. Full-stack/browser launch was not rerun because runtime,
 Compose, HTTP and frontend source are unchanged; their automated regressions
 passed.
 
+## Current classification reporting checkpoint
+
+This checkpoint extends only `gouda.ledger.services.movement_reporting` from
+the clean, fetched baseline
+`bf70b85d56e831e2422c92562eb14ff10f77f548`. It is authorized for one commit
+titled `feat: project movement classification in reporting`; Git history
+records the exact resulting SHA. Do not push.
+
+Every internal `MovementReportItem` has an immutable
+`MovementClassificationProjection` with bounded state, optional immutable
+Category summary, and revision:
+
+- `NEVER_ASSIGNED` means no row and uses null category plus revision 0;
+- `CLASSIFIED` includes Category UUID, display name, active state, and the
+  persisted positive revision; and
+- `CLEARED` preserves a retained row as null category plus its persisted
+  positive revision.
+
+Never-assigned and cleared remain distinct but both are unclassified for
+future filtering. Inactive Categories stay visible as current assignments.
+Assignment source and timestamp are omitted because no current reporting
+consumer needs them; revision supplies mutation coordination. No ORM object,
+historical assignment, provider metadata, or raw persistence field is exposed.
+
+The existing Movement query adds nullable `select_related` joins through the
+one-to-one classification and Category. Together with the existing safe
+provenance join, the report remains two queries independent of Movement count:
+one Account existence check and one consistent joined Movement read. Left joins
+cannot remove or multiply Movements. Tests prove classification changes do not
+alter membership, inclusive occurrence-date bounds, Account scope, ordering,
+count, exact signed total, provenance, date, signed amount, currency, or
+description.
+
+The explicit HTTP serializer remains unchanged and omits classification. The
+two routes, request/error contracts, React client types/parsing/rendering,
+manual mutation API, filters, models, migrations, imports, and demo seed are
+unchanged. ADR-0011 is unchanged.
+
+Validation on isolated PostgreSQL 16.14, host Django 4.2.30/Python 3.9.6:
+
+- Focused reporting/classification/concurrency/API/Account/demo: 99 passed.
+- Full Django suite: 466 passed.
+- Migration/isolation forward and reverse orders: 55 passed each.
+- Santander XLSX/TDC and BCI Historical/Current/Recent coverage: 271 passed,
+  including the pinned legacy-XLS dependency check.
+- Local delivery/Compose/API/demo matrix: 75 passed.
+- Explicit `0010 -> 0011` upgrade, Django system check, migration drift,
+  Python compilation, `pip check`, and `docker compose config` passed.
+- Frontend: 14 tests, TypeScript check, Vite build, and `npm ls` passed.
+- Markdown links: 41 files and 53 local links passed. `git diff --check` and
+  final Git-path review passed.
+- Added-text privacy scanning found no key, credential, email, or long numeric
+  identifier patterns. `.env` and `private/` remain ignored; no private path is
+  tracked or changed, and no private evidence was inspected.
+- Commit review validation used only the isolated synthetic PostgreSQL container
+  `gouda-classification-reporting-review-pg16` on loopback port 55441. It was
+  stopped and removed after validation; no existing database was read or
+  modified.
+
 ## Next checkpoint
 
-Extend only the internal canonical Movement report to project current
-classification in one consistent read, including absent/cleared assignments
-and inactive labels. Preserve Account/date membership, ordering, exact signed
-totals, and source trace. Defer HTTP/UI/filter changes to separate work.
-Read ADR-0011 and the classification contract after the standard resume
-sequence. Recommended reasoning level: High.
+Add internal-only Category/unclassified filtering to canonical Movement
+reporting under ADR-0011. Keep category and unclassified selectors mutually
+exclusive, preserve signed-account-effect totals, and defer HTTP/UI work.
+Recommended reasoning level: High.
 
 ## Roadmap reassessment
 
@@ -472,12 +534,13 @@ the first internal canonical query/period-total/source-trace service, and the
 minimum backend API read surface for Account selection plus Movement reporting,
 the first local browser read client, and the reproducible three-service demo
 bootstrap. Manual classification persistence/service is implemented;
-authentication/ownership remain absent.
+its internal report projection is also implemented. Authentication/ownership
+remain absent.
 
 Priorities are:
 
-1. Extend the internal read projection with current classification before
-   category filters or UI. Economic types and transfer semantics remain deferred.
+1. Add internal Category/unclassified filtering before any HTTP or UI
+   classification surface. Economic types and transfer semantics remain deferred.
 2. Add an operational import/API surface for the already implemented
    Santander services only after the account-access and upload-security
    boundary is explicit.

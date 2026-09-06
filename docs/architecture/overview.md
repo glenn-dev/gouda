@@ -67,9 +67,11 @@ relation. The [classification contract](movement-classification.md) specifies
 manual-only provenance, revision-checked corrections, explicit unclassified
 semantics, and two new initially empty tables implemented by migration `0011`.
 The internal manual assign/change/clear command locks Account, Movement, then
-the selected Category and checks revision within one transaction. No financial
-fields or source contracts change. The existing report/API/client projections
-and synthetic demo seed remain classification-free.
+the selected Category and checks revision within one transaction. The internal
+canonical Movement report now projects current classification state, Category
+identity/display/active state, and revision without changing report membership
+or financial facts. The HTTP/client projections and synthetic demo seed remain
+classification-free.
 Economic-event types, transfer relationships, and assignment history remain
 deferred with explicit revisit triggers.
 
@@ -95,9 +97,19 @@ bytes, raw cells, source payloads, source references, and running balances.
 item; it is not copied into the source trace, and raw source descriptions or
 parser evidence are not exposed as provenance.
 
+Each internal report item also contains a bounded immutable current
+classification projection. `NEVER_ASSIGNED` uses revision 0, `CLASSIFIED`
+includes Category UUID, display name, active state, and persisted revision, and
+`CLEARED` retains its persisted revision with no Category. Never-assigned and
+cleared remain distinct states but are both unclassified. Assignment source,
+timestamps, history, provider metadata, and ORM objects are excluded. Nullable
+one-to-one/Category joins extend the existing query, preserving a constant two
+queries per report independent of Movement count.
+
 This service remains transport-independent. The HTTP adapter exposes only its
-authorized orchestration path and explicit result projection. It adds
-no authentication, household ownership, classification, transfer, lifecycle,
+authorized orchestration path and existing explicit result projection, which
+does not serialize internal classification metadata. It adds no authentication,
+household ownership, classification transport, transfer, lifecycle,
 provisional-view, or write behavior.
 
 The pre-HTTP caller-to-Account boundary is defined separately in

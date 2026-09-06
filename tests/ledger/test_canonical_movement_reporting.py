@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import FrozenInstanceError, asdict
 from datetime import date, datetime, timezone
 from decimal import Decimal
 import hashlib
@@ -12,6 +12,7 @@ from django.test import TransactionTestCase
 from gouda.bci_historical_pdf import parse_bci_historical_pdf
 from gouda.ledger.models import (
     Account,
+    Category,
     FinancialObservation,
     ImportBatch,
     Movement,
@@ -20,6 +21,7 @@ from gouda.ledger.models import (
     SourceArtifact,
 )
 from gouda.ledger.services import movement_reporting as reporting
+from gouda.ledger.services import movement_classification
 from gouda.ledger.services import observation_resolution, santander_import
 from gouda.ledger.services import santander_tdc_import
 from gouda.ledger.services.bci_historical_import import (
@@ -148,6 +150,41 @@ class MovementReportingTests(TransactionTestCase):
             end_date=end,
         )
 
+    def classify(
+        self,
+        movement: Movement,
+        category: Category | None,
+        expected_revision: int,
+    ):
+        return movement_classification.set_movement_classification(
+            account=movement.account,
+            movement_id=movement.pk,
+            category_id=category.pk if category else None,
+            expected_revision=expected_revision,
+        )
+
+    @staticmethod
+    def financial_snapshot(report):
+        return (
+            report.account_id,
+            report.start_date,
+            report.end_date,
+            report.movement_count,
+            report.net_signed_amount,
+            tuple(
+                (
+                    item.movement_id,
+                    item.account_id,
+                    item.occurrence_date,
+                    item.signed_amount,
+                    item.currency,
+                    item.description,
+                    item.source_trace,
+                )
+                for item in report.movements
+            ),
+        )
+
     def decision(self) -> dict[str, object]:
         return {
             "decision_source": ObservationResolution.DecisionSource.DETERMINISTIC_POLICY,
@@ -219,6 +256,146 @@ class MovementReportingTests(TransactionTestCase):
         self.assertEqual(report.movements, ())
         self.assertEqual(report.movement_count, 0)
         self.assertEqual(report.net_signed_amount, Decimal("0.00"))
+
+    def test_current_classification_projection_distinguishes_all_three_states(self):
+        never_assigned = self.make_movement(
+            occurrence_date=date(2026, 4, 1), signed_amount=Decimal("1.00")
+        )
+        classified = self.make_movement(
+            occurrence_date=date(2026, 4, 2), signed_amount=Decimal("2.00")
+        )
+        cleared = self.make_movement(
+            occurrence_date=date(2026, 4, 3), signed_amount=Decimal("3.00")
+        )
+        category = Category.objects.create(display_name="Groceries")
+        self.classify(classified, category, 0)
+        self.classify(cleared, category, 0)
+        self.classify(cleared, None, 1)
+
+        items = {item.movement_id: item for item in self.report().movements}
+        absent_projection = items[never_assigned.pk].classification
+        classified_projection = items[classified.pk].classification
+        cleared_projection = items[cleared.pk].classification
+
+        self.assertEqual(
+            absent_projection,
+            reporting.MovementClassificationProjection(
+                state=reporting.MovementClassificationProjectionState.NEVER_ASSIGNED,
+                category=None,
+                revision=0,
+            ),
+        )
+        self.assertEqual(
+            classified_projection.state,
+            reporting.MovementClassificationProjectionState.CLASSIFIED,
+        )
+        self.assertEqual(classified_projection.revision, 1)
+        self.assertEqual(
+            classified_projection.category,
+            reporting.MovementCategoryProjection(
+                category_id=category.pk,
+                display_name="Groceries",
+                is_active=True,
+            ),
+        )
+        self.assertEqual(
+            cleared_projection,
+            reporting.MovementClassificationProjection(
+                state=reporting.MovementClassificationProjectionState.CLEARED,
+                category=None,
+                revision=2,
+            ),
+        )
+        self.assertIsNone(absent_projection.category)
+        self.assertIsNone(cleared_projection.category)
+        self.assertNotEqual(absent_projection.state, cleared_projection.state)
+        serialized = asdict(classified_projection)
+        self.assertEqual(set(serialized), {"state", "category", "revision"})
+        self.assertEqual(
+            set(serialized["category"]),
+            {"category_id", "display_name", "is_active"},
+        )
+        self.assertNotIn("source", serialized)
+        self.assertNotIn("updated_at", serialized)
+        with self.assertRaises(FrozenInstanceError):
+            classified_projection.revision = 99
+        with self.assertRaises(FrozenInstanceError):
+            classified_projection.category.display_name = "Changed"
+
+    def test_inactive_category_remains_the_visible_current_assignment(self):
+        movement = self.make_movement()
+        category = Category.objects.create(display_name="Utilities")
+        self.classify(movement, category, 0)
+        category.is_active = False
+        category.save(update_fields=["is_active"])
+
+        projection = self.report().movements[0].classification
+
+        self.assertEqual(
+            projection.state,
+            reporting.MovementClassificationProjectionState.CLASSIFIED,
+        )
+        self.assertEqual(projection.category.category_id, category.pk)
+        self.assertEqual(projection.category.display_name, "Utilities")
+        self.assertFalse(projection.category.is_active)
+        self.assertEqual(projection.revision, 1)
+
+    def test_reclassification_and_clear_change_only_reporting_metadata(self):
+        first = self.make_movement(
+            occurrence_date=date(2026, 4, 1),
+            signed_amount=Decimal("10.25"),
+            description="Synthetic first",
+        )
+        second = self.make_movement(
+            occurrence_date=date(2026, 4, 30),
+            signed_amount=Decimal("-3.10"),
+            description="Synthetic second",
+        )
+        outside = self.make_movement(
+            occurrence_date=date(2026, 5, 1), signed_amount=Decimal("99.00")
+        )
+        other = self.make_movement(
+            account=self.other_account,
+            occurrence_date=date(2026, 4, 15),
+            signed_amount=Decimal("99.00"),
+        )
+        groceries = Category.objects.create(display_name="Groceries")
+        utilities = Category.objects.create(display_name="Utilities")
+        baseline = self.report()
+        baseline_financial = self.financial_snapshot(baseline)
+
+        self.classify(first, groceries, 0)
+        self.classify(second, utilities, 0)
+        self.classify(outside, groceries, 0)
+        self.classify(other, groceries, 0)
+        assigned = self.report()
+        self.assertEqual(self.financial_snapshot(assigned), baseline_financial)
+        self.assertEqual(
+            [item.classification.revision for item in assigned.movements], [1, 1]
+        )
+
+        self.classify(first, utilities, 1)
+        reclassified = self.report()
+        self.assertEqual(self.financial_snapshot(reclassified), baseline_financial)
+        self.assertEqual(
+            reclassified.movements[0].classification.category.category_id,
+            utilities.pk,
+        )
+        self.assertEqual(reclassified.movements[0].classification.revision, 2)
+
+        self.classify(first, None, 2)
+        cleared = self.report()
+        self.assertEqual(self.financial_snapshot(cleared), baseline_financial)
+        self.assertEqual(
+            cleared.movements[0].classification.state,
+            reporting.MovementClassificationProjectionState.CLEARED,
+        )
+        self.assertEqual(cleared.movements[0].classification.revision, 3)
+        self.assertEqual(
+            [item.movement_id for item in cleared.movements], [first.pk, second.pk]
+        )
+        self.assertEqual(cleared.movement_count, 2)
+        self.assertEqual(cleared.net_signed_amount, Decimal("7.15"))
 
     def test_invalid_account_and_dates_fail_with_stable_codes(self):
         cases = (
@@ -349,6 +526,14 @@ class MovementReportingTests(TransactionTestCase):
         )
         self.assertEqual(tdc_report.movements[0].movement_id, tdc.pk)
         self.assertEqual(tdc_report.movements[0].signed_amount, Decimal("-7.00"))
+        self.assertTrue(
+            all(
+                item.classification.state
+                == reporting.MovementClassificationProjectionState.NEVER_ASSIGNED
+                and item.classification.revision == 0
+                for item in (*current_report.movements, *tdc_report.movements)
+            )
+        )
 
     def test_santander_current_account_imported_movements_are_reported(self):
         content = workbook_bytes(
@@ -376,6 +561,13 @@ class MovementReportingTests(TransactionTestCase):
                 item.source_trace.import_batch_id == batch.pk
                 and item.source_trace.source_kind
                 == ImportBatch.SourceKind.SANTANDER_CURRENT_ACCOUNT_XLSX
+                for item in report.movements
+            )
+        )
+        self.assertTrue(
+            all(
+                item.classification.state
+                == reporting.MovementClassificationProjectionState.NEVER_ASSIGNED
                 for item in report.movements
             )
         )
@@ -410,6 +602,10 @@ class MovementReportingTests(TransactionTestCase):
         self.assertEqual(
             report.movements[0].source_trace.source_kind,
             ImportBatch.SourceKind.SANTANDER_CREDIT_CARD_PDF,
+        )
+        self.assertEqual(
+            report.movements[0].classification.state,
+            reporting.MovementClassificationProjectionState.NEVER_ASSIGNED,
         )
 
     def test_observation_states_do_not_add_or_filter_canonical_movements(self):
@@ -459,6 +655,10 @@ class MovementReportingTests(TransactionTestCase):
             report.movements[0].source_trace.source_kind,
             ImportBatch.SourceKind.BCI_HISTORICAL_CURRENT_ACCOUNT_PDF,
         )
+        self.assertEqual(
+            report.movements[0].classification.state,
+            reporting.MovementClassificationProjectionState.NEVER_ASSIGNED,
+        )
 
     def test_superseding_originating_observation_does_not_retract_movement(self):
         _, raw = self.make_source()
@@ -479,8 +679,18 @@ class MovementReportingTests(TransactionTestCase):
         self.assertEqual([item.movement_id for item in report.movements], [resolution.movement_id])
         self.assertEqual(report.net_signed_amount, Decimal("-6.00"))
 
-    def test_provenance_loading_avoids_n_plus_one_queries(self):
-        for value in ("1.00", "2.00", "3.00"):
+    def test_provenance_and_classification_loading_avoid_n_plus_one_queries(self):
+        category = Category.objects.create(display_name="Groceries")
+        first = self.make_movement(signed_amount=Decimal("1.00"))
+        self.classify(first, category, 0)
+        with self.assertNumQueries(2):
+            report = self.report()
+            tuple(asdict(item) for item in report.movements)
+
+        second = self.make_movement(signed_amount=Decimal("2.00"))
+        self.classify(second, category, 0)
+        self.classify(second, None, 1)
+        for value in ("3.00", "4.00", "5.00"):
             self.make_movement(signed_amount=Decimal(value))
 
         with self.assertNumQueries(2):

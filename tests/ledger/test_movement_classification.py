@@ -251,7 +251,7 @@ class MovementClassificationTests(TestCase):
                           expected_revision=2**63 - 1)
         self.assertEqual(MovementClassification.objects.get().category_id, self.category.pk)
 
-    def test_report_api_and_account_discovery_unchanged_with_assigned_and_cleared_rows(self):
+    def test_internal_report_changes_only_metadata_while_http_and_discovery_stay_exact(self):
         def read():
             def active(runtime):
                 principal = account_access.trusted_local_principal_context()
@@ -265,8 +265,19 @@ class MovementClassificationTests(TestCase):
                 )
             return local_delivery.run_validated_local_delivery(
                 bind_host="127.0.0.1", port="8000", server_runner=active)
-        before = read()
+        before_report, *before_external = read()
         self.command(self.category, 0)
-        self.assertEqual(read(), before)
+        assigned_report, *assigned_external = read()
+        self.assertEqual(assigned_external, before_external)
+        self.assertEqual(assigned_report.movement_count, before_report.movement_count)
+        self.assertEqual(assigned_report.net_signed_amount, before_report.net_signed_amount)
+        self.assertEqual(
+            assigned_report.movements[0].classification.state.value,
+            "CLASSIFIED",
+        )
         self.command(None, 1)
-        self.assertEqual(read(), before)
+        cleared_report, *cleared_external = read()
+        self.assertEqual(cleared_external, before_external)
+        self.assertEqual(cleared_report.movement_count, before_report.movement_count)
+        self.assertEqual(cleared_report.net_signed_amount, before_report.net_signed_amount)
+        self.assertEqual(cleared_report.movements[0].classification.state.value, "CLEARED")

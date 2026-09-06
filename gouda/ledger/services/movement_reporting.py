@@ -5,9 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
+from enum import Enum
 from uuid import UUID
 
-from ..models import Account, Movement
+from ..models import Account, Movement, MovementClassification
 
 
 class MovementReportingServiceError(ValueError):
@@ -32,6 +33,32 @@ class MovementSourceTrace:
     reconciliation_status: str | None
 
 
+class MovementClassificationProjectionState(str, Enum):
+    """Bounded states of the current classification relation."""
+
+    NEVER_ASSIGNED = "NEVER_ASSIGNED"
+    CLASSIFIED = "CLASSIFIED"
+    CLEARED = "CLEARED"
+
+
+@dataclass(frozen=True)
+class MovementCategoryProjection:
+    """Current Category fields needed for display and identity."""
+
+    category_id: UUID
+    display_name: str
+    is_active: bool
+
+
+@dataclass(frozen=True)
+class MovementClassificationProjection:
+    """Current organizational metadata, separate from financial facts."""
+
+    state: MovementClassificationProjectionState
+    category: MovementCategoryProjection | None
+    revision: int
+
+
 @dataclass(frozen=True)
 class MovementReportItem:
     """Canonical reporting fields without source-native evidence payloads."""
@@ -43,6 +70,7 @@ class MovementReportItem:
     currency: str
     description: str | None
     source_trace: MovementSourceTrace
+    classification: MovementClassificationProjection
 
 
 @dataclass(frozen=True)
@@ -95,7 +123,10 @@ def report_canonical_movements(
             occurrence_date__gte=start_date,
             occurrence_date__lte=end_date,
         )
-        .select_related("raw_record__import_batch__source_artifact")
+        .select_related(
+            "raw_record__import_batch__source_artifact",
+            "classification__category",
+        )
         .order_by("occurrence_date", "pk")
     )
     movements = tuple(_report_item(movement) for movement in rows)
@@ -139,4 +170,34 @@ def _report_item(movement: Movement) -> MovementReportItem:
             import_status=batch.status,
             reconciliation_status=batch.reconciliation_status,
         ),
+        classification=_classification_projection(movement),
+    )
+
+
+def _classification_projection(movement: Movement) -> MovementClassificationProjection:
+    try:
+        classification = movement.classification
+    except MovementClassification.DoesNotExist:
+        return MovementClassificationProjection(
+            state=MovementClassificationProjectionState.NEVER_ASSIGNED,
+            category=None,
+            revision=0,
+        )
+
+    if classification.category_id is None:
+        return MovementClassificationProjection(
+            state=MovementClassificationProjectionState.CLEARED,
+            category=None,
+            revision=classification.revision,
+        )
+
+    category = classification.category
+    return MovementClassificationProjection(
+        state=MovementClassificationProjectionState.CLASSIFIED,
+        category=MovementCategoryProjection(
+            category_id=category.pk,
+            display_name=category.display_name,
+            is_active=category.is_active,
+        ),
+        revision=classification.revision,
     )

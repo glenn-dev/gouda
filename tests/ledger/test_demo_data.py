@@ -33,6 +33,7 @@ from gouda.ledger.models import (
     RawRecord,
     SourceArtifact,
 )
+from gouda.ledger.services import movement_reporting
 
 
 class DemoDataTests(TransactionTestCase):
@@ -187,6 +188,22 @@ class DemoDataTests(TransactionTestCase):
         self.assertEqual(card_report.status_code, 200)
         self.assertEqual(card_report.json()["movement_count"], 5)
         self.assertEqual(card_report.json()["net_signed_amount"], "-38310.00")
+
+        internal = movement_reporting.report_canonical_movements(
+            account=Account.objects.get(pk=current_id),
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 4, 30),
+        )
+        self.assertEqual(internal.movement_count, 6)
+        self.assertTrue(
+            all(
+                item.source_trace.source_kind == ImportBatch.SourceKind.DEMO_SYNTHETIC
+                and item.classification.state
+                == movement_reporting.MovementClassificationProjectionState.NEVER_ASSIGNED
+                and item.classification.revision == 0
+                for item in internal.movements
+            )
+        )
 
     def test_seed_adds_no_classification_transfer_or_observation_semantics(self):
         seed_demo_data()

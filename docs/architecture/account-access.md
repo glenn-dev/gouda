@@ -183,8 +183,9 @@ It:
 1. resolve the selector through the read-account access boundary;
 2. pass only the resulting authorized `Account` to
    `report_canonical_movements`; and
-3. return the existing immutable `MovementReport` without creating a competing
-   reporting representation.
+3. return the immutable `MovementReport`, including its internal current
+   classification projection, without creating a competing reporting
+   representation.
 
 Account access failure uses `account_not_accessible`. Date validation
 continues to use the reporting service's stable `start_date_invalid`,
@@ -193,11 +194,12 @@ the Account disappears between access resolution and reporting, the
 orchestration operation translates the lower-level absence to
 `account_not_accessible`, not a distinct existence signal.
 
-The implemented delivery layer explicitly serializes approved result fields.
-The current result contains Account and Movement UUIDs, occurrence date, exact
-canonical signed amount, currency, optional canonical `Movement.description`,
-and the bounded source trace documented in
-[Architecture overview](overview.md). It must not introspect Django models or
+The implemented delivery layer explicitly serializes its approved result
+fields and deliberately omits the internal classification projection. The HTTP
+result contains Account and Movement UUIDs, occurrence date, exact canonical
+signed amount, currency, optional canonical `Movement.description`, and the
+bounded source trace documented in [Architecture overview](overview.md). It
+must not introspect Django models or
 expose filenames, digests, bytes, raw cells, source payloads, source
 references, running balances, provider account/card identifiers, or opaque
 bank-specific evidence.
