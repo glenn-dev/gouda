@@ -25,7 +25,8 @@ Accounts and active/inactive Categories, and delivers authorized, read-only
 canonical Movement reports with current classification state under
 the loopback-only local runtime boundary. A minimal React/TypeScript client now
 provides the complete Account-selection, inclusive-date-range, and Movement
-report flow through that existing backend contract.
+report flow, including read-only current classification labels, through that
+existing backend contract.
 
 ## Local Docker demo
 

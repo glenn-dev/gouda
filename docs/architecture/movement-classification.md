@@ -9,8 +9,8 @@ cardinality, ownership, correction, and persistence decisions. This document
 defines the concrete contract implemented by migration `0011`,
 `gouda.ledger.services.movement_classification`, and the classification
 projection in `gouda.ledger.services.movement_reporting`. The local HTTP API
-now exposes that projection and Category discovery. HTTP mutations, UI, and
-filtering remain deferred.
+now exposes that projection and Category discovery. React renders the current
+classification read-only. HTTP mutations, editing UI, and filtering remain deferred.
 
 ## Domain boundary
 
@@ -327,8 +327,10 @@ classification semantics. `GET /api/v1/categories/` discovers all active and
 inactive Category summaries under the same validated runtime and trusted
 principal. Its only fields are `id`, `display_name`, and `is_active`; it has
 no counts, pagination, or query parameters. See the exact
-[HTTP contract](local-http-delivery.md). React already discards additional
-server fields and remains unchanged, with no classification state or UI.
+[HTTP contract](local-http-delivery.md). React now validates and retains the
+bounded projection, displays active/inactive Category labels, and displays both
+null-Category states as `Unclassified`. It does not fetch the Category catalog,
+show revision/state/UUID values, or provide editing controls.
 
 For a later filtering checkpoint, a candidate interface is one `category_id`
 UUID or `uncategorized=true`, mutually exclusive. Omission would mean all

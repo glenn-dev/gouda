@@ -22,7 +22,8 @@ Classification semantics and persistence are frozen in
 [ADR-0011](../decisions/ADR-0011-movement-classification.md). Persistence, the
 internal manual service, and the internal canonical reporting projection are
 implemented, with read-only local Category discovery and current classification
-in HTTP Movement reports. Filtering, classification UI, and HTTP mutations
+in HTTP Movement reports; React validates and renders that current state
+read-only. Filtering, classification editing, category totals, and HTTP mutations
 remain deferred. Category assignments are mutable organizational metadata separate
 from canonical financial facts. They support current grouping, not historical
 assignment replay. Signs and bank categories never determine Gouda categories.

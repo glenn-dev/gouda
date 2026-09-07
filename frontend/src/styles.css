@@ -251,6 +251,49 @@ th {
   white-space: nowrap;
 }
 
+.classification-column {
+  min-width: 9rem;
+  max-width: 18rem;
+}
+
+.classification-badge {
+  display: inline-flex;
+  max-width: 100%;
+  gap: 0.45rem;
+  align-items: center;
+  padding: 0.28rem 0.48rem;
+  border-radius: 0.45rem;
+  background: #f2edcf;
+  color: #554910;
+  font-size: 0.82rem;
+  font-weight: 680;
+}
+
+.classification-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.classification-badge-inactive {
+  background: #ecebe6;
+  color: #555952;
+}
+
+.classification-inactive-label {
+  flex: none;
+  padding-left: 0.45rem;
+  border-left: 1px solid #b7b8b2;
+  font-size: 0.7rem;
+  font-weight: 760;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.classification-unclassified {
+  color: #6a6f67;
+  font-size: 0.84rem;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

@@ -73,7 +73,8 @@ context. `.ai/` is not canonical product documentation.
   endpoints fail closed without the active runtime.
 - A minimal Vite + React + TypeScript client implements Account discovery,
   internal UUID selection, inclusive date input, and canonical Movement report
-  rendering. It preserves exact decimal strings and omits source provenance.
+  rendering. It preserves exact decimal strings, omits source provenance, and
+  now renders validated current classification without issuing write requests.
 - The primary local Compose path starts pinned PostgreSQL, Django, and Node
   images with health dependencies. Only Vite and PostgreSQL are published on
   numeric host loopback; Django is unpublished behind the internal application
@@ -174,12 +175,12 @@ is authentication or principal issuance. The container runtime does not claim
 to verify Docker publication; repository configuration and tests enforce it.
 
 The current implementation parent baseline is
-`8973eb8c25a2334323a8bb932966059bba49259e`
-(`feat: project movement classification in reporting`). This session fetched origin
+`a4877af9d20e67f13a508301977a0b16a356272a`
+(`feat: expose movement classification read api`). This session fetched origin
 and verified clean `main` with matching HEAD/`origin/main` at that exact commit.
-Review revalidated the checkpoint for one commit titled
-`feat: expose movement classification read api`. Git history records the exact
-resulting SHA. Do not push.
+Review revalidated the frontend classification-rendering checkpoint for one
+commit titled `feat: render movement classification in local client`. Git
+history records the exact resulting SHA. Do not push.
 
 [ADR-0011](../docs/decisions/ADR-0011-movement-classification.md) and
 [Movement classification](../docs/architecture/movement-classification.md)
@@ -204,18 +205,25 @@ Classification changes never affect Account/date membership, ordering, count,
 exact signed total, financial fields, or provenance. Inactive Category
 assignments remain visible. HTTP now serializes that projection directly and
 adds only read-only Category discovery through frozen service summaries.
-Account behavior, internal reporting query, frontend, mutation service, imports,
-models, migrations, and demo code remain unchanged. ADR-0010 and ADR-0011 are
-unchanged; classification mutations remain internal only, and no filtering,
-classification UI, transfer, or income/expense semantics are added.
+Account behavior, internal reporting query, mutation service, imports, models,
+migrations, and demo code remain unchanged. The React client now validates and
+retains the bounded classification union and renders a dedicated column. Active
+Category names appear directly; inactive names carry an `Inactive` marker;
+never-assigned and cleared both appear as `Unclassified`. Revisions, UUIDs,
+raw states, provenance, and source/time/history remain hidden. The client does
+not fetch Category discovery because Movement projections are sufficient.
+ADR-0010 and ADR-0011 are unchanged; classification mutations remain internal
+only, and no filtering, editing controls, totals, taxonomy, transfer, or
+income/expense semantics are added.
 
 Current validation results and environment cleanup are recorded in the handoff.
 
-The recommended next bounded task is frontend read-only classification
-rendering using this API. It can make current assignments useful while keeping
-the validated read-only boundary intact. Designing the narrowest safe local
-classification write boundary remains a separate later task and must revisit
-ADR-0010 before implementation. Filtering stays deferred. Recommended reasoning: High.
+The recommended next bounded task is to design the narrowest safe local
+classification write boundary before implementing any mutation endpoint. Gouda
+now has the internal revision-checked command and complete read path needed to
+specify a concrete manual-edit workflow. That design must revisit ADR-0010 and
+define write authorization, CSRF/origin handling, and optimistic concurrency
+without treating read access as write authority. Recommended reasoning: High.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.

@@ -217,7 +217,7 @@ re-publication. Real authentication is required before expanding the trust
 perimeter.
 
 Classification mutations remain internal only. ADR-0010 remains read-only;
-there is no classification write endpoint, classification UI, filtering,
+there is no classification write endpoint, editing UI, filtering,
 transfer pairing, or income/expense interpretation.
 
 ## Local React development client
@@ -264,9 +264,16 @@ or authorization boundary.
 The client preserves monetary strings exactly and performs no financial
 arithmetic. It renders Account display name, kind, and currency; inclusive
 report dates; backend count and net signed amount; and each Movement's date,
-canonical description, signed amount, and currency. It intentionally drops
-the bounded `source_trace` from its client-side report projection and does not
-render provenance in the primary UI.
-Its explicit parser already tolerates additional server fields and discards
-`classification`; no Category discovery call or classification state/rendering
-is added to React.
+canonical description, current Category presentation, signed amount, and
+currency. The parser retains the bounded classification projection only after
+validating its state/category/revision combinations. A dedicated table column
+shows an active Category label, shows an inactive Category label with an
+`Inactive` marker, and presents both `NEVER_ASSIGNED` and `CLEARED` as
+`Unclassified`. It does not render UUIDs, revisions, or raw state names.
+
+The client intentionally drops the bounded `source_trace` from its projection
+and does not render provenance. It does not fetch Category discovery because
+each classified Movement already carries the necessary Category summary.
+Request cadence remains one Account discovery request followed by explicit
+Movement report requests. There are no classification writes, filters, totals,
+or editing controls.

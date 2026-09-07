@@ -2,6 +2,7 @@ export const PRIMARY_ACCOUNT_ID = "11111111-1111-4111-8111-111111111111";
 export const CARD_ACCOUNT_ID = "22222222-2222-4222-8222-222222222222";
 export const FIRST_MOVEMENT_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 export const SECOND_MOVEMENT_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+export const ACTIVE_CATEGORY_ID = "33333333-3333-4333-8333-333333333333";
 
 export const accountsResponse = {
   count: 2,
@@ -41,6 +42,15 @@ export function movementReportResponse(
         signed_amount: "1234567890123456.78",
         currency,
         description: "Synthetic returned first",
+        classification: {
+          state: "CLASSIFIED",
+          category: {
+            id: ACTIVE_CATEGORY_ID,
+            display_name: "Synthetic essentials",
+            is_active: true,
+          },
+          revision: 3,
+        },
         source_trace: {
           original_filename: "SYNTHETIC_PRIVATE_FILENAME.xlsx",
           raw_record_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
@@ -53,6 +63,11 @@ export function movementReportResponse(
         signed_amount: "-0.01",
         currency,
         description: "Synthetic returned second",
+        classification: {
+          state: "NEVER_ASSIGNED",
+          category: null,
+          revision: 0,
+        },
         source_trace: {
           content_digest: "SYNTHETIC_PRIVATE_DIGEST",
           import_batch_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",

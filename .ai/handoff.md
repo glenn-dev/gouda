@@ -56,8 +56,10 @@ The local React/TypeScript client consumes Account discovery and Movement
 reporting. It discovers Accounts, keeps UUIDs as internal
 selectors, accepts inclusive dates, and renders backend count, exact net signed
 amount, and canonical Movement date/description/amount/currency. It does not
-retain or render `source_trace` or classification, recompute totals, convert
-decimal strings to numbers, or issue writes or authentication material.
+retain or render `source_trace`, recompute totals, convert decimal strings to
+numbers, or issue writes or authentication material. Its strict client
+projection now retains current classification, and the Movement table renders
+Category names, inactive state, or the shared `Unclassified` presentation.
 
 For host development, Vite binds explicitly to `127.0.0.1:5173` and proxies
 only `/api` to `http://127.0.0.1:8000`. The primary Compose path publishes Vite
@@ -527,7 +529,7 @@ Validation on isolated PostgreSQL 16.14, host Django 4.2.30/Python 3.9.6:
   stopped and removed after validation; no existing database was read or
   modified.
 
-## Current read-only classification HTTP checkpoint
+## Completed read-only classification HTTP checkpoint
 
 Started from clean fetched `main` with HEAD and `origin/main` both exactly
 `8973eb8c25a2334323a8bb932966059bba49259e`. Review revalidated the checkpoint
@@ -593,20 +595,72 @@ hygiene scripts are `/private/tmp/gouda-classification-api-validate.py`,
 `/private/tmp/gouda-classification-api-smoke.py`, and
 `/private/tmp/gouda-classification-api-hygiene.py`.
 
-Final state after review: `main` has one local commit above unchanged
-`origin/main`; the working tree and index are clean, and nothing was pushed.
+Final state after that review: `main` had one local commit above unchanged
+`origin/main`; the working tree and index were clean, and nothing was pushed.
 Local adversarial review found no financial, trust, or query
 regression: serializers consume explicit values, principal validation precedes
 database access, and classification joins remain owned by the unchanged report.
 
+## Current frontend classification checkpoint
+
+Started from clean fetched `main` with HEAD and `origin/main` both exactly
+`a4877af9d20e67f13a508301977a0b16a356272a`
+(`feat: expose movement classification read api`). Review revalidated the
+checkpoint for one commit titled
+`feat: render movement classification in local client`; Git history records
+the exact resulting SHA. Do not push.
+
+The React API projection now retains classification as a strict discriminated
+union. The parser validates exact nested keys, bounded state/category/revision
+combinations, Category UUID/display/active fields, and safe integer revisions.
+Invalid combinations fail the whole report closed. Existing Decimal strings
+remain strings, and source provenance continues to be discarded.
+
+The Movement table adds a compact dedicated Classification column. Active
+assignments show the Category display name; inactive assignments add an
+`Inactive` marker. `NEVER_ASSIGNED` and `CLEARED` remain internally distinct
+but both render as `Unclassified`. UUIDs, revisions, raw enum values, source,
+timestamps, and history are not shown. Valid long names wrap, while empty,
+overlong, padded, or control-character names fail parsing.
+
+The client does not fetch `GET /api/v1/categories/`: each classified Movement
+already carries the complete display projection. Existing Account discovery
+and explicit report-load cadence are unchanged. No write method, edit control,
+filter/search, category total, auth/principal material, CORS change, taxonomy,
+transfer meaning, or income/expense meaning was added. ADR-0010 and ADR-0011
+are unchanged.
+
+Validation used the existing frontend dependencies and a disposable PostgreSQL
+16.14 container with only synthetic credentials and data:
+
+- Frontend: 36 tests passed; TypeScript checking, Vite production build, and
+  `npm ls` passed.
+- Backend compatibility: all 20 Movement HTTP API tests passed.
+- Full Django suite: all 481 tests passed with no unresolved failures.
+- Markdown links, added-text privacy scans, ignored/private-path checks, exact
+  changed-path review, and `git diff --check` passed.
+- Commit review reran the same frontend checks, all 20 Movement API tests, the
+  481-test full Django suite, `pip check`, and all static hygiene checks with
+  identical passing results. The initial backend attempt was blocked only by
+  sandbox loopback policy; its approved retry passed.
+- The isolated implementation and review containers
+  `gouda-classification-ui-pg16` and
+  `gouda-classification-ui-review-pg16`, on loopback ports 55444 and 55445,
+  were stopped and automatically removed. No existing database or private
+  corpus was read or changed.
+
+Final state after review: `main` has one local commit above unchanged
+`origin/main`; the working tree and index are clean, and nothing was pushed.
+
 ## Next checkpoint
 
-Implement frontend read-only classification rendering using the existing HTTP
-projection, preserving exact strings and backend totals. This makes current
-assignments visible without requiring a new trust decision. Designing the
-narrowest safe local classification write boundary is a separate later task:
-ADR-0010 must be revisited before any HTTP write capability. Filtering remains
-deferred. Neither follow-up is implemented in this checkpoint.
+Design the narrowest safe local classification write boundary before
+implementing any HTTP mutation endpoint. Gouda now has the internal
+revision-checked command, read HTTP projection, and read-only client needed to
+specify a concrete manual-edit workflow. The design must revisit ADR-0010,
+separate write authorization from read access, and define CSRF/origin and
+optimistic-concurrency behavior. Filtering remains deferred. No write boundary
+or mutation is implemented in this checkpoint.
 Recommended reasoning level: High.
 
 ## Roadmap reassessment
@@ -618,14 +672,14 @@ minimum backend API read surface for Account selection plus Movement reporting,
 the first local browser read client, and the reproducible three-service demo
 bootstrap. Manual classification persistence/service is implemented;
 its internal and read-only HTTP projections are also implemented, alongside
-read-only Category discovery. Authentication/ownership
-remain absent.
+read-only Category discovery and read-only React rendering.
+Authentication/ownership remain absent.
 
 Priorities are:
 
-1. Add frontend read-only classification rendering, then separately design a
-   narrow safe local write capability before enabling manual HTTP edits.
-   Filtering, economic types, and transfer semantics remain deferred.
+1. Design the narrowest safe local classification write boundary before
+   enabling any manual HTTP edit. The design must revisit ADR-0010; filtering,
+   economic types, and transfer semantics remain deferred.
 2. Add an operational import/API surface for the already implemented
    Santander services only after the account-access and upload-security
    boundary is explicit.

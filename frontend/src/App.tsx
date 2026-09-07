@@ -227,6 +227,7 @@ function ReportResult({ account, report }: { account: AccountSummary; report: Mo
               <tr>
                 <th scope="col">Date</th>
                 <th scope="col">Description</th>
+                <th scope="col">Classification</th>
                 <th scope="col" className="numeric-column">
                   Signed amount
                 </th>
@@ -238,6 +239,26 @@ function ReportResult({ account, report }: { account: AccountSummary; report: Mo
                 <tr key={movement.movement_id}>
                   <td>{movement.occurrence_date}</td>
                   <td>{movement.description ?? "No description"}</td>
+                  <td className="classification-column">
+                    {movement.classification.state === "CLASSIFIED" ? (
+                      <span
+                        className={
+                          movement.classification.category.is_active
+                            ? "classification-badge"
+                            : "classification-badge classification-badge-inactive"
+                        }
+                      >
+                        <span className="classification-name">
+                          {movement.classification.category.display_name}
+                        </span>
+                        {!movement.classification.category.is_active && (
+                          <span className="classification-inactive-label">Inactive</span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="classification-unclassified">Unclassified</span>
+                    )}
+                  </td>
                   <td className="numeric-column exact-money">{movement.signed_amount}</td>
                   <td>{movement.currency}</td>
                 </tr>

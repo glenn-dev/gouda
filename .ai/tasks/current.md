@@ -2,60 +2,65 @@
 
 ## Objective
 
-Expose the existing immutable Movement classification projection through the
-read-only local HTTP report, and add minimal read-only Category discovery.
-Implementation and review validation are complete. The checkpoint is recorded
-in one commit titled `feat: expose movement classification read api`. Do not push.
+Render the existing Movement classification projection read-only in the React
+client. Implementation and review validation are complete. The checkpoint is
+recorded in one commit titled
+`feat: render movement classification in local client`. Do not push.
 
 ## Baseline
 
 After `git fetch origin`, clean `main`, HEAD, and `origin/main` all matched
-`8973eb8c25a2334323a8bb932966059bba49259e`
-(`feat: project movement classification in reporting`).
+`a4877af9d20e67f13a508301977a0b16a356272a`
+(`feat: expose movement classification read api`).
 
 ## Current state
 
-- `GET /api/v1/categories/` returns `{"categories": [...]}` with exactly
-  `id`, `display_name`, and `is_active` per entry. Active and inactive labels
-  are included in display-name/UUID order. No counts or pagination metadata.
-- `list_read_categories` reuses the access module's opaque principal validator
-  before one ordered read, returning frozen `CategorySummary` values. Dataset
-  read visibility does not imply ownership or write permission.
-- Every HTTP Movement now includes `classification`: `NEVER_ASSIGNED` with
-  null Category and revision 0; `CLASSIFIED` with Category id/display/active
-  fields and positive persisted revision; or `CLEARED` with null Category and
-  positive persisted revision. Inactive assignments remain visible.
-- HTTP serializes the internal report directly, with no classification query
-  or transition logic. Reporting remains two internal queries, three including
-  Account authorization. Financial fields, membership, dates, order, counts,
-  exact Decimal totals, and safe provenance are unchanged.
-- The new endpoint follows existing runtime, principal, GET-only, JSON-only,
-  query-rejection, and error policies. ADR-0010 and ADR-0011 remain unchanged.
-- No frontend file changed. The existing parser accepts additional server
-  fields and discards classification; no client state or UI is added.
+- The frontend Movement projection is a strict discriminated union for
+  `NEVER_ASSIGNED`, `CLASSIFIED`, and `CLEARED`. It validates exact nested
+  keys, state/category/revision combinations, Category UUID/display/active
+  shape, and safe integer revisions before retaining immutable client data.
+- The existing Movement table has one dedicated Classification column.
+  Classified rows display the Category name; inactive labels include a visible
+  `Inactive` marker. Never-assigned and cleared rows both display
+  `Unclassified`, while their internal states stay distinct.
+- Revision numbers, UUIDs, raw enum values, source, timestamps, history, and
+  provenance are not rendered. Long valid labels wrap within the column; empty,
+  overlong, padded, control-character, and structurally invalid labels fail
+  closed in parsing.
+- Account/date behavior, explicit report loading, backend count/total, exact
+  Decimal strings, Movement order and financial fields remain unchanged. The
+  client performs no financial arithmetic.
+- Category discovery is not fetched or otherwise consumed. Classified Movement
+  items already carry the exact Category summary needed for rendering, so
+  request cadence remains Account discovery plus explicit Movement reports.
+- All requests remain same-origin GETs without credentials, cookies, tokens,
+  auth/principal headers, CORS changes, or write methods. ADR-0010 and ADR-0011
+  are unchanged. There is no classification editing, filtering, category
+  totals, transfer/income-expense meaning, or taxonomy assumption.
 
 ## Validation state
 
-- Focused API/reporting/classification/concurrency/Account/local/demo: 144 passed.
-- Santander/BCI source regression matrix: 271 passed.
-- Sequential migration isolation, forward and reverse orders: 98 passed each.
-- Full Django suite: 481 passed (15 added).
-- Fresh migrations, Django system check, migration drift, and pip check passed.
-- Frontend: 14 tests, typecheck, build, and npm ls passed. An additional local
-  parser check accepted and discarded all three classification states without
-  changing frontend files or monetary strings.
-- Final hygiene and isolated test environment cleanup are in `.ai/handoff.md`.
+- Frontend: 36 tests passed; typecheck, Vite build, and `npm ls` passed.
+- Backend Movement HTTP compatibility: 20 tests passed.
+- Full Django suite: 481 tests passed.
+- Markdown links, privacy/private-file checks, diff hygiene, and exact changed
+  paths are recorded in `.ai/handoff.md`.
+- The isolated PostgreSQL 16 test container and synthetic database were stopped
+  and automatically removed. No existing database or private corpus was read.
 
 ## Next bounded scope
 
-Recommend frontend read-only classification rendering next: consume the
-existing report projection without changing financial arithmetic or trust.
-The separate design of a narrow local classification write capability remains
-valuable afterward; it must revisit ADR-0010 before any endpoint is built.
-Filtering is deferred. Recommended reasoning level: High.
+Design the narrowest safe local classification write boundary before
+implementing any mutation HTTP endpoint. Gouda now has the persistence,
+revision-checked internal command, read HTTP projection, and read-only UI needed
+to define a concrete manual-edit workflow. The design must revisit ADR-0010,
+separate write authorization from read access, define CSRF/origin and optimistic
+concurrency behavior, and keep the current endpoint surface read-only until a
+new decision is accepted. Recommended reasoning level: High.
 
 ## Non-goals
 
-No HTTP writes, classification UI or filtering, default taxonomy, demo
-assignments, automatic/rule/AI assignments, bulk edits, history, ownership,
-transfer or income/expense semantics, tags, notes, hierarchy, or provider mapping.
+No HTTP writes, editing controls, filters/search, Category discovery consumption,
+category totals, default taxonomy, demo assignments, automatic/rule/AI
+assignments, bulk edits, history, ownership, transfer or income/expense
+semantics, tags, notes, hierarchy, or provider mapping.

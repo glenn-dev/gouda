@@ -7,6 +7,29 @@ export type AccountSummary = Readonly<{
   currency: string;
 }>;
 
+export type MovementCategory = Readonly<{
+  id: string;
+  display_name: string;
+  is_active: boolean;
+}>;
+
+export type MovementClassification =
+  | Readonly<{
+      state: "NEVER_ASSIGNED";
+      category: null;
+      revision: 0;
+    }>
+  | Readonly<{
+      state: "CLASSIFIED";
+      category: MovementCategory;
+      revision: number;
+    }>
+  | Readonly<{
+      state: "CLEARED";
+      category: null;
+      revision: number;
+    }>;
+
 export type MovementReportItem = Readonly<{
   movement_id: string;
   account_id: string;
@@ -14,6 +37,7 @@ export type MovementReportItem = Readonly<{
   signed_amount: string;
   currency: string;
   description: string | null;
+  classification: MovementClassification;
 }>;
 
 export type MovementReport = Readonly<{
@@ -47,6 +71,7 @@ const UUID_PATTERN =
 const ISO_DATE_PATTERN = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 const DECIMAL_PATTERN = /^-?(?:0|[1-9][0-9]*)\.[0-9]{2}$/;
 const CURRENCY_PATTERN = /^[A-Z]{3}$/;
+const CONTROL_CHARACTER_PATTERN = /\p{Cc}/u;
 
 const ERROR_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
   local_delivery_not_active:
@@ -212,6 +237,7 @@ function parseMovement(value: unknown, requestedAccountId: string): MovementRepo
   ) {
     throw unexpectedResponse();
   }
+  const classification = parseMovementClassification(value.classification);
 
   return Object.freeze({
     movement_id: value.movement_id,
@@ -220,7 +246,78 @@ function parseMovement(value: unknown, requestedAccountId: string): MovementRepo
     signed_amount: value.signed_amount,
     currency: value.currency,
     description: value.description,
+    classification,
   });
+}
+
+function parseMovementClassification(value: unknown): MovementClassification {
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, ["state", "category", "revision"]) ||
+    !Number.isSafeInteger(value.revision)
+  ) {
+    throw unexpectedResponse();
+  }
+
+  if (value.state === "NEVER_ASSIGNED") {
+    if (value.category !== null || value.revision !== 0) {
+      throw unexpectedResponse();
+    }
+    return Object.freeze({ state: value.state, category: null, revision: 0 });
+  }
+
+  if (value.state === "CLEARED") {
+    if (value.category !== null || typeof value.revision !== "number" || value.revision <= 0) {
+      throw unexpectedResponse();
+    }
+    return Object.freeze({ state: value.state, category: null, revision: value.revision });
+  }
+
+  if (value.state === "CLASSIFIED") {
+    if (typeof value.revision !== "number" || value.revision <= 0) {
+      throw unexpectedResponse();
+    }
+    return Object.freeze({
+      state: value.state,
+      category: parseMovementCategory(value.category),
+      revision: value.revision,
+    });
+  }
+
+  throw unexpectedResponse();
+}
+
+function parseMovementCategory(value: unknown): MovementCategory {
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, ["id", "display_name", "is_active"]) ||
+    !isUuid(value.id) ||
+    !isCategoryDisplayName(value.display_name) ||
+    typeof value.is_active !== "boolean"
+  ) {
+    throw unexpectedResponse();
+  }
+  return Object.freeze({
+    id: value.id,
+    display_name: value.display_name,
+    is_active: value.is_active,
+  });
+}
+
+function isCategoryDisplayName(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    [...value].length <= 80 &&
+    value.normalize("NFC") === value &&
+    value.trim() === value &&
+    !CONTROL_CHARACTER_PATTERN.test(value)
+  );
+}
+
+function hasExactKeys(value: Record<string, unknown>, keys: ReadonlyArray<string>): boolean {
+  const actual = Object.keys(value);
+  return actual.length === keys.length && keys.every((key) => actual.includes(key));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

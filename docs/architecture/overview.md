@@ -71,9 +71,10 @@ the selected Category and checks revision within one transaction. The internal
 canonical Movement report now projects current classification state, Category
 identity/display/active state, and revision without changing report membership
 or financial facts. The HTTP report exposes that immutable projection, and
-read-only Category discovery includes active and inactive labels. React and
-the synthetic demo seed remain classification-free. Mutations remain internal;
-classification filtering and UI are not implemented.
+read-only Category discovery includes active and inactive labels. React renders
+the current classification read-only, while the synthetic demo seed remains
+classification-free. Mutations remain internal; classification filtering,
+totals, and editing controls are not implemented.
 Economic-event types, transfer relationships, and assignment history remain
 deferred with explicit revisit triggers.
 
@@ -147,7 +148,11 @@ It is a thin consumer of the existing Account discovery and authorized
 Movement report contracts: it discovers Accounts, keeps the selected UUID as
 an internal selector, accepts an inclusive date range, and renders the
 backend-provided canonical report without recomputing totals or converting
-decimal strings to JavaScript numbers.
+decimal strings to JavaScript numbers. Its dedicated classification column
+shows Category names, marks inactive Categories, and presents never-assigned
+and cleared states identically as `Unclassified`. It retains the state and
+revision only in the validated client projection and does not request the
+Category catalog.
 
 For direct host development, Vite binds to numeric loopback and proxies only
 `/api` to the numeric-loopback `runlocal` backend. The primary Compose path
@@ -157,7 +162,8 @@ container mode permits only its internal `0.0.0.0:8000` endpoint without
 claiming to inspect Docker publication. Both arrangements avoid CORS and retain
 the active `LocalDeliveryRuntime` trust gate. The client stores no auth tokens, issues no
 write methods, retains no source trace in its report model, and adds no
-financial semantics or production deployment behavior.
+financial semantics or production deployment behavior. Classification remains
+read-only, with no filtering, totals, or editing controls.
 
 The explicit `seed_demo` and `clear_demo` commands manage a deterministic
 synthetic-only Account/Movement graph for local demonstration. Fixed UUIDv5

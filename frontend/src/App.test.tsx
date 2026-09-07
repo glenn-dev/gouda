@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 import {
+  ACTIVE_CATEGORY_ID,
   accountsResponse,
   CARD_ACCOUNT_ID,
   jsonResponse,
@@ -120,6 +121,7 @@ describe("Gouda read-only report flow", () => {
 
     const rows = screen.getAllByRole("row").slice(1);
     expect(within(rows[0]).getByText("Synthetic returned first")).toBeInTheDocument();
+    expect(within(rows[0]).getByText("Synthetic essentials")).toBeInTheDocument();
     expect(within(rows[0]).getByText("2026-04-30")).toBeInTheDocument();
     expect(within(rows[1]).getByText("Synthetic returned second")).toBeInTheDocument();
     expect(within(rows[1]).getByText("2026-04-01")).toBeInTheDocument();
@@ -136,6 +138,87 @@ describe("Gouda read-only report flow", () => {
     ]) {
       expect(screen.queryByText(hiddenValue)).not.toBeInTheDocument();
     }
+  });
+
+  it("renders active, inactive, never-assigned, and cleared classifications read-only", async () => {
+    const response = movementReportResponse() as unknown as {
+      movement_count: number;
+      movements: Array<Record<string, unknown>>;
+    };
+    response.movement_count = 4;
+    response.movements = [
+      {
+        ...response.movements[0],
+        classification: {
+          state: "CLASSIFIED",
+          category: {
+            id: ACTIVE_CATEGORY_ID,
+            display_name: "Synthetic active topic",
+            is_active: true,
+          },
+          revision: 731,
+        },
+      },
+      {
+        ...response.movements[1],
+        movement_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        classification: {
+          state: "CLASSIFIED",
+          category: {
+            id: "44444444-4444-4444-8444-444444444444",
+            display_name: "Synthetic inactive topic with a deliberately long readable label",
+            is_active: false,
+          },
+          revision: 947,
+        },
+      },
+      {
+        ...response.movements[1],
+        movement_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        classification: { state: "NEVER_ASSIGNED", category: null, revision: 0 },
+      },
+      {
+        ...response.movements[1],
+        movement_id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        classification: { state: "CLEARED", category: null, revision: 12 },
+      },
+    ];
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(accountsResponse))
+      .mockResolvedValueOnce(jsonResponse(response));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<App />);
+    await screen.findByLabelText("Account");
+    fillDateRange("2026-04-01", "2026-04-30");
+    await user.click(screen.getByRole("button", { name: "Load Movement report" }));
+
+    expect(await screen.findByText("Synthetic active topic")).toBeInTheDocument();
+    const inactive = screen.getByText(
+      "Synthetic inactive topic with a deliberately long readable label",
+    ).closest("span.classification-badge");
+    expect(inactive).not.toBeNull();
+    expect(within(inactive as HTMLElement).getByText("Inactive")).toBeInTheDocument();
+    expect(screen.getAllByText("Unclassified")).toHaveLength(2);
+
+    for (const hiddenValue of [
+      ACTIVE_CATEGORY_ID,
+      "44444444-4444-4444-8444-444444444444",
+      "NEVER_ASSIGNED",
+      "CLASSIFIED",
+      "CLEARED",
+      "731",
+      "947",
+      "12",
+      "MANUAL",
+    ]) {
+      expect(screen.queryByText(hiddenValue)).not.toBeInTheDocument();
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.every(([, options]) => options.method === "GET")).toBe(true);
+    expect(fetchMock.mock.calls.map(([url]) => url)).not.toContain("/api/v1/categories/");
   });
 
   it("renders an empty canonical Movement result", async () => {
