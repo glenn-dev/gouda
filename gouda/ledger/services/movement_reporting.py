@@ -178,6 +178,15 @@ def _classification_projection(movement: Movement) -> MovementClassificationProj
     try:
         classification = movement.classification
     except MovementClassification.DoesNotExist:
+        classification = None
+    return project_movement_classification(classification)
+
+
+def project_movement_classification(
+    classification: MovementClassification | None,
+) -> MovementClassificationProjection:
+    """Materialize the same bounded value from an already loaded current row."""
+    if classification is None:
         return MovementClassificationProjection(
             state=MovementClassificationProjectionState.NEVER_ASSIGNED,
             category=None,

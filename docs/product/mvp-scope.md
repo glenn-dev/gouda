@@ -23,8 +23,10 @@ Classification semantics and persistence are frozen in
 internal manual service, and the internal canonical reporting projection are
 implemented, with read-only local Category discovery and current classification
 in HTTP Movement reports; React validates and renders that current state
-read-only. Filtering, classification editing, category totals, and HTTP mutations
-remain deferred. Category assignments are mutable organizational metadata separate
+read-only. The independently enabled classification HTTP write boundary is
+implemented under [ADR-0012](../decisions/ADR-0012-local-classification-write-boundary.md).
+Filtering, editing controls, category totals, and other HTTP mutations remain
+deferred. Category assignments are mutable organizational metadata separate
 from canonical financial facts. They support current grouping, not historical
 assignment replay. Signs and bank categories never determine Gouda categories.
 This replaces the earlier unqualified MVP type list: income, expense,

@@ -1,5 +1,5 @@
 import { UserConfig } from "vite";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import config, {
   API_PROXY_PATH,
@@ -11,6 +11,19 @@ import config, {
 } from "../vite.config";
 
 describe("local-only Vite network configuration", () => {
+  it("rejects raw debug logging before starting the delivery edge", async () => {
+    vi.resetModules();
+    vi.stubEnv("DEBUG", "vite:proxy");
+    try {
+      await expect(import("../vite.config")).rejects.toThrow(
+        "Raw debug logging is unsupported at the local delivery edge",
+      );
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
+
   it("uses only the supported host or Compose /api proxy target", () => {
     const userConfig = config as UserConfig;
 
@@ -27,7 +40,12 @@ describe("local-only Vite network configuration", () => {
     expect(userConfig.server?.host).toBe("127.0.0.1");
     expect(userConfig.server?.strictPort).toBe(true);
     expect(Object.keys(userConfig.server?.proxy ?? {})).toEqual(["/api"]);
-    expect(userConfig.server?.cors).not.toBe(true);
+    expect(userConfig.server?.cors).toBe(false);
+    expect(userConfig.preview?.cors).toBe(false);
+    expect(userConfig.server?.headers).toEqual({
+      "Content-Security-Policy": "frame-ancestors 'none'",
+      "X-Frame-Options": "DENY",
+    });
     expect(userConfig.preview?.host).toBe("127.0.0.1");
   });
 });

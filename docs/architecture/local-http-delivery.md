@@ -1,8 +1,8 @@
-# Local read-only HTTP delivery
+# Local HTTP delivery
 
 ## Scope
 
-Gouda currently exposes exactly three local-MVP HTTP operations:
+Gouda exposes three read operations by default:
 
 ```text
 GET /api/v1/accounts/
@@ -22,12 +22,10 @@ The adapters use Django REST Framework without Django auth, sessions, tokens,
 users, ownership persistence, CORS, routers, ViewSets, model serializers,
 pagination, or a browsable API. Only JSON rendering is enabled.
 
-The separate accepted design for a future opt-in classification write capability
-is [ADR-0012](../decisions/ADR-0012-local-classification-write-boundary.md).
-It owns the exact bootstrap/PATCH, Origin/Host, capability, error, transaction,
-and client concurrency contracts. No write runtime, token distribution,
-mutation endpoint, or editor is implemented by that documentation checkpoint.
-The three GET contracts below remain the implemented surface.
+The opt-in backend classification write boundary is implemented under
+[ADR-0012](../decisions/ADR-0012-local-classification-write-boundary.md).
+It adds exactly one capability bootstrap and one classification PATCH, described
+below. The three GET contracts remain unchanged. React editing is deferred.
 
 ## Trust and application flow
 
@@ -223,9 +221,134 @@ detect tunnels, proxies, NAT, SSH forwarding, relays, or external
 re-publication. Real authentication is required before expanding the trust
 perimeter.
 
-Classification mutations remain internal only. ADR-0010 remains read-only;
-there is no classification write endpoint, editing UI, filtering,
-transfer pairing, or income/expense interpretation.
+ADR-0012 extends ADR-0010 only for the separately enabled classification
+operation. There is no editing UI, filtering, transfer pairing, or
+income/expense interpretation.
+
+## Opt-in classification writes
+
+The supported host startup is exactly:
+
+```text
+python manage.py runlocal --host 127.0.0.1 --port 8000 \
+  --enable-classification-writes \
+  --classification-write-origin http://127.0.0.1:5173
+```
+
+Both write options are required together. Duplicate or abbreviated startup
+flags, another origin, DEBUG=true, IPv6, or another backend port fail before
+serving or generating a capability. Read startup retains its existing IPv6
+and port support. Omitting both write options creates no write runtime or secret.
+
+Compose remains read-only by default. An explicit local Compose override may
+replace only the backend command with this list, retaining all existing networks,
+publications, environment, and mounts:
+
+```yaml
+services:
+  backend:
+    command: ["python", "manage.py", "runlocal", "--host", "0.0.0.0", "--port", "8000", "--trusted-container-network", "--enable-classification-writes", "--classification-write-origin", "http://127.0.0.1:5173"]
+```
+
+Apply migrations through the normal default startup first. Use
+`docker compose -f docker-compose.yml -f <local-override.yml> up --build`
+for explicit opt-in; the backend must remain unpublished. Returning to default
+Compose configuration recreates a read-only backend. No capability belongs in
+the override or an environment variable.
+
+`LocalClassificationWriteRuntime` is independent of principal identity and tied
+to the active read runtime. It creates `secrets.token_hex(32)` once after startup
+validation, stores the 256-bit secret only in private process memory, and
+compares correctly shaped inputs in constant time. Exit clears the active
+reference and secret; recreation invalidates old tokens, runtime objects, and
+grants. There is no persistence, session, cookie, user, or ownership model.
+
+The new routes use a narrow Django View with explicit ordered dispatch, avoiding
+DRF's early negotiation and format overrides. Existing DRF GET views are unchanged.
+For either matched route, validation order is local runtime, write runtime,
+`request.get_host()` and exact Host, method, exact Origin, capability (PATCH
+only), server principal, Accept, query, media/encoding, bounded JSON, shape,
+then Account/Movement/Category/revision selectors. Security and parsing failures
+before Account resolution perform zero database queries.
+
+### Capability bootstrap
+
+`POST /api/v1/local/classification-write-capability/` accepts exactly `{}`.
+Successful JSON is exactly `{"write_capability": "<64 lowercase hex characters>"}`.
+Repeated calls return the same process capability without touching the database.
+Bootstrap requires a valid server-issued principal and every gate except the
+capability being obtained. No read response includes it.
+
+### Classification PATCH
+
+`PATCH /api/v1/accounts/<account_uuid>/movements/<movement_uuid>/classification/`
+requires exactly these JSON keys:
+
+```json
+{"category_id": "22222222-2222-4222-8222-222222222222", "expected_revision": 0}
+```
+
+Category null is an explicit clear. UUIDs must be canonical lowercase hyphenated
+strings. Revision must be a JSON integer from 0 through `2**63 - 1`; booleans,
+fractional/exponent tokens, strings, and null are rejected. Zero requires no
+existing row. Both routes reject all queries, duplicate/extra keys, non-objects,
+invalid UTF-8/JSON/constants, unsupported media parameters, and non-identity
+encoding. Only UTF-8 `application/json`, optionally `charset=utf-8`, is accepted;
+body reads are capped at 1025 bytes to detect the 1024-byte limit. Accept may
+be absent or JSON-compatible, including wildcards, but an explicit JSON q=0
+fails with 406. There are no format or method overrides.
+
+`classify_authorized_movement` independently validates principal and live grant,
+then reuses Account visibility authorization and calls the existing domain
+command exactly once. Its outer atomic transaction retains Account -> Movement
+-> selected Category locks until the bounded immutable classification projection
+is materialized. Projection failure rolls back the edit. Success commits before
+HTTP 200 and returns only `{"classification": {...}}`, using the same three
+state/category/revision shapes as reporting. It never updates canonical Movement
+fields or returns financial/source data.
+
+Unknown and policy-denied Accounts remain indistinguishable. Movement lookup is
+scoped to the authorized Account before target Category lookup. Domain revision,
+no-op, retirement, and error precedence are unchanged; stale identical commands
+receive 409. No HTTP retry occurs. PostgreSQL tests cover first-write, update,
+clear/change, reassignment, retirement, locked projection, and rollback.
+
+### Host, Origin, errors, and privacy
+
+Django independently requires Host `127.0.0.1:5173` and Origin
+`http://127.0.0.1:5173`, even for raw clients. Missing, null, foreign, malformed,
+combined/duplicate, and alternate spellings fail closed. Referer and forwarded
+headers are never substitutes. PATCH additionally requires exactly one
+`X-Gouda-Classification-Write` header; body, query, cookies, and Authorization
+cannot supply it. Vite preserves these headers with `changeOrigin: false` and
+preserves duplicate header multiplicity for Django rejection. It injects no token.
+Both Vite server and preview explicitly set `cors: false`; actual proxy and
+preflight tests prove no Access-Control grants. Framing is denied at the Vite
+app edge through CSP `frame-ancestors 'none'` and `X-Frame-Options: DENY`.
+
+The exact stable error table in ADR-0012 is implemented unchanged. Every error
+contains only `{"code":"..."}`; unsupported methods return 405 with the route's
+single Allow method, and HEAD has no body. Unknown failures/codes become 500
+`internal_error`, never exception text. Matched-route responses are JSON with
+`Cache-Control: no-store, no-cache, max-age=0`, `Pragma: no-cache`, nosniff, and
+same-origin Cross-Origin-Resource-Policy. No redirect, Set-Cookie, or CORS grant
+is produced. Unknown paths retain ordinary 404 routing, without slash redirects.
+
+Django HTTP logs contain only allowlisted method/route/status fields. The new
+adapter logs unexpected failures only as a fixed operational message; exception
+reporting explicitly redacts the capability header/bootstrap field and suppresses
+classification request bodies, exception values, and locals. Vite proxy failures
+use a fixed diagnostic and a no-store JSON 500, omitting URL/query/stack text.
+Vite refuses nonempty `DEBUG` (including CLI `--debug`) before listening because
+that optional raw-debug channel bypasses the safe logger. Ordinary development
+diagnostics remain enabled.
+No browser editor or capability consumer is included in the application bundle.
+
+A malicious local process may deliberately spoof Host/Origin and bootstrap:
+this is accepted under ADR-0010's trusted-host perimeter, not prevented by the
+capability. A future React editor must hold the token only in closure memory,
+guard safe-integer submissions below `Number.MAX_SAFE_INTEGER`, and refetch
+after conflicts or ambiguous outcomes without silently replaying a write.
 
 ## Local React development client
 

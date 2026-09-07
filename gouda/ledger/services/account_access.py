@@ -183,6 +183,11 @@ def _validate_principal_context(principal_context: object) -> None:
         raise AccountAccessServiceError("principal_context_invalid")
 
 
+def validate_principal_context(principal_context: object) -> None:
+    """Validate identity without resolving Accounts or conferring write authority."""
+    _validate_principal_context(principal_context)
+
+
 def _validate_account_selector(account_selector: object) -> UUID:
     if not isinstance(account_selector, UUID):
         raise AccountAccessServiceError("account_selector_invalid")

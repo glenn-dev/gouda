@@ -11,12 +11,13 @@ The decision is recorded in
 [ADR-0010](../decisions/ADR-0010-loopback-only-local-mvp-delivery.md).
 
 [ADR-0012](../decisions/ADR-0012-local-classification-write-boundary.md) freezes
-a separate, not-yet-implemented local classification write capability. It
+a separate, now-implemented local classification write capability. It
 extends only the read-only operation restriction for that explicitly activated
 capability; every deployment/host-trust constraint here continues to apply.
 Read runtime activation alone never authorizes a write. The new ADR owns the
 write threat model, token distribution, exact Origin/Host requirements, and
-error/HTTP contract. Current HTTP delivery and React remain read-only.
+error/HTTP contract. Default startup and React remain read-only; the backend
+write mode requires explicit startup opt-in.
 
 ## Terms
 
@@ -42,10 +43,11 @@ unsupported on a shared or otherwise untrusted host.
 
 ## Current effective exposure
 
-The repository exposes three read-only backend HTTP operations:
+The repository exposes three read-only backend HTTP operations and two
+independently gated classification operations:
 
-- `config.urls` contains only versioned Account/Category discovery and canonical
-  Movement report routes;
+- `config.urls` contains versioned Account/Category discovery, canonical
+  Movement reporting, capability bootstrap, and classification PATCH routes;
 - DRF is installed with JSON-only rendering and no authentication classes;
 - Django authentication is not installed;
 - no CORS or CSRF middleware is configured;
@@ -60,15 +62,16 @@ The repository exposes three read-only backend HTTP operations:
 - Vite proxies only `/api` to the literal `http://backend:8000` target on an
   internal network shared only with the backend.
 
-Two configuration facts must not be mistaken for request-path enforcement.
-The current middleware list is empty and the GET views do not call
-`request.get_host()`; the Host test exercises that method directly, not an API
-request. ALLOWED_HOSTS enforcement must be invoked explicitly on the future
-bootstrap/write routes. Also, Vite's current implicit CORS default permits
-several loopback origins and executes before proxying. The existing tests rule
-out `cors: true`, not all proxy-added CORS headers. ADR-0012 requires explicit
-Vite CORS disablement and end-to-end verification before write activation.
-These are implementation prerequisites, not fixes made in this design task.
+The middleware list remains empty and the GET views retain their prior behavior.
+Both new routes explicitly invoke `request.get_host()` and additionally enforce
+exact Host `127.0.0.1:5173` and Origin `http://127.0.0.1:5173` before parsing or
+database work. They reject missing, malformed, duplicated, and foreign values;
+Referer/forwarded headers never supply trust. Vite explicitly disables server
+and preview CORS, preserves original Host/Origin/capability headers and duplicate
+multiplicity, and grants no cross-origin proxy responses or preflights. Django
+owns every authorization decision. Real proxy tests cover these properties.
+See [Local HTTP delivery](../architecture/local-http-delivery.md) for the
+implemented default-off flags, request order, logs/cache policy, and contracts.
 
 The other Compose host-port publication is PostgreSQL on `127.0.0.1:5432`.
 It is a loopback-bound database development port, not an HTTP caller-trust
@@ -270,6 +273,6 @@ following:
 - a shared or untrusted local host;
 - a second independently authenticated principal;
 - different Account visibility among principals;
-- write/import HTTP operations other than the separately designed, still
-  unimplemented ADR-0012 classification capability; or
+- write/import HTTP operations other than the separately enabled,
+  implemented ADR-0012 classification capability; or
 - deployment where the loopback host edge cannot be guaranteed fail closed.

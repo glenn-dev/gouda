@@ -39,6 +39,8 @@ class LocalComposeContractTests(SimpleTestCase):
         self.assertNotIn("\n    ports:\n", self.backend)
         self.assertIn("python manage.py runlocal --host 0.0.0.0 --port 8000", self.backend)
         self.assertIn("--trusted-container-network", self.backend)
+        self.assertNotIn("--enable-classification-writes", self.backend)
+        self.assertNotIn("--classification-write-origin", self.backend)
         self.assertNotRegex(self.backend, r"manage\.py runserver")
 
     def test_frontend_proxies_to_only_the_literal_compose_backend(self):
@@ -49,6 +51,8 @@ class LocalComposeContractTests(SimpleTestCase):
         self.assertIn('API_PROXY_PATH = "/api"', vite_config)
         self.assertIn('CONTAINER_API_PROXY_TARGET = "http://backend:8000"', vite_config)
         self.assertNotIn("cors: true", vite_config)
+        self.assertIn("cors: false", vite_config)
+        self.assertIn("changeOrigin: false", vite_config)
 
     def test_application_network_is_internal_and_service_networks_are_scoped(self):
         self.assertRegex(

@@ -20,6 +20,24 @@ DEBUG = os.environ.get("DJANGO_DEBUG", "false").lower() == "true"
 # Defense in depth for the supported numeric-loopback local launcher. Host
 # validation does not replace the launcher's bind enforcement or authenticate.
 ALLOWED_HOSTS = ["127.0.0.1", "[::1]"]
+USE_X_FORWARDED_HOST = False
+SECURE_PROXY_SSL_HEADER = None
+DEFAULT_EXCEPTION_REPORTER_FILTER = "gouda.safe_http_logging.ClassificationExceptionReporterFilter"
+DEFAULT_EXCEPTION_REPORTER = "gouda.safe_http_logging.ClassificationExceptionReporter"
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {"safe_http": {"()": "gouda.safe_http_logging.SafeHttpLogFilter"}},
+    "handlers": {
+        "safe_console": {
+            "class": "logging.StreamHandler", "filters": ["safe_http"],
+        },
+    },
+    "loggers": {
+        "django": {"handlers": ["safe_console"], "level": "INFO", "propagate": False},
+        "django.server": {"handlers": ["safe_console"], "level": "INFO", "propagate": False},
+    },
+}
 
 INSTALLED_APPS = [
     "django.contrib.contenttypes",

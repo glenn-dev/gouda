@@ -10,13 +10,18 @@ defines the concrete contract implemented by migration `0011`,
 `gouda.ledger.services.movement_classification`, and the classification
 projection in `gouda.ledger.services.movement_reporting`. The local HTTP API
 now exposes that projection and Category discovery. React renders the current
-classification read-only. HTTP mutations, editing UI, and filtering remain deferred.
+classification read-only. The opt-in backend classification write boundary is
+implemented; editing UI and filtering remain deferred.
 
 The separate local HTTP write design is frozen in
 [ADR-0012](../decisions/ADR-0012-local-classification-write-boundary.md), including
 default-off activation, an ephemeral classification capability, exact
 Origin/Host checks, one PATCH contract, and revision-conflict handling. It is
-not implemented and does not change this domain service or ADR-0011.
+implemented without changing the domain command or ADR-0011. The separate
+`classification_access` operation calls that command once inside an outer
+transaction, then materializes the same reporting projection while its locks
+remain held. See [Local HTTP delivery](local-http-delivery.md) for startup,
+strict transport validation, and the unchanged ADR error mappings.
 
 ## Domain boundary
 
@@ -353,8 +358,8 @@ Categories inherit dataset visibility only under the existing trusted local
 read policy. Write authorization is separate: the current read principal and
 loopback runtime do not grant HTTP classification writes.
 [ADR-0012](../decisions/ADR-0012-local-classification-write-boundary.md) completes
-the ADR-0010 write revisit for classification only; a future endpoint must
-implement its independent capability-specific boundary before activation.
+the ADR-0010 write revisit for classification only; its implemented independent
+capability-specific boundary is required before HTTP mutation.
 
 Use a left join to current classification so no Movement disappears or is
 duplicated. Category-filtered count and exact Decimal total cover precisely
@@ -435,7 +440,7 @@ not determine that policy.
 
 ## Explicit non-goals
 
-Classification UI, HTTP writes, API filters, category
+Classification UI, HTTP writes beyond the ADR-0012 operation, API filters, category
 management, large default taxonomy, notes, tags, hierarchy, split amounts,
 rules/AI/heuristics, imported assignments, transfer pairing, EconomicEvent,
 income/expense types, bulk editing, assignment/label history, canonical

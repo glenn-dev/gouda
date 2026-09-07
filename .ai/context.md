@@ -150,7 +150,7 @@ publication, tunnel, proxy, forwarding, or production exposure. Request data
 never establishes principal trust. LAN, remote, shared-host, ambiguous, or
 broader exposure requires real authentication.
 
-The repository exposes three backend operations under the same active `runlocal`
+The repository exposes three read operations under the same active `runlocal`
 runtime. `GET /api/v1/accounts/` returns only authorized Account UUID,
 canonical display name, product kind, and currency, ordered by display name
 then UUID. It rejects all query parameters.
@@ -174,13 +174,12 @@ it proxies `/api` to the unpublished Django service. Neither proxy arrangement
 is authentication or principal issuance. The container runtime does not claim
 to verify Docker publication; repository configuration and tests enforce it.
 
-The current committed implementation baseline is
-`da9f0c7b7ffb6b9ece9e3ae76629194349f3e6f3`
-(`feat: render movement classification in local client`). The 2026-09-06
-design session fetched origin and verified clean `main` with matching
-HEAD/`origin/main` at that exact commit. The reviewed documentation-only
-checkpoint is committed as `docs: define local classification write boundary`;
-Git history supplies its exact SHA. Do not push.
+The 2026-09-07 implementation checkpoint started from fetched clean `main` with
+HEAD and `origin/main` exactly `bb09f7c0d281f68010baed9ed56055b45a02b88e`
+(`docs: define local classification write boundary`), verified with a good local
+SSH signature. The authorized implementation commit is
+`feat: implement local classification write boundary`; Git history supplies its
+resulting SHA. Nothing is to be pushed in this checkpoint.
 
 [ADR-0011](../docs/decisions/ADR-0011-movement-classification.md) and
 [Movement classification](../docs/architecture/movement-classification.md)
@@ -212,27 +211,53 @@ Category names appear directly; inactive names carry an `Inactive` marker;
 never-assigned and cleared both appear as `Unclassified`. Revisions, UUIDs,
 raw states, provenance, and source/time/history remain hidden. The client does
 not fetch Category discovery because Movement projections are sufficient.
-ADR-0010 and ADR-0011 are unchanged; classification mutations remain internal
-only, and no filtering, editing controls, totals, taxonomy, transfer, or
+ADR-0010 and ADR-0011 are unchanged; no filtering, editing controls, totals,
+taxonomy, transfer, or
 income/expense semantics are added.
 
 Current validation results and environment cleanup are recorded in the handoff.
 
-The local classification write design is now frozen in
+The local classification write boundary is implemented under unchanged
 [ADR-0012](../docs/decisions/ADR-0012-local-classification-write-boundary.md).
 It requires independent default-off runtime activation, a process-lifetime
 secret distributed through a dedicated Origin-checked bootstrap, exact
 Origin/Host checks, and separate principal/grant/Account authorization before
 one revision-checked PATCH. It does not protect against arbitrary local
-processes already trusted by ADR-0010. No runtime, endpoint, frontend, model,
-migration, or test changed; classification mutation remains internal only.
+processes already trusted by ADR-0010.
 
-The recommended next bounded task is to implement that backend write boundary
-and its required delivery-edge controls with focused adversarial validation,
-leaving editor controls for a later task. Explicit Host enforcement, Vite CORS
-disablement, token-safe logging, and transaction-consistent projection are
-prerequisites. Preserve full bigint HTTP semantics and the documented React
-safe-integer limitation. Recommended reasoning: High.
+`runlocal --enable-classification-writes --classification-write-origin
+http://127.0.0.1:5173` requires both options, DEBUG=false, and either host
+`127.0.0.1:8000` or the existing trusted-container `0.0.0.0:8000` mode.
+Default host/Compose startup is read-only; IPv6 read support is retained.
+No migration, model, domain command, React editor, or Compose topology changed.
+The runtime creates a 256-bit capability in memory after startup validation,
+clears it on exit, and rejects old tokens/runtime objects/grants after recreation.
+The sole bootstrap is JSON POST `/api/v1/local/classification-write-capability/`;
+the sole mutation is Account-scoped classification PATCH. Principal identity,
+live write grant, Account access, domain validation, and optimistic concurrency
+remain separate conjunctive gates. The authorized wrapper calls the domain
+command once and materializes the existing immutable projection before releasing
+its locks. Success returns classification only; failure rolls back.
+
+Exact Host/Origin, strict parsing/order/error mapping, full bigint revisions,
+zero-query security denials, no-store responses, safe HTTP/proxy logging, and
+explicit Vite CORS disablement are implemented and covered by focused tests.
+Real Vite tests preserve duplicate header multiplicity for Django rejection;
+browser/Compose/restart validation is recorded in the handoff.
+
+The next bounded task is the React manual editor under ADR-0012: explicit
+choices, memory-only capability acquisition, safe-integer submissions, stale-view
+handling, and refetch after conflicts or ambiguous outcomes without silent retry.
+Filtering and all other deferred semantics remain outside that task.
+
+Independent review of signed commit `e7223f4` found an Accept-negotiation
+contract mismatch: parameters on unrelated media ranges incorrectly rejected
+otherwise acceptable JSON. The narrow correction uses quote-aware HTTP list
+splitting and considers only matching representation ranges, retaining explicit
+JSON q=0 rejection. A regression test first failed on the original implementation.
+Current product/architecture status sentences were also corrected. The review
+amends the same signed implementation commit; no push is authorized. See the
+handoff for final validation and isolated-environment cleanup.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.

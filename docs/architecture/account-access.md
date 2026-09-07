@@ -169,11 +169,14 @@ separate capability-specific authorization boundary; read access must not
 silently imply permission to upload, bind, import, resolve, correct, or delete.
 
 [ADR-0012](../decisions/ADR-0012-local-classification-write-boundary.md) now
-defines a separate, unimplemented classification write orchestration. It must
-validate the unchanged server-issued principal and an independently verified,
+defines the implemented separate classification write orchestration in
+`gouda.ledger.services.classification_access`. It validates the unchanged
+server-issued principal and an independently verified,
 live classification grant before reusing this resolver as an Account visibility
 constraint. The explicit temporary classification policy permits only that
-operation in accessible Accounts. The resolver never supplies the write grant;
+operation in accessible Accounts. The outer transaction retains the existing
+classification command's locks through immutable result materialization.
+The resolver never supplies the write grant;
 the token never establishes principal identity. A read principal alone remains
 insufficient, and Account/Category UUID possession grants no authority.
 

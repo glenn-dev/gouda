@@ -73,8 +73,9 @@ identity/display/active state, and revision without changing report membership
 or financial facts. The HTTP report exposes that immutable projection, and
 read-only Category discovery includes active and inactive labels. React renders
 the current classification read-only, while the synthetic demo seed remains
-classification-free. Mutations remain internal; classification filtering,
-totals, and editing controls are not implemented.
+classification-free. The independently enabled classification HTTP write boundary
+is implemented under [ADR-0012](../decisions/ADR-0012-local-classification-write-boundary.md);
+classification filtering, totals, and editing controls are not implemented.
 Economic-event types, transfer relationships, and assignment history remain
 deferred with explicit revisit triggers.
 

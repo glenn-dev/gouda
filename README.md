@@ -28,6 +28,11 @@ provides the complete Account-selection, inclusive-date-range, and Movement
 report flow, including read-only current classification labels, through that
 existing backend contract.
 
+An independently enabled local classification write boundary is also implemented
+under ADR-0012. Default startup and React remain read-only. The backend offers
+only an ephemeral capability bootstrap and revision-checked classification PATCH;
+there are no editing controls, Category CRUD, or canonical financial writes.
+
 ## Local Docker demo
 
 The primary local path requires Docker with Compose, but does not require host
@@ -148,6 +153,22 @@ authenticate the browser or establish principal trust; the active
 `LocalDeliveryRuntime` remains the backend trust gate. Wildcard, LAN, remote,
 tunneled, proxied beyond this loopback-only development edge, shared-host, and
 production exposure remain unsupported.
+
+To explicitly enable only classification writes in host development, start the
+backend with both flags (and keep `DJANGO_DEBUG=false`):
+
+```text
+python manage.py runlocal --host 127.0.0.1 --port 8000 \
+  --enable-classification-writes \
+  --classification-write-origin http://127.0.0.1:5173
+```
+
+Use the same Vite browser edge. The capability is generated only in backend
+memory and expires on restart; never configure, save, or log it. The complete
+[local write contract](docs/architecture/local-http-delivery.md#opt-in-classification-writes)
+documents bootstrap/PATCH, the equally explicit Compose opt-in, and the accepted
+trusted-local-process limitation. React capability consumption and editing are
+the next separate task.
 
 ## Documentation map
 

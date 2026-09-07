@@ -1,54 +1,188 @@
 # Handoff
 
-## Current design checkpoint
+## Independent review checkpoint
 
-On 2026-09-06, after `git fetch origin`, verified clean `main` with HEAD and
-`origin/main` both `da9f0c7b7ffb6b9ece9e3ae76629194349f3e6f3`
-(`feat: render movement classification in local client`). The earlier
-checkpoint records below are historical; this fetched commit is the current
-implementation baseline. The reviewed documentation-only design checkpoint is
-committed as `docs: define local classification write boundary`; Git history
-supplies its exact SHA. Nothing was pushed.
+The review began with fetched clean `main` at
+`e7223f47040312785bda9d4e1416da98bb0e5421`, titled
+`feat: implement local classification write boundary`, exactly one commit above
+`origin/main` at `bb09f7c0d281f68010baed9ed56055b45a02b88e`. Its SSH signature
+verified successfully. The original 27-path diff was reviewed before correction.
 
-The local classification write design is frozen in
+Decision for the original commit: BLOCK for one HTTP contract mismatch.
+`Accept: text/html;level=1, application/json` incorrectly returned 406 on
+bootstrap and PATCH despite accepting JSON. ADR-0012 defines 406 for JSON
+exclusion. A new request-path regression test failed on the original code.
+The narrow correction uses quote-aware HTTP list splitting and ignores ranges
+that do not match the plain JSON representation, while retaining quality-value
+validation and explicit JSON q=0 precedence. Quoted parameter values cannot
+invent a JSON range. No security gate or domain semantics changed.
+
+Current MVP scope and architecture overview incorrectly described classification
+HTTP mutation as deferred/internal; those status sentences now reflect the
+implemented opt-in boundary. The network revisit sentence was also clarified.
+ADR-0010/0011/0012, models, migrations, the domain command, read adapter,
+reporting query, and Compose topology remain unchanged.
+
+Independent validation:
+
+- Original: 172 affected backend tests and all 522 Django tests passed.
+  Corrected: 173 affected tests and all 523 Django tests passed, including
+  real PostgreSQL lock overlap, result materialization, and rollback tests.
+- All 38 frontend tests, typecheck, build, and dependency-tree checks passed.
+  Django check, migration drift, pip check, and Compose configuration passed.
+- A fresh isolated Compose project built and reached healthy state. Default
+  reads worked and bootstrap/PATCH returned 403. Explicit write activation
+  retained only loopback Vite/PostgreSQL publication and no backend publication;
+  Docker inspection confirmed the internal application network's two members.
+- Actual host Vite -> Django and Compose Vite -> Django exercised bootstrap,
+  assign/clear, stale-identical conflicts, duplicate headers, foreign Origins,
+  method/preflight rejection, and absent CORS grants. Chrome supplied its own
+  Host/Origin for successful bootstrap and both PATCH transitions, including
+  after the correction. Alternate-origin browser fetches were blocked.
+- Direct in-container Django requests independently rejected foreign, duplicated,
+  and forwarded Host/Origin claims. A trusted raw client could deliberately
+  spoof the accepted pair and bootstrap, as ADR-0010 permits.
+- Real backend restart rotated capability; the old token failed before parsing.
+  Live corrected Accept cases, encoded/alternative Origins, escaped duplicate
+  JSON keys, and absence of both tokens from Compose logs passed.
+- Markdown/local-link/anchor/JSON-example, Python syntax, added-text privacy,
+  ignored private-path, immutable-baseline, and diff-whitespace checks passed.
+  The final scan covers 42 Markdown files, 70 links/anchors, 10 JSON examples,
+  and 29 paths in the amended implementation diff.
+
+Review notes: DEBUG=true rejection is explicitly frozen by ADR-0012; both
+repository startup defaults already use DEBUG=false. Logging intentionally
+removes HTTP exception details across routes while retaining method/route/status
+and unrelated application diagnostics. This is the ADR's safe logging policy,
+not a hidden write permission. Reporting exports only the existing immutable
+projection builder; transaction ownership stays in classification orchestration.
+The frontend socket test proves forwarding, not browser authorization; live
+Chrome and Django checks supply that separate evidence. The mocked false-length
+test proves the adapter's bounded read call, not raw HTTP framing behavior.
+
+The review amends the existing signed implementation commit; Git history supplies
+the final SHA and signature. Nothing is pushed. The next task remains the
+separate React editor. Only isolated synthetic databases were used; no private
+corpus or existing user database was inspected or changed.
+The isolated `gouda-adr12-review` Compose containers/networks were removed with
+`down`; its named synthetic PostgreSQL volume was preserved. The disposable
+`gouda-adr12-review-pg16` test container was stopped and automatically removed.
+The host Django/Vite processes were stopped; neither port 8000 nor 5173 retains
+a listener from validation.
+
+Local reproduction tools: `/private/tmp/gouda-adr12-review.py` provides `hygiene`,
+`live`, and `direct` modes for this isolated Compose project;
+`/private/tmp/gouda-write-validate.py` provides `relevant` and `full` modes;
+`/private/tmp/gouda-write-host.py` runs and stops the actual host stack.
+The browser harness is `/private/tmp/gouda-write-browser/boundary-smoke.html`,
+mounted only by the temporary `/private/tmp/gouda-write-compose.yml` override.
+The new tracked regression is
+`tests.ledger.test_classification_write_api.ClassificationWriteApiTests.test_unrelated_accept_parameters_do_not_exclude_json`.
+Earlier implementation validation records below are historical.
+
+## Implementation checkpoint
+
+On 2026-09-07, after `git fetch origin`, verified clean `main` with HEAD and
+`origin/main` both `bb09f7c0d281f68010baed9ed56055b45a02b88e`
+(`docs: define local classification write boundary`) and a good local ED25519
+Git signature. Earlier checkpoint records below are historical. This checkpoint
+implements ADR-0012 in one authorized commit titled
+`feat: implement local classification write boundary`; Git history supplies the
+resulting SHA. Nothing is to be pushed.
+
+The implemented boundary follows unchanged
 [ADR-0012](../docs/decisions/ADR-0012-local-classification-write-boundary.md).
-It defines default-off activation independent of reads, a dedicated runtime
-and grant, an ephemeral process secret, a dedicated Origin-checked bootstrap,
-and one Account-scoped PATCH with the existing expected-revision semantics.
 Principal identity, Account access, and classification write authority remain
-separate. ADR-0010's host perimeter and ADR-0011's domain semantics are preserved;
-neither older ADR file changes. The token does not exclude arbitrary local
-processes/users, which remain inside the explicit trusted-host assumption.
+separate. ADR-0010's trusted-host perimeter and ADR-0011's domain semantics are
+preserved. Arbitrary local processes/users can deliberately spoof Host/Origin
+and bootstrap; this accepted limitation is not repaired by the token.
 
-The first write topology is the existing IPv4 Vite edge in host development
-or Compose; backend IPv6 reads remain supported. Future write activation must
-explicitly invoke Host validation, disable Vite's implicit CORS, preserve
-Origin/Host through the proxy, protect tokens from logging/cache/redirects,
-and materialize success while the command's locks remain held. Current Host
-tests exercise `get_host()` directly and current Vite tests only exclude
-`cors: true`; neither proves those future request-path invariants. HTTP keeps
-bigint revisions; a future React editor must honor its documented safe-integer
-limit and refetch rather than silently retry conflicts or ambiguous outcomes.
+Both startup options are required: `--enable-classification-writes
+--classification-write-origin http://127.0.0.1:5173`. Write startup rejects
+DEBUG=true, duplicate/abbreviated flags, other origins, IPv6, and other backend
+ports. The supported pair is host `127.0.0.1:8000` or existing trusted-container
+`0.0.0.0:8000`, behind Vite at numeric loopback port 5173. Default startup
+creates no write runtime or secret; existing IPv6 reads remain supported.
+The runtime generates 32 cryptographically random bytes encoded as lowercase
+hex after startup validation, stores the secret only in memory, and clears
+it on exit. Recreation invalidates old tokens, runtime objects, and grants.
 
-No production, test, frontend, migration, startup, or deployment file changed.
-No write runtime, bootstrap, endpoint, or editor is implemented. No application
-suite or database operation was run; no private evidence was read.
+The strict Django views implement exactly the ADR bootstrap/PATCH contracts
+and validation order. They independently enforce `get_host()` plus exact
+Host/Origin before capability/principal/parsing/Account lookup. Security denials
+have zero queries. The authorized wrapper checks principal and live grant,
+reuses Account visibility, calls the unchanged domain command once, and builds
+only the existing immutable classification projection under retained locks.
+Projection failure rolls back. HTTP retains full bigint, exact error mappings,
+and no silent retries or canonical financial updates.
 
-Validation passed for 42 Markdown files, 65 local links, nine JSON examples,
-Markdown structure/whitespace, 12 ADR IDs/titles/references, and 25 stable HTTP
-error mappings with coverage of the existing service errors. ADR-0010/0011
-were compared byte-for-byte with HEAD and are unchanged. Added-text privacy
-scans, ignored/private-path checks, `git diff --check`, and exact eight-path
-review passed. No changed documentation is consumed by executable tests.
-The local-only checker is `/private/tmp/gouda-write-design.GOFNkK/check.py`.
+Vite disables server/preview CORS, preserves Host/Origin/capability and duplicate
+multiplicity, and serves frame-denial headers. Django owns authorization.
+Django HTTP logs allowlist method/route/status; exception reports redact the
+header/bootstrap field and omit classification exception text/locals.
+Proxy failures use fixed diagnostics and no-store JSON errors. Vite refuses
+nonempty DEBUG/CLI debug logging before listening because its raw debug channel
+bypasses the safe logger. Ordinary development diagnostics remain enabled. All matched
+bootstrap/PATCH responses are non-cacheable JSON without redirects or cookies.
 
-Exact changed paths: this handoff, `.ai/context.md`, `.ai/tasks/current.md`,
-`docs/architecture/account-access.md`, `docs/architecture/local-http-delivery.md`,
-`docs/architecture/movement-classification.md`,
-`docs/security/local-mvp-network-boundary.md`, and the new
-`docs/decisions/ADR-0012-local-classification-write-boundary.md`.
-Final Git state: `main` has the one documentation commit above unchanged
-`origin/main`; the working tree and index are clean. Nothing was pushed.
+No migration, model, domain command, React editor, or Compose topology changed.
+ADR-0010/0011/0012 are unchanged. No private evidence was read. The next action
+is the separate React editor, not another backend design checkpoint.
+
+## Write checkpoint validation
+
+- Final focused slice: 41 passed; relevant backend matrix: 172 passed;
+  full Django suite: 522 passed. Review regressions cover permissive
+  ALLOWED_HOSTS, bigint increment, and existing-row rollback.
+- Frontend: 38 passed, including real socket/Vite forwarding, duplicate-header,
+  preflight/CORS, and token-safe proxy-failure coverage. Typecheck, build,
+  `npm ls`, Django check, migration drift, `pip check`, and Compose config pass.
+- PostgreSQL HTTP tests reuse all six domain contention scenarios and prove
+  live overlapping lock waits. They additionally prove locks persist during
+  projection and projection failure rolls back before a later writer.
+- The isolated complete Compose stack builds, migrates, and reaches healthy
+  state; default bootstrap/PATCH return 403 while GET works. Explicit opt-in
+  preserves network/publication topology. Live raw HTTP verifies bootstrap,
+  assign/clear, stale-identical 409, header gates and duplicates, no CORS,
+  no redirects, real process restart/token invalidation, and secret-free logs.
+- Chrome same-origin browser bootstrap and both classification transitions
+  succeed. Foreign public-named and distinct local-origin fetch/PATCH attempts
+  fail; actual preflights reach Django and return 405. Direct raw Django and
+  proxied public-Origin requests also fail independently of browser protections.
+  A trusted raw local client deliberately can bootstrap.
+- Actual host development with numeric-loopback runlocal on port 8000 and
+  default Vite on port 5173 passes the same raw HTTP matrix. Both processes
+  were stopped afterward.
+- Documentation/privacy review passes for 42 Markdown files, 68 local links,
+  10 JSON examples, and all 27 changed paths. Python syntax, private-path
+  checks, added-text privacy checks, and `git diff --check` pass. The sole
+  email-shaped scan match is an explicit synthetic userinfo-in-Host fixture.
+- No models/migrations changed; no new migration-isolation requirement applies.
+  The full suite includes the existing migration regression tests.
+
+Adversarial review found no ADR violation: public webpages, HTML forms, foreign
+fetch, missing Origin, request-supplied activation, read trust, Account UUID
+possession, or Vite alone cannot authorize mutation. Capability is not disclosed
+through URLs/logs/cache/errors, old capability fails after recreation, same-revision
+writers cannot both change state, and canonical Movement fields are never write
+targets. The malicious-local-process limitation remains explicit.
+
+The initial sandbox database connection denial was resolved through the approved
+retry; no validation failures remain. Validation used PostgreSQL 16.15, host
+Django 4.2.30/Python 3.9.6, Node 24.16.0, and the repository's pinned Compose
+images. Only synthetic databases were touched. The disposable PostgreSQL
+container `gouda-classification-write-pg16` was stopped and automatically removed.
+The `gouda-write-checkpoint` Compose containers/networks were removed with
+`docker compose down`; its named synthetic database volume is preserved. No
+existing user database or volume was read, changed, or deleted. Host Django/Vite
+and the temporary foreign-origin test server are stopped.
+
+Local-only runners/logs are `/private/tmp/gouda-write-validation/`,
+`/private/tmp/gouda-write-validate.py`, `/private/tmp/gouda-write-live.py`,
+`/private/tmp/gouda-write-host.py`, and `/private/tmp/gouda-write-hygiene.py`.
+Commit contract: exactly one signed `feat: implement local classification write
+boundary` commit, with identity/signature available from Git history and checked
+immediately after creation. No push is authorized or performed.
 
 ## Current repository capability
 
@@ -706,14 +840,12 @@ verified equal HEAD/`origin/main` as recorded at the top of this handoff.
 
 ## Next checkpoint
 
-Implement the frozen ADR-0012 backend write boundary and required delivery-edge
-controls in a separate task. Read that ADR and the local network, Account-access,
-classification, and HTTP architecture docs first. Keep independent startup
-opt-in, server-issued principal identity, exact Origin/Host plus capability
-checks, existing domain locks/no-ops, and transaction-consistent projection.
-Prove the browser/proxy and raw-client threat model with focused tests before
-enabling mutation. Editor controls follow in a separate React task; filtering
-remains deferred. This checkpoint implements no write boundary or mutation.
+Implement the bounded React manual editor under ADR-0012. Read that ADR and the
+implemented local HTTP/classification contracts first. Require explicit user
+choices, Category catalog use, closure-memory capability handling, safe-integer
+submissions, request/view race handling, and refetch after 409 or ambiguous
+outcomes. Never silently retry. Preserve all implemented backend gates and the
+default read-only startup. Filtering remains deferred.
 Recommended reasoning level: High.
 
 ## Roadmap reassessment
@@ -730,8 +862,8 @@ Authentication/ownership remain absent.
 
 Priorities are:
 
-1. Implement the separately enabled local classification write boundary frozen
-   in ADR-0012, then add the bounded manual editor. Filtering, economic types,
+1. Add the bounded manual editor atop the implemented ADR-0012 backend boundary.
+   Filtering, economic types,
    and transfer semantics remain deferred.
 2. Add an operational import/API surface for the already implemented
    Santander services only after the account-access and upload-security

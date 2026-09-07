@@ -7,9 +7,22 @@ from gouda.ledger.api import (
     CanonicalMovementReportView,
     CategoryDiscoveryView,
 )
+from gouda.ledger.classification_api import (
+    ClassificationWriteCapabilityView, MovementClassificationView,
+)
 
 
 urlpatterns = [
+    path(
+        "api/v1/local/classification-write-capability/",
+        ClassificationWriteCapabilityView.as_view(),
+        name="classification-write-capability",
+    ),
+    path(
+        "api/v1/accounts/<str:account_uuid>/movements/<str:movement_uuid>/classification/",
+        MovementClassificationView.as_view(),
+        name="movement-classification",
+    ),
     path(
         "api/v1/categories/",
         CategoryDiscoveryView.as_view(),

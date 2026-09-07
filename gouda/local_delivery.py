@@ -94,6 +94,8 @@ def run_validated_local_delivery(
     bind_host: object,
     port: object,
     trusted_container_network: object = False,
+    enable_classification_writes: object = False,
+    classification_write_origin: object = None,
     server_runner: Callable[[LocalDeliveryRuntime], _RunnerResult],
 ) -> _RunnerResult:
     """Validate, activate, and invoke the controlled server runner.
@@ -117,9 +119,18 @@ def run_validated_local_delivery(
     if _active_runtime is not None:
         raise LocalDeliveryBootstrapError("local_delivery_already_active")
 
+    from gouda.local_classification_write import (
+        _activate_validated_classification_writes,
+    )
+
     _active_runtime = runtime
     try:
-        return server_runner(runtime)
+        with _activate_validated_classification_writes(
+            runtime,
+            enabled=enable_classification_writes,
+            origin=classification_write_origin,
+        ):
+            return server_runner(runtime)
     finally:
         if _active_runtime is runtime:
             _active_runtime = None
