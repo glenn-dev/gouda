@@ -2,7 +2,7 @@
 
 ## Scope
 
-Gouda exposes exactly three local-MVP HTTP operations:
+Gouda currently exposes exactly three local-MVP HTTP operations:
 
 ```text
 GET /api/v1/accounts/
@@ -21,6 +21,13 @@ Compose mode described below.
 The adapters use Django REST Framework without Django auth, sessions, tokens,
 users, ownership persistence, CORS, routers, ViewSets, model serializers,
 pagination, or a browsable API. Only JSON rendering is enabled.
+
+The separate accepted design for a future opt-in classification write capability
+is [ADR-0012](../decisions/ADR-0012-local-classification-write-boundary.md).
+It owns the exact bootstrap/PATCH, Origin/Host, capability, error, transaction,
+and client concurrency contracts. No write runtime, token distribution,
+mutation endpoint, or editor is implemented by that documentation checkpoint.
+The three GET contracts below remain the implemented surface.
 
 ## Trust and application flow
 

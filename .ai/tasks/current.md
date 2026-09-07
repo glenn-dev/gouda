@@ -2,65 +2,59 @@
 
 ## Objective
 
-Render the existing Movement classification projection read-only in the React
-client. Implementation and review validation are complete. The checkpoint is
-recorded in one commit titled
-`feat: render movement classification in local client`. Do not push.
+Design the narrowest safe local HTTP write boundary for Movement classification.
+Design is frozen in
+[ADR-0012](../../docs/decisions/ADR-0012-local-classification-write-boundary.md);
+implementation remains deferred. The reviewed documentation-only checkpoint is
+committed as `docs: define local classification write boundary`. Do not push.
 
 ## Baseline
 
 After `git fetch origin`, clean `main`, HEAD, and `origin/main` all matched
-`a4877af9d20e67f13a508301977a0b16a356272a`
-(`feat: expose movement classification read api`).
+`da9f0c7b7ffb6b9ece9e3ae76629194349f3e6f3`
+(`feat: render movement classification in local client`).
 
 ## Current state
 
-- The frontend Movement projection is a strict discriminated union for
-  `NEVER_ASSIGNED`, `CLASSIFIED`, and `CLEARED`. It validates exact nested
-  keys, state/category/revision combinations, Category UUID/display/active
-  shape, and safe integer revisions before retaining immutable client data.
-- The existing Movement table has one dedicated Classification column.
-  Classified rows display the Category name; inactive labels include a visible
-  `Inactive` marker. Never-assigned and cleared rows both display
-  `Unclassified`, while their internal states stay distinct.
-- Revision numbers, UUIDs, raw enum values, source, timestamps, history, and
-  provenance are not rendered. Long valid labels wrap within the column; empty,
-  overlong, padded, control-character, and structurally invalid labels fail
-  closed in parsing.
-- Account/date behavior, explicit report loading, backend count/total, exact
-  Decimal strings, Movement order and financial fields remain unchanged. The
-  client performs no financial arithmetic.
-- Category discovery is not fetched or otherwise consumed. Classified Movement
-  items already carry the exact Category summary needed for rendering, so
-  request cadence remains Account discovery plus explicit Movement reports.
-- All requests remain same-origin GETs without credentials, cookies, tokens,
-  auth/principal headers, CORS changes, or write methods. ADR-0010 and ADR-0011
-  are unchanged. There is no classification editing, filtering, category
-  totals, transfer/income-expense meaning, or taxonomy assumption.
+- The internal manual command, read HTTP projection, Category discovery, and
+  read-only React presentation remain the complete implemented classification
+  capability. No production code, tests, migrations, or frontend behavior changed.
+- ADR-0012 records independent default-off write activation, a separate opaque
+  runtime/grant, process-lifetime capability, explicit bootstrap, exact
+  Origin/Host checks, and one Account-scoped classification PATCH contract.
+- Principal identity remains server-issued and orthogonal to write authority.
+  Read access or UUID possession alone cannot authorize mutation. Arbitrary
+  local processes/users remain trusted under ADR-0010; the new token is not
+  protection against a hostile local host.
+- The design preserves all domain revision/no-op/locking semantics and defines
+  exact errors, a transaction-consistent classification-only response, and
+  explicit refetch without silent retry after conflicts or ambiguous outcomes.
+- First write topology is the existing IPv4 Vite edge at port 5173 for host
+  development or Compose. IPv6 backend reads remain supported; no IPv6 write
+  topology is implicitly added. ADR-0010 and ADR-0011 text is unchanged.
 
 ## Validation state
 
-- Frontend: 36 tests passed; typecheck, Vite build, and `npm ls` passed.
-- Backend Movement HTTP compatibility: 20 tests passed.
-- Full Django suite: 481 tests passed.
-- Markdown links, privacy/private-file checks, diff hygiene, and exact changed
-  paths are recorded in `.ai/handoff.md`.
-- The isolated PostgreSQL 16 test container and synthetic database were stopped
-  and automatically removed. No existing database or private corpus was read.
+Documentation/local-link and JSON-example checks, ADR/reference consistency,
+privacy/private-file checks, exact changed-path review, and `git diff --check`
+are recorded in `.ai/handoff.md`. No application test suite is required or run
+for this design-only checkpoint. No database or private evidence was accessed.
 
 ## Next bounded scope
 
-Design the narrowest safe local classification write boundary before
-implementing any mutation HTTP endpoint. Gouda now has the persistence,
-revision-checked internal command, read HTTP projection, and read-only UI needed
-to define a concrete manual-edit workflow. The design must revisit ADR-0010,
-separate write authorization from read access, define CSRF/origin and optimistic
-concurrency behavior, and keep the current endpoint surface read-only until a
-new decision is accepted. Recommended reasoning level: High.
+Implement ADR-0012's backend runtime, capability bootstrap, authorized
+classification orchestration, and PATCH adapter, plus required delivery-edge
+controls. Prove actual Host/Origin enforcement, absent CORS grants through
+Vite, restart/token isolation, safe logs/cache behavior, and PostgreSQL
+concurrency/rollback. Keep startup opt-in and the default stack read-only.
+No editor controls in that backend slice; follow with a separate React editor
+task covering explicit manual choices, memory-only capability handling, safe
+integer submissions, and 409/ambiguous-outcome reconciliation.
+Recommended reasoning level: High.
 
 ## Non-goals
 
-No HTTP writes, editing controls, filters/search, Category discovery consumption,
-category totals, default taxonomy, demo assignments, automatic/rule/AI
-assignments, bulk edits, history, ownership, transfer or income/expense
-semantics, tags, notes, hierarchy, or provider mapping.
+No implementation in this session; no migrations, HTTP endpoints, frontend
+changes, test changes, commits, or pushes. Filtering, Category management,
+default taxonomy, demo assignments, automatic/rule/AI assignments, bulk edits,
+history, ownership, transfer or income/expense semantics remain deferred.

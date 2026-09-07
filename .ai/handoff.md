@@ -1,5 +1,55 @@
 # Handoff
 
+## Current design checkpoint
+
+On 2026-09-06, after `git fetch origin`, verified clean `main` with HEAD and
+`origin/main` both `da9f0c7b7ffb6b9ece9e3ae76629194349f3e6f3`
+(`feat: render movement classification in local client`). The earlier
+checkpoint records below are historical; this fetched commit is the current
+implementation baseline. The reviewed documentation-only design checkpoint is
+committed as `docs: define local classification write boundary`; Git history
+supplies its exact SHA. Nothing was pushed.
+
+The local classification write design is frozen in
+[ADR-0012](../docs/decisions/ADR-0012-local-classification-write-boundary.md).
+It defines default-off activation independent of reads, a dedicated runtime
+and grant, an ephemeral process secret, a dedicated Origin-checked bootstrap,
+and one Account-scoped PATCH with the existing expected-revision semantics.
+Principal identity, Account access, and classification write authority remain
+separate. ADR-0010's host perimeter and ADR-0011's domain semantics are preserved;
+neither older ADR file changes. The token does not exclude arbitrary local
+processes/users, which remain inside the explicit trusted-host assumption.
+
+The first write topology is the existing IPv4 Vite edge in host development
+or Compose; backend IPv6 reads remain supported. Future write activation must
+explicitly invoke Host validation, disable Vite's implicit CORS, preserve
+Origin/Host through the proxy, protect tokens from logging/cache/redirects,
+and materialize success while the command's locks remain held. Current Host
+tests exercise `get_host()` directly and current Vite tests only exclude
+`cors: true`; neither proves those future request-path invariants. HTTP keeps
+bigint revisions; a future React editor must honor its documented safe-integer
+limit and refetch rather than silently retry conflicts or ambiguous outcomes.
+
+No production, test, frontend, migration, startup, or deployment file changed.
+No write runtime, bootstrap, endpoint, or editor is implemented. No application
+suite or database operation was run; no private evidence was read.
+
+Validation passed for 42 Markdown files, 65 local links, nine JSON examples,
+Markdown structure/whitespace, 12 ADR IDs/titles/references, and 25 stable HTTP
+error mappings with coverage of the existing service errors. ADR-0010/0011
+were compared byte-for-byte with HEAD and are unchanged. Added-text privacy
+scans, ignored/private-path checks, `git diff --check`, and exact eight-path
+review passed. No changed documentation is consumed by executable tests.
+The local-only checker is `/private/tmp/gouda-write-design.GOFNkK/check.py`.
+
+Exact changed paths: this handoff, `.ai/context.md`, `.ai/tasks/current.md`,
+`docs/architecture/account-access.md`, `docs/architecture/local-http-delivery.md`,
+`docs/architecture/movement-classification.md`,
+`docs/security/local-mvp-network-boundary.md`, and the new
+`docs/decisions/ADR-0012-local-classification-write-boundary.md`.
+Final Git state: `main` has the one documentation commit above unchanged
+`origin/main`; the working tree and index are clean. Nothing was pushed.
+
 ## Current repository capability
 
 Gouda has validated synchronous Santander current-account XLSX and Santander
@@ -601,7 +651,7 @@ Local adversarial review found no financial, trust, or query
 regression: serializers consume explicit values, principal validation precedes
 database access, and classification joins remain owned by the unchanged report.
 
-## Current frontend classification checkpoint
+## Completed frontend classification checkpoint
 
 Started from clean fetched `main` with HEAD and `origin/main` both exactly
 `a4877af9d20e67f13a508301977a0b16a356272a`
@@ -649,18 +699,21 @@ Validation used the existing frontend dependencies and a disposable PostgreSQL
   were stopped and automatically removed. No existing database or private
   corpus was read or changed.
 
-Final state after review: `main` has one local commit above unchanged
-`origin/main`; the working tree and index are clean, and nothing was pushed.
+Final state at that earlier review: `main` had one local commit above then-current
+`origin/main`; the working tree and index were clean, and nothing was pushed in
+that review. The current design session fetched the now-published commit and
+verified equal HEAD/`origin/main` as recorded at the top of this handoff.
 
 ## Next checkpoint
 
-Design the narrowest safe local classification write boundary before
-implementing any HTTP mutation endpoint. Gouda now has the internal
-revision-checked command, read HTTP projection, and read-only client needed to
-specify a concrete manual-edit workflow. The design must revisit ADR-0010,
-separate write authorization from read access, and define CSRF/origin and
-optimistic-concurrency behavior. Filtering remains deferred. No write boundary
-or mutation is implemented in this checkpoint.
+Implement the frozen ADR-0012 backend write boundary and required delivery-edge
+controls in a separate task. Read that ADR and the local network, Account-access,
+classification, and HTTP architecture docs first. Keep independent startup
+opt-in, server-issued principal identity, exact Origin/Host plus capability
+checks, existing domain locks/no-ops, and transaction-consistent projection.
+Prove the browser/proxy and raw-client threat model with focused tests before
+enabling mutation. Editor controls follow in a separate React task; filtering
+remains deferred. This checkpoint implements no write boundary or mutation.
 Recommended reasoning level: High.
 
 ## Roadmap reassessment
@@ -677,9 +730,9 @@ Authentication/ownership remain absent.
 
 Priorities are:
 
-1. Design the narrowest safe local classification write boundary before
-   enabling any manual HTTP edit. The design must revisit ADR-0010; filtering,
-   economic types, and transfer semantics remain deferred.
+1. Implement the separately enabled local classification write boundary frozen
+   in ADR-0012, then add the bounded manual editor. Filtering, economic types,
+   and transfer semantics remain deferred.
 2. Add an operational import/API surface for the already implemented
    Santander services only after the account-access and upload-security
    boundary is explicit.

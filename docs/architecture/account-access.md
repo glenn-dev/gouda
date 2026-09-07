@@ -168,6 +168,15 @@ The resolver is read-only. A future import or other write operation must use a
 separate capability-specific authorization boundary; read access must not
 silently imply permission to upload, bind, import, resolve, correct, or delete.
 
+[ADR-0012](../decisions/ADR-0012-local-classification-write-boundary.md) now
+defines a separate, unimplemented classification write orchestration. It must
+validate the unchanged server-issued principal and an independently verified,
+live classification grant before reusing this resolver as an Account visibility
+constraint. The explicit temporary classification policy permits only that
+operation in accessible Accounts. The resolver never supplies the write grant;
+the token never establishes principal identity. A read principal alone remains
+insufficient, and Account/Category UUID possession grants no authority.
+
 ## Read-only reporting operation
 
 The implemented transport-independent

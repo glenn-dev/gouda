@@ -12,6 +12,12 @@ projection in `gouda.ledger.services.movement_reporting`. The local HTTP API
 now exposes that projection and Category discovery. React renders the current
 classification read-only. HTTP mutations, editing UI, and filtering remain deferred.
 
+The separate local HTTP write design is frozen in
+[ADR-0012](../decisions/ADR-0012-local-classification-write-boundary.md), including
+default-off activation, an ephemeral classification capability, exact
+Origin/Host checks, one PATCH contract, and revision-conflict handling. It is
+not implemented and does not change this domain service or ADR-0011.
+
 ## Domain boundary
 
 Classification is an explicit, revisable Gouda category assignment to an
@@ -345,9 +351,10 @@ API checkpoint.
 Resolve Account access before category lookup; UUID possession is not access.
 Categories inherit dataset visibility only under the existing trusted local
 read policy. Write authorization is separate: the current read principal and
-loopback runtime do not grant HTTP classification writes. Any write endpoint
-must revisit [ADR-0010](../decisions/ADR-0010-loopback-only-local-mvp-delivery.md)
-and define a capability-specific write boundary first.
+loopback runtime do not grant HTTP classification writes.
+[ADR-0012](../decisions/ADR-0012-local-classification-write-boundary.md) completes
+the ADR-0010 write revisit for classification only; a future endpoint must
+implement its independent capability-specific boundary before activation.
 
 Use a left join to current classification so no Movement disappears or is
 duplicated. Category-filtered count and exact Decimal total cover precisely

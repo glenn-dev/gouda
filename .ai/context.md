@@ -174,13 +174,13 @@ it proxies `/api` to the unpublished Django service. Neither proxy arrangement
 is authentication or principal issuance. The container runtime does not claim
 to verify Docker publication; repository configuration and tests enforce it.
 
-The current implementation parent baseline is
-`a4877af9d20e67f13a508301977a0b16a356272a`
-(`feat: expose movement classification read api`). This session fetched origin
-and verified clean `main` with matching HEAD/`origin/main` at that exact commit.
-Review revalidated the frontend classification-rendering checkpoint for one
-commit titled `feat: render movement classification in local client`. Git
-history records the exact resulting SHA. Do not push.
+The current committed implementation baseline is
+`da9f0c7b7ffb6b9ece9e3ae76629194349f3e6f3`
+(`feat: render movement classification in local client`). The 2026-09-06
+design session fetched origin and verified clean `main` with matching
+HEAD/`origin/main` at that exact commit. The reviewed documentation-only
+checkpoint is committed as `docs: define local classification write boundary`;
+Git history supplies its exact SHA. Do not push.
 
 [ADR-0011](../docs/decisions/ADR-0011-movement-classification.md) and
 [Movement classification](../docs/architecture/movement-classification.md)
@@ -218,12 +218,21 @@ income/expense semantics are added.
 
 Current validation results and environment cleanup are recorded in the handoff.
 
-The recommended next bounded task is to design the narrowest safe local
-classification write boundary before implementing any mutation endpoint. Gouda
-now has the internal revision-checked command and complete read path needed to
-specify a concrete manual-edit workflow. That design must revisit ADR-0010 and
-define write authorization, CSRF/origin handling, and optimistic concurrency
-without treating read access as write authority. Recommended reasoning: High.
+The local classification write design is now frozen in
+[ADR-0012](../docs/decisions/ADR-0012-local-classification-write-boundary.md).
+It requires independent default-off runtime activation, a process-lifetime
+secret distributed through a dedicated Origin-checked bootstrap, exact
+Origin/Host checks, and separate principal/grant/Account authorization before
+one revision-checked PATCH. It does not protect against arbitrary local
+processes already trusted by ADR-0010. No runtime, endpoint, frontend, model,
+migration, or test changed; classification mutation remains internal only.
+
+The recommended next bounded task is to implement that backend write boundary
+and its required delivery-edge controls with focused adversarial validation,
+leaving editor controls for a later task. Explicit Host enforcement, Vite CORS
+disablement, token-safe logging, and transaction-consistent projection are
+prerequisites. Preserve full bigint HTTP semantics and the documented React
+safe-integer limitation. Recommended reasoning: High.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.

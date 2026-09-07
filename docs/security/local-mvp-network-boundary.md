@@ -10,6 +10,14 @@ frontend development edge described below remains inside this contract.
 The decision is recorded in
 [ADR-0010](../decisions/ADR-0010-loopback-only-local-mvp-delivery.md).
 
+[ADR-0012](../decisions/ADR-0012-local-classification-write-boundary.md) freezes
+a separate, not-yet-implemented local classification write capability. It
+extends only the read-only operation restriction for that explicitly activated
+capability; every deployment/host-trust constraint here continues to apply.
+Read runtime activation alone never authorizes a write. The new ADR owns the
+write threat model, token distribution, exact Origin/Host requirements, and
+error/HTTP contract. Current HTTP delivery and React remain read-only.
+
 ## Terms
 
 For this contract, **local** means machine-local access through the IP
@@ -51,6 +59,16 @@ The repository exposes three read-only backend HTTP operations:
   `0.0.0.0:8000` listener; and
 - Vite proxies only `/api` to the literal `http://backend:8000` target on an
   internal network shared only with the backend.
+
+Two configuration facts must not be mistaken for request-path enforcement.
+The current middleware list is empty and the GET views do not call
+`request.get_host()`; the Host test exercises that method directly, not an API
+request. ALLOWED_HOSTS enforcement must be invoked explicitly on the future
+bootstrap/write routes. Also, Vite's current implicit CORS default permits
+several loopback origins and executes before proxying. The existing tests rule
+out `cors: true`, not all proxy-added CORS headers. ADR-0012 requires explicit
+Vite CORS disablement and end-to-end verification before write activation.
+These are implementation prerequisites, not fixes made in this design task.
 
 The other Compose host-port publication is PostgreSQL on `127.0.0.1:5432`.
 It is a loopback-bound database development port, not an HTTP caller-trust
@@ -252,5 +270,6 @@ following:
 - a shared or untrusted local host;
 - a second independently authenticated principal;
 - different Account visibility among principals;
-- write/import HTTP operations; or
+- write/import HTTP operations other than the separately designed, still
+  unimplemented ADR-0012 classification capability; or
 - deployment where the loopback host edge cannot be guaranteed fail closed.
