@@ -1,5 +1,7 @@
 from pathlib import Path
 import re
+import subprocess
+import tempfile
 
 from django.conf import settings
 from django.test import SimpleTestCase
@@ -15,6 +17,8 @@ class LocalComposeContractTests(SimpleTestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.compose = (ROOT / "docker-compose.yml").read_text()
+        cls.host_db_override = (ROOT / "docker-compose.host-db.yml").read_text()
+        cls.makefile = (ROOT / "Makefile").read_text()
         cls.postgres = cls.compose.split("  postgres:\n", 1)[1].split(
             "  backend:\n", 1
         )[0]
@@ -26,14 +30,22 @@ class LocalComposeContractTests(SimpleTestCase):
         )[0]
 
     def test_all_host_publications_are_explicit_numeric_ipv4_loopback(self):
-        publications = re.findall(r'^\s+- "([^"\n]+:[0-9]+:[0-9]+)"$', self.compose, re.MULTILINE)
+        publications = re.findall(
+            r'^\s+- "([^"\n]+:[0-9]+:[0-9]+)"$', self.compose, re.MULTILINE
+        )
         self.assertEqual(
             sorted(publications),
-            ["127.0.0.1:5173:5173", "127.0.0.1:5432:5432"],
+            ["127.0.0.1:5173:5173"],
         )
         self.assertTrue(all(value.startswith("127.0.0.1:") for value in publications))
         self.assertNotIn('"0.0.0.0:', self.compose)
         self.assertNotIn('":::', self.compose)
+
+    def test_postgres_host_access_requires_the_explicit_loopback_override(self):
+        self.assertNotIn("127.0.0.1:5432:5432", self.compose)
+        self.assertIn('"127.0.0.1:5432:5432"', self.host_db_override)
+        self.assertNotIn('"0.0.0.0:', self.host_db_override)
+        self.assertNotIn('":::', self.host_db_override)
 
     def test_backend_is_unpublished_and_uses_only_validated_bootstrap(self):
         self.assertNotIn("\n    ports:\n", self.backend)
@@ -83,3 +95,68 @@ class LocalComposeContractTests(SimpleTestCase):
     def test_compose_requires_explicit_local_secrets(self):
         self.assertIn("${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY in .env}", self.compose)
         self.assertIn("${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}", self.compose)
+
+    def test_make_demo_uses_a_fixed_isolated_project_and_health_wait(self):
+        self.assertIn("-p gouda-demo", self.makefile)
+        self.assertIn("up --build --detach --force-recreate", self.makefile)
+        self.assertIn("--wait --wait-timeout 180", self.makefile)
+        self.assertIn("exec -T backend python manage.py seed_demo", self.makefile)
+        self.assertIn("http://127.0.0.1:5173/", self.makefile)
+
+    def test_make_teardown_preserves_data_and_reset_names_only_demo_volume(self):
+        down_recipe = self.makefile.split("\ndown:\n", 1)[1].split("\nstatus:\n", 1)[0]
+        reset_recipe = self.makefile.split("\ndemo-reset:\n", 1)[1]
+        self.assertIn("down --remove-orphans", down_recipe)
+        self.assertNotIn("--volumes", down_recipe)
+        self.assertNotIn("down -v", down_recipe)
+        self.assertIn("docker volume rm gouda-demo_gouda-postgres-data", reset_recipe)
+        self.assertNotIn("gouda_gouda-postgres-data", reset_recipe)
+        self.assertNotRegex(reset_recipe, r"docker volume rm .*\$[{(]")
+
+    def test_environment_check_rejects_missing_and_blank_values_without_leaks(self):
+        checker = ROOT / "scripts" / "check-local-env.sh"
+        cases = (
+            ("POSTGRES_PASSWORD=synthetic-password\n", "DJANGO_SECRET_KEY"),
+            (
+                "DJANGO_SECRET_KEY=synthetic-secret\nPOSTGRES_PASSWORD=\n",
+                "POSTGRES_PASSWORD",
+            ),
+            (
+                'DJANGO_SECRET_KEY=""\nPOSTGRES_PASSWORD=synthetic-password\n',
+                "DJANGO_SECRET_KEY",
+            ),
+        )
+        for contents, expected_name in cases:
+            with self.subTest(expected_name=expected_name), tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8"
+            ) as env_file:
+                env_file.write(contents)
+                env_file.flush()
+                result = subprocess.run(
+                    ["/bin/sh", checker, env_file.name],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(expected_name, result.stderr)
+                self.assertNotIn("synthetic-secret", result.stdout + result.stderr)
+                self.assertNotIn("synthetic-password", result.stdout + result.stderr)
+
+    def test_environment_check_accepts_required_nonempty_values(self):
+        checker = ROOT / "scripts" / "check-local-env.sh"
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as env_file:
+            env_file.write(
+                "DJANGO_SECRET_KEY=synthetic-secret\n"
+                "POSTGRES_PASSWORD=synthetic-password\n"
+            )
+            env_file.flush()
+            result = subprocess.run(
+                ["/bin/sh", checker, env_file.name],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("synthetic-secret", result.stdout + result.stderr)
+        self.assertNotIn("synthetic-password", result.stdout + result.stderr)

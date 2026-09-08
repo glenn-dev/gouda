@@ -361,20 +361,33 @@ The repository's first browser client is a Vite + React + TypeScript app under
 The primary startup sequence is:
 
 ```text
-docker compose up --build
-docker compose exec backend python manage.py seed_demo
+make demo
 Browser: http://127.0.0.1:5173/
 ```
 
-Compose publishes Vite at `127.0.0.1:5173` and does not publish Django. Vite
-binds to `0.0.0.0` only inside its container and proxies only `/api` to the
-literal `http://backend:8000` target across the internal application network.
-Django starts through `runlocal --host 0.0.0.0
+The Make workflow validates the required local environment, always selects the
+fixed isolated `gouda-demo` Compose project, force-recreates its containers,
+waits for PostgreSQL, Django, and Vite health checks, and explicitly invokes the
+idempotent synthetic-only `seed_demo` command. Ordinary Compose startup does
+not seed data.
+
+Compose publishes Vite at `127.0.0.1:5173` and does not publish Django or
+PostgreSQL in this demo topology. Vite binds to `0.0.0.0` only inside its
+container and proxies only `/api` to the literal `http://backend:8000` target
+across the internal application network. Django reaches PostgreSQL through the
+internal `data` network. Django starts through `runlocal --host 0.0.0.0
 --trusted-container-network`; that explicit mode permits only the internal IPv4
 wildcard on port `8000`. It does not inspect or attest Docker host publication.
 The repository-owned Compose file enforces the loopback browser edge, absence
 of a backend publication, and membership of only the backend and frontend on
 the internal application network.
+
+`make down` removes only the fixed demo project's containers and networks while
+preserving its named PostgreSQL volume. `make demo-reset` is the separate
+destructive operation and removes only the literal isolated demo volume. Host
+process development that needs database access uses the explicit
+`docker-compose.host-db.yml` override and a separate `gouda-host-dev` project;
+that override publishes PostgreSQL only on numeric IPv4 loopback.
 
 For host-process development, use:
 

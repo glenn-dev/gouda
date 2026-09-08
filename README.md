@@ -36,9 +36,9 @@ there are no editing controls, Category CRUD, or canonical financial writes.
 
 ## Local Docker demo
 
-The primary local path requires Docker with Compose, but does not require host
-Python or Node. Copy the environment template once and fill both values with
-local-only secrets:
+The primary local path requires Docker with Compose and Make, but does not
+require host Python or Node. Copy the environment template once and fill both
+values with local-only secrets:
 
 ```text
 cp .env.example .env
@@ -46,45 +46,70 @@ cp .env.example .env
 ```
 
 Neither value has an insecure fallback. `.env` is ignored and must not be
-committed. Start PostgreSQL, the validated Django backend, and the Vite client:
+committed. Start PostgreSQL, the validated Django backend, and the Vite client;
+wait for all three health checks; and explicitly seed the deterministic
+synthetic demo:
 
 ```text
-docker compose up --build
+make demo
 ```
 
-The backend applies migrations before starting. When all three services are
-healthy, open `http://127.0.0.1:5173/`. Compose publishes only these host ports:
+The command validates that both required `.env` entries are non-empty without
+printing their values. It always uses the fixed isolated Compose project
+`gouda-demo`, force-recreates its containers to repair partial prior creation,
+waits for service health instead of sleeping, and then runs the existing
+idempotent `seed_demo` command. On success, open
+`http://127.0.0.1:5173/`.
 
-- `127.0.0.1:5173` — browser-facing Vite client;
-- `127.0.0.1:5432` — optional host access to PostgreSQL; and
-- no backend host port. Vite reaches Django at internal service port `8000`.
+The normal demo publishes only `127.0.0.1:5173` for the browser-facing Vite
+client. PostgreSQL and Django have no host publication; Vite reaches Django at
+internal service port `8000`, and Django reaches PostgreSQL at internal service
+port `5432`. Another local PostgreSQL listener on host port `5432` therefore
+does not conflict with the demo.
 
-Populate the deterministic, synthetic-only demo dataset explicitly:
+Useful operator commands are:
 
 ```text
-docker compose exec backend python manage.py seed_demo
+make status
+make logs
+make down
 ```
 
-Running the command again is safe and creates no duplicates. The demo contains
-one CLP current Account, one CLP credit-card Account, and canonical Movements
-from `2026-01-05` through `2026-04-23`. Use `2026-01-01` through `2026-04-30`
-for the complete sample; March intentionally has no Movements. Positive and
-negative values retain canonical signed-account-effect meaning for each
-Account orientation. Demo rows are independent Account-effect examples; equal
-or nearby values do not assert transfer pairing or shared economic-event
-identity.
+`make down` removes only the `gouda-demo` containers and networks and preserves
+the `gouda-demo_gouda-postgres-data` volume. It never targets the default Gouda
+Compose project and never requests volume deletion. Restart with `make demo`;
+seeding is idempotent and creates no duplicates.
 
-Remove only this fixed demo graph, leaving every unrelated Account, import,
-Movement, private file, and the PostgreSQL volume untouched:
+Only when the isolated synthetic database itself should be discarded, run:
 
 ```text
-docker compose exec backend python manage.py clear_demo
+make demo-reset
 ```
 
-Stop the services without deleting PostgreSQL data:
+This destructive command names and removes only the literal
+`gouda-demo_gouda-postgres-data` volume. It cannot be redirected to the default
+Gouda volume through a Make or Compose project-name variable. Run `make demo`
+afterward to create a fresh isolated database.
+
+Generic `docker compose up` remains available for repository-level debugging,
+but it does not seed data automatically and is not the supported visual-demo
+workflow. Never use generic Compose startup or demo reset as an attempted repair
+for an older default Gouda volume with incompatible historical migration state;
+that state requires a separate deliberate migration/remediation decision.
+
+The demo contains one CLP current Account, one CLP credit-card Account, and
+canonical Movements from `2026-01-05` through `2026-04-23`. Use `2026-01-01`
+through `2026-04-30` for the complete sample; March intentionally has no
+Movements. Positive and negative values retain canonical signed-account-effect
+meaning for each Account orientation. Demo rows are independent Account-effect
+examples; equal or nearby values do not assert transfer pairing or shared
+economic-event identity.
+
+For narrowly scoped demo-data cleanup without deleting its database, the
+underlying explicit command remains:
 
 ```text
-docker compose down
+docker compose -p gouda-demo exec backend python manage.py clear_demo
 ```
 
 Do not use `docker compose down -v` as demo cleanup. Source directories are
@@ -95,8 +120,21 @@ changes.
 ## Manual host development
 
 The direct host launch path for Gouda's unauthenticated local-MVP financial
-delivery remains an explicit numeric-loopback bind. Start PostgreSQL alone with
-`docker compose up -d postgres`, then run:
+delivery remains an explicit numeric-loopback bind. Host PostgreSQL access is
+separate from the normal demo because it genuinely requires a published
+database port. Start a fixed `gouda-host-dev` PostgreSQL project with the
+explicit loopback-only override:
+
+```text
+docker compose -p gouda-host-dev \
+  -f docker-compose.yml -f docker-compose.host-db.yml \
+  up -d postgres
+```
+
+This is the only documented Compose path that publishes
+`127.0.0.1:5432`. It has its own persistent volume and may conflict with an
+existing host PostgreSQL listener by design. It does not reuse or remediate the
+default Gouda volume or the isolated demo volume. Then run:
 
 ```text
 python manage.py runlocal --host 127.0.0.1 --port 8000

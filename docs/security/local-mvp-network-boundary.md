@@ -73,9 +73,13 @@ owns every authorization decision. Real proxy tests cover these properties.
 See [Local HTTP delivery](../architecture/local-http-delivery.md) for the
 implemented default-off flags, request order, logs/cache policy, and contracts.
 
-The other Compose host-port publication is PostgreSQL on `127.0.0.1:5432`.
-It is a loopback-bound database development port, not an HTTP caller-trust
-boundary. Django has no host publication.
+The normal isolated Compose demo has no PostgreSQL host publication. Backend
+database traffic stays on Compose's internal `data` network, so an unrelated
+host listener on port `5432` cannot interfere with the demo. Direct host-process
+development may explicitly add `127.0.0.1:5432` through
+`docker-compose.host-db.yml` in the separate `gouda-host-dev` project. That
+loopback-bound database development port is not an HTTP caller-trust boundary.
+Django has no host publication in either topology.
 
 Generic Django `runserver`, WSGI, and ASGI launches remain unsupported for
 unauthenticated financial delivery because they do not activate Gouda's local
@@ -139,11 +143,12 @@ a Docker introspection mechanism. It permits only the exact internal
 `0.0.0.0:8000` bind and remains invalid with another port, loopback, IPv6
 wildcard, LAN, hostname, or public values. Gouda does not claim that Django can
 verify host NAT or port publication from inside its container. Static tests own
-the repository Compose contract: frontend and PostgreSQL publications are
-numeric-loopback-only, backend publication is absent, proxy target/path are
-fixed, and application network membership is bounded. Operators remain
-responsible for not adding an override, tunnel, forwarding rule, or untrusted
-container that expands this perimeter.
+the repository Compose contract: the normal demo has only the numeric-loopback
+frontend publication, backend and PostgreSQL publications are absent, proxy
+target/path are fixed, and application network membership is bounded. The
+separate host-database override is also statically constrained to numeric
+loopback. Operators remain responsible for not adding an override, tunnel,
+forwarding rule, or untrusted container that expands this perimeter.
 
 ## Caller-trust bootstrap
 

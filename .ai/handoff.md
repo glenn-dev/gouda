@@ -1,5 +1,82 @@
 # Handoff
 
+## Local demo ergonomics checkpoint
+
+Completed 2026-09-08: the supported synthetic visual-demo workflow is now
+`make demo`, with `make down` as its volume-preserving teardown. This section
+supersedes the older UI-foundation next-action text below; the next product task
+remains the separate manual classification editor under ADR-0012.
+
+The checkpoint started from clean `main` with HEAD and `origin/main` both
+`582ff3c7c9b343e70d188a95d83a01fd499e72af`, titled
+`feat: implement Gouda UI foundation`, and a good ED25519 SSH signature. The
+commit contract is exactly one signed `chore: simplify local demo workflow`
+commit and no push; Git history supplies the resulting SHA.
+
+The Makefile fixes project name `gouda-demo` and explicit repository Compose
+file paths. `make demo` first checks that `DJANGO_SECRET_KEY` and
+`POSTGRES_PASSWORD` are present and non-empty in `.env` without printing their
+values, then runs Compose configuration validation, builds and force-recreates
+the graph, waits on all declared health checks, invokes the existing idempotent
+synthetic-only `seed_demo`, and prints `http://127.0.0.1:5173/`. Force recreation
+prevents reuse of a partially created container with missing network attachment.
+
+The base Compose topology no longer publishes PostgreSQL. Demo backend/database
+traffic stays on the Compose data network; Django remains unpublished and Vite
+is still the sole numeric-loopback browser edge. The explicit
+`docker-compose.host-db.yml` override restores only
+`127.0.0.1:5432:5432` for a separately named `gouda-host-dev` host-process
+development project. Generic Compose startup never seeds data.
+
+`make status` and `make logs` use only fixed demo metadata and do not require
+reading `.env`. `make down` uses fixed project `gouda-demo`, removes containers
+and networks with no volume flag, and preserves
+`gouda-demo_gouda-postgres-data`. `make demo-reset` first tears down that same
+project and then removes only the literal demo volume with `docker volume rm`.
+The reset volume target and project cannot be redirected through Make or Compose
+project-name variables. It never names the default volume.
+
+Real lifecycle validation used only synthetic data. A fresh reset/start migrated
+through ledger `0011`; PostgreSQL, backend, and frontend all reached healthy;
+the Vite root and proxied Account API succeeded; and the seed contained exactly
+2 Accounts and 11 Movements. A disposable PostgreSQL 16.15 container actively
+published `127.0.0.1:5432` during the fresh start and later restart, while demo
+PostgreSQL remained unhosted at `5432/tcp`. Repeating `make demo` retained the
+same counts. `make down` preserved the same demo volume creation timestamp, and
+restart after down succeeded without manual recreation. Missing and blank
+`.env` fixtures failed at the check before Compose startup and printed variable
+names only. A secret-value scan of actual demo logs passed.
+
+Validation after the one corrected container-mount issue:
+
+- both base and host-database Compose configurations pass `config --quiet`;
+- all 528 Django tests pass in the isolated PostgreSQL stack;
+- all 59 frontend tests pass, including the real Vite proxy test;
+- Django check, migration drift, `pip check`, frontend typecheck/build, and
+  `npm ls` pass; and
+- diff whitespace, documentation references, privacy, ignored-path, and final
+  tracked-file hygiene checks pass.
+
+The first full Django run found that the backend development container did not
+mount the new Makefile, host-database override, or environment checker needed by
+the static tests. Those paths are now mounted read-only, the demo was recreated,
+and the complete 528-test rerun passed. No unresolved failure remains.
+
+Docker resource accounting is explicit. The pre-existing isolated synthetic
+`gouda-demo` containers, networks, and volume were removed once through the new
+reset to prove a fresh lifecycle. The demo volume was recreated and remains
+preserved after the final `make down`; its containers and networks are removed.
+The disposable host-port collision container was stopped and auto-removed. The
+historical default `gouda_gouda-postgres-data` volume retained its original
+2026-08-23 creation metadata and Compose labels. Only its metadata was
+inspected: it was never attached, read, mutated, or deleted, and no default
+Gouda container was started. Its stale local migration state still requires a
+separate deliberate remediation decision and was not repaired or faked here.
+
+No private financial artifact was read. No model, migration, Movement,
+classification, API, authorization, ADR-0010/0011/0012, CORS, authentication,
+cookie, token, or React-editor behavior changed.
+
 ## UI foundation implementation checkpoint
 
 Completed 2026-09-08: [Gouda UI Foundation v0.1](../docs/design/ui-foundation.md)
@@ -313,11 +390,13 @@ projection now retains current classification, and the Movement table renders
 Category names, inactive state, or the shared `Unclassified` presentation.
 
 For host development, Vite binds explicitly to `127.0.0.1:5173` and proxies
-only `/api` to `http://127.0.0.1:8000`. The primary Compose path publishes Vite
-at the same numeric-loopback URL, leaves Django unpublished, and fixes the
-container proxy target to `http://backend:8000` on an internal network. Neither
-proxy arrangement authenticates callers or issues principal context; Django
-still requires the active `runlocal` runtime.
+only `/api` to `http://127.0.0.1:8000`. The primary Compose demo path publishes
+Vite at the same numeric-loopback URL, leaves both Django and PostgreSQL
+unpublished, and fixes the container proxy target to `http://backend:8000` on
+an internal network. Neither proxy arrangement authenticates callers or issues
+principal context; Django still requires the active `runlocal` runtime. The
+separate host-database override is required when a host process needs
+loopback-published PostgreSQL.
 
 The committed baseline includes the complete Compose bootstrap and deterministic
 demo commands. `seed_demo` creates two CLP Accounts and eleven fixed-date
@@ -612,8 +691,9 @@ DRF is configured with no
 authentication classes, no Django anonymous user, and no browsable renderer.
 Django auth, CORS, CSRF middleware, and Account CRUD remain absent. The frontend
 uses only relative GET requests and retains no authentication or
-source-provenance state. Compose publishes PostgreSQL at `127.0.0.1:5432` and
-Vite at `127.0.0.1:5173`; it publishes no Django port.
+source-provenance state. The normal Compose demo publishes Vite at
+`127.0.0.1:5173`; it publishes no PostgreSQL or Django port. Host-process
+database access uses the separate loopback-only host-database override.
 
 The canonical host launch remains `python manage.py runlocal --host 127.0.0.1
 --port 8000`, with deliberate `::1` support. The host is required and exact;

@@ -77,13 +77,17 @@ context. `.ai/` is not canonical product documentation.
   controls, semantic tokens, exact string-only signed-money presentation, and a
   responsive semantic ledger list. It omits source provenance and renders
   validated current classification without issuing write requests.
-- The primary local Compose path starts pinned PostgreSQL, Django, and Node
-  images with health dependencies. Only Vite and PostgreSQL are published on
-  numeric host loopback; Django is unpublished behind the internal application
-  network. Explicit commands seed and clear a deterministic two-Account,
-  eleven-Movement synthetic demo graph through fixed UUIDv5 identities. Narrow
-  `DEMO_SYNTHETIC` source/record choices preserve truthful mandatory provenance
-  without adding an Account/Movement demo field or production import route.
+- The primary local demo path is `make demo`. It validates required `.env`
+  values without printing them, fixes the isolated Compose project as
+  `gouda-demo`, force-recreates its containers, waits for all service health
+  checks, and explicitly invokes idempotent synthetic-only `seed_demo`.
+  Only Vite is published on numeric host loopback; Django and PostgreSQL remain
+  internal to Compose. `make down` preserves the isolated volume, while the
+  destructive `make demo-reset` names only the literal demo volume. A separate
+  `gouda-host-dev` override retains explicit loopback PostgreSQL publication for
+  host-process development. Narrow `DEMO_SYNTHETIC` source/record choices
+  preserve truthful mandatory provenance without adding an Account/Movement
+  demo field or production import route.
 
 ## Implemented target evolution
 
@@ -100,16 +104,19 @@ The source-only contracts `bci_current_cartola_v0.1` and
 
 ## Current direction
 
-The current implementation checkpoint is
-[Gouda UI Foundation v0.1](../docs/design/ui-foundation.md). It started on
-2026-09-08 from fetched clean `main`, with HEAD and `origin/main` both
-`16f07047d5c08d44bfc1094fcc9a45712ae7d7dd`
-(`docs: define Gouda UI foundation`) and a valid SSH signature. The read client
-now implements the frozen system typography, neutral semantic colors,
-responsive ledger list, exact signed-money presentation, and the four approved
-shadcn controls. The next bounded task is the separate manual classification
-editor under ADR-0012. This checkpoint authorizes one signed
-`feat: implement Gouda UI foundation` commit and no push.
+The current checkpoint is the local demo ergonomics hardening requested after
+UI visual QA. It started on 2026-09-08 from clean `main`, with HEAD and
+`origin/main` both
+`582ff3c7c9b343e70d188a95d83a01fd499e72af`
+(`feat: implement Gouda UI foundation`) and a valid SSH signature. The fixed
+`gouda-demo` Make workflow, unpublished demo PostgreSQL service, explicit
+host-database override, regression tests, and operator documentation are
+implemented and validated. The historical default
+`gouda_gouda-postgres-data` volume remains deliberately separate: only its
+Docker metadata was inspected, and it was not attached, read, mutated, or
+deleted. This checkpoint authorizes one signed
+`chore: simplify local demo workflow` commit and no push. The next product task
+remains the separate manual classification editor under ADR-0012.
 
 BCI Historical Current Account PDF v0.1 and both current-source parsers are
 implemented and validated. Their joint source-boundary review and narrow

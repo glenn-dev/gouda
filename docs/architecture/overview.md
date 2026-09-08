@@ -158,13 +158,16 @@ Category catalog.
 For direct host development, Vite binds to numeric loopback and proxies only
 `/api` to the numeric-loopback `runlocal` backend. The primary Compose path
 instead publishes only Vite on numeric loopback, leaves Django unpublished,
-and uses a trusted internal application network. Django's narrowly validated
-container mode permits only its internal `0.0.0.0:8000` endpoint without
-claiming to inspect Docker publication. Both arrangements avoid CORS and retain
-the active `LocalDeliveryRuntime` trust gate. The client stores no auth tokens, issues no
-write methods, retains no source trace in its report model, and adds no
-financial semantics or production deployment behavior. Classification remains
-read-only, with no filtering, totals, or editing controls.
+keeps PostgreSQL unpublished, and uses trusted internal application and data
+networks. The fixed `gouda-demo` Make workflow validates local configuration,
+waits for health, and explicitly seeds only deterministic synthetic data.
+Django's narrowly validated container mode permits only its internal
+`0.0.0.0:8000` endpoint without claiming to inspect Docker publication. Both
+arrangements avoid CORS and retain the active `LocalDeliveryRuntime` trust gate.
+The client stores no auth tokens, issues no write methods, retains no source
+trace in its report model, and adds no financial semantics or production
+deployment behavior. Classification remains read-only, with no filtering,
+totals, or editing controls.
 
 The explicit `seed_demo` and `clear_demo` commands manage a deterministic
 synthetic-only Account/Movement graph for local demonstration. Fixed UUIDv5

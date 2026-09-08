@@ -5,8 +5,6 @@ services:
       POSTGRES_DB: gouda
       POSTGRES_USER: gouda
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
-    ports:
-      - "127.0.0.1:5432:5432"
     volumes:
       - gouda-postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -52,7 +50,9 @@ services:
       retries: 30
       start_period: 5s
     volumes:
+      - ./Makefile:/app/Makefile:ro
       - ./docker-compose.yml:/app/docker-compose.yml:ro
+      - ./docker-compose.host-db.yml:/app/docker-compose.host-db.yml:ro
       - ./Dockerfile:/app/Dockerfile:ro
       - ./requirements.txt:/app/requirements.txt:ro
       - ./requirements-dev.txt:/app/requirements-dev.txt:ro
@@ -60,6 +60,7 @@ services:
       - ./frontend:/app/frontend:ro
       - ./gouda:/app/gouda:ro
       - ./manage.py:/app/manage.py:ro
+      - ./scripts:/app/scripts:ro
       - ./tests:/app/tests:ro
     networks:
       - application
