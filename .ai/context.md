@@ -98,6 +98,18 @@ The source-only contracts `bci_current_cartola_v0.1` and
 
 ## Current direction
 
+The current completed design checkpoint is
+[Gouda UI Foundation v0.1](../docs/design/ui-foundation.md), frozen on
+2026-09-08 after fetching and verifying clean `main`, with HEAD and `origin/main`
+both `092a22429b2aa4c9d79ca7f5d3436b2f7484d54c`
+(`feat: implement local classification write boundary`) and a valid SSH signature.
+The foundation is documentation only: system typography, neutral semantic
+colors, a restrained ledger list, exact signed-money presentation, and four
+approved shadcn controls. Tailwind/shadcn and the restyle are not implemented.
+The next bounded task is its read-client implementation; the manual editor
+follows separately under ADR-0012. This checkpoint authorizes one signed
+`docs: define Gouda UI foundation` commit and no push.
+
 BCI Historical Current Account PDF v0.1 and both current-source parsers are
 implemented and validated. Their joint source-boundary review and narrow
 provenance-conformance correction are complete. Current Cartola is now the
@@ -174,12 +186,12 @@ it proxies `/api` to the unpublished Django service. Neither proxy arrangement
 is authentication or principal issuance. The container runtime does not claim
 to verify Docker publication; repository configuration and tests enforce it.
 
-The 2026-09-07 implementation checkpoint started from fetched clean `main` with
+The historical 2026-09-07 implementation checkpoint started from fetched clean `main` with
 HEAD and `origin/main` exactly `bb09f7c0d281f68010baed9ed56055b45a02b88e`
 (`docs: define local classification write boundary`), verified with a good local
 SSH signature. The authorized implementation commit is
 `feat: implement local classification write boundary`; Git history supplies its
-resulting SHA. Nothing is to be pushed in this checkpoint.
+resulting SHA. Its reviewed result is the fetched `092a224` baseline above.
 
 [ADR-0011](../docs/decisions/ADR-0011-movement-classification.md) and
 [Movement classification](../docs/architecture/movement-classification.md)
@@ -245,19 +257,19 @@ explicit Vite CORS disablement are implemented and covered by focused tests.
 Real Vite tests preserve duplicate header multiplicity for Django rejection;
 browser/Compose/restart validation is recorded in the handoff.
 
-The next bounded task is the React manual editor under ADR-0012: explicit
-choices, memory-only capability acquisition, safe-integer submissions, stale-view
-handling, and refetch after conflicts or ambiguous outcomes without silent retry.
-Filtering and all other deferred semantics remain outside that task.
+After the read-client foundation implementation, a separate React manual editor
+task under ADR-0012 will cover explicit choices, memory-only capability
+acquisition, safe-integer submissions, stale-view handling, and refetch after
+conflicts or ambiguous outcomes without silent retry. Filtering remains deferred.
 
-Independent review of signed commit `e7223f4` found an Accept-negotiation
+The completed independent review of signed commit `e7223f4` found an Accept-negotiation
 contract mismatch: parameters on unrelated media ranges incorrectly rejected
 otherwise acceptable JSON. The narrow correction uses quote-aware HTTP list
 splitting and considers only matching representation ranges, retaining explicit
 JSON q=0 rejection. A regression test first failed on the original implementation.
 Current product/architecture status sentences were also corrected. The review
-amends the same signed implementation commit; no push is authorized. See the
-handoff for final validation and isolated-environment cleanup.
+amended the same signed implementation commit, resulting in the now-fetched
+`092a224` baseline. See the handoff for historical validation and environment cleanup.
 
 When uncertain, preserve evidence, abstain explicitly, use deterministic
 financial validation, and keep private values out of logs and tracked files.

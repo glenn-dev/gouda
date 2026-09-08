@@ -167,13 +167,16 @@ Use the same Vite browser edge. The capability is generated only in backend
 memory and expires on restart; never configure, save, or log it. The complete
 [local write contract](docs/architecture/local-http-delivery.md#opt-in-classification-writes)
 documents bootstrap/PATCH, the equally explicit Compose opt-in, and the accepted
-trusted-local-process limitation. React capability consumption and editing are
-the next separate task.
+trusted-local-process limitation. The frozen
+[Gouda UI Foundation v0.1](docs/design/ui-foundation.md) defines the next
+read-client restyle. React capability consumption and editing follow in a
+separate checkpoint.
 
 ## Documentation map
 
 - Product: `docs/product/`
 - Architecture: `docs/architecture/`
+- UI design: [Gouda UI Foundation v0.1](docs/design/ui-foundation.md)
 - Decisions: `docs/decisions/`
 - Deterministic source contracts: `docs/contracts/`
 - Sanitized source observations: `docs/sources/`

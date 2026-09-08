@@ -1,6 +1,59 @@
 # Handoff
 
-## Independent review checkpoint
+## UI foundation design checkpoint
+
+Completed 2026-09-08: [Gouda UI Foundation v0.1](../docs/design/ui-foundation.md)
+is frozen as design/documentation only. The next action is its bounded
+read-client implementation; the classification editor follows separately.
+This current section and the next-checkpoint section supersede historical
+instructions and validation records below.
+
+After `git fetch origin`, verified clean `main`, with HEAD and `origin/main`
+both exactly `092a22429b2aa4c9d79ca7f5d3436b2f7484d54c`, titled
+`feat: implement local classification write boundary`, and a good ED25519 SSH
+Git signature. The commit contract for this design is exactly one signed
+`docs: define Gouda UI foundation` commit and no push; its resulting SHA and
+signature are available from Git history.
+
+Current capability is unchanged: local Account/date Movement reporting and
+read-only classification presentation in React; the separately enabled backend
+classification write boundary is implemented under ADR-0012. No Tailwind,
+shadcn component, UI restyle, editor, or capability consumer is implemented by
+this documentation checkpoint. No dependencies were installed, application
+build/test suites run, frontend source modified, or private evidence inspected.
+
+The foundation specifies system typography, a neutral semantic palette, modest
+spacing/radius, a plain centered page, exact signed-money formatting, a ledger
+list with classification beneath description, accessibility, responsive behavior,
+and only Button/Input/Label/Native Select as initial shadcn controls. It records
+future editor state constraints without designing the full editor. It keeps
+brand accent, logo, dark mode, charts, dashboard, category visuals, motion, and
+mobile navigation open. Current official Tailwind/shadcn/Radix/W3C references
+are linked; recommendations and Gouda choices are separated from accessibility
+requirements. No new ADR is warranted because established domain/security/API
+and persistence contracts are unchanged.
+
+Review challenged system size, toolkit aesthetics, sign semantics, unnecessary
+cards/tables, editor fit, later reporting, and premature branding. Scope was
+kept to four controls and three extracted presentation components; shell/header
+stay in App. Nonzero CLP fractions remain visible and all formatting is string
+only. No financial arithmetic, new API data, or category semantics are invented.
+
+Changed paths: `docs/design/ui-foundation.md`, `README.md`, `.ai/context.md`,
+`.ai/handoff.md`, and `.ai/tasks/current.md`. README supplies discovery and the
+updated checkpoint sequence; existing architecture describes current code.
+
+Documentation validation passed: 43 Markdown files and 88 local links/anchors;
+changed-file Markdown structure/whitespace; six synthetic exact-format examples;
+exact five-path scope; added-text privacy and ignored/untracked private-path
+checks; unchanged implementation baseline; and `git diff --check`. Proposed
+text pairs have a minimum 6.99:1 contrast, and required control/focus pairs
+4.40:1. These are token calculations, not rendered-UI conformance claims.
+No frontend build, dependency installation, or functional tests were run.
+Screenshot, keyboard, screen-reader, zoom, and browser acceptance remain the
+implementation checkpoint's work. All five paths were reviewed before commit.
+
+## Historical independent review checkpoint
 
 The review began with fetched clean `main` at
 `e7223f47040312785bda9d4e1416da98bb0e5421`, titled
@@ -60,10 +113,12 @@ The frontend socket test proves forwarding, not browser authorization; live
 Chrome and Django checks supply that separate evidence. The mocked false-length
 test proves the adapter's bounded read call, not raw HTTP framing behavior.
 
-The review amends the existing signed implementation commit; Git history supplies
-the final SHA and signature. Nothing is pushed. The next task remains the
-separate React editor. Only isolated synthetic databases were used; no private
-corpus or existing user database was inspected or changed.
+That review amended the existing signed implementation commit, producing
+`092a22429b2aa4c9d79ca7f5d3436b2f7484d54c`; Git history supplies its signature.
+Nothing was pushed during that review. Its proposed next task was the separate
+React editor; the current UI foundation sequence above supersedes that priority.
+Only isolated synthetic databases were used; no private corpus or existing user
+database was inspected or changed.
 The isolated `gouda-adr12-review` Compose containers/networks were removed with
 `down`; its named synthetic PostgreSQL volume was preserved. The disposable
 `gouda-adr12-review-pg16` test container was stopped and automatically removed.
@@ -835,17 +890,20 @@ Validation used the existing frontend dependencies and a disposable PostgreSQL
 
 Final state at that earlier review: `main` had one local commit above then-current
 `origin/main`; the working tree and index were clean, and nothing was pushed in
-that review. The current design session fetched the now-published commit and
-verified equal HEAD/`origin/main` as recorded at the top of this handoff.
+that review. A subsequent session fetched that published commit. The current
+baseline is recorded at the top of this handoff.
 
 ## Next checkpoint
 
-Implement the bounded React manual editor under ADR-0012. Read that ADR and the
-implemented local HTTP/classification contracts first. Require explicit user
-choices, Category catalog use, closure-memory capability handling, safe-integer
-submissions, request/view race handling, and refetch after 409 or ambiguous
-outcomes. Never silently retry. Preserve all implemented backend gates and the
-default read-only startup. Filtering remains deferred.
+Implement the frozen [UI foundation](../docs/design/ui-foundation.md) as a
+bounded read-client restyle: Tailwind, approved shadcn source, semantic tokens,
+exact string formatting, and a responsive ledger list. Follow its expected
+paths and screenshot/browser acceptance criteria. Preserve request cadence,
+API validation, financial facts, backend order/count/total, privacy, and the
+existing Vite trust edge. No Category catalog, capability bootstrap, or editing
+controls yet. The manual editor follows separately under ADR-0012, including
+explicit choices, safe revisions, memory-only capability handling, and refetch
+after conflicts/ambiguous outcomes without silent retry.
 Recommended reasoning level: High.
 
 ## Roadmap reassessment
@@ -862,8 +920,8 @@ Authentication/ownership remain absent.
 
 Priorities are:
 
-1. Add the bounded manual editor atop the implemented ADR-0012 backend boundary.
-   Filtering, economic types,
+1. Implement the UI foundation read-client restyle, then the bounded manual
+   editor atop ADR-0012 in a separate checkpoint. Filtering, economic types,
    and transfer semantics remain deferred.
 2. Add an operational import/API surface for the already implemented
    Santander services only after the account-access and upload-security
@@ -883,5 +941,5 @@ Read `AGENTS.md`, the README documentation map,
 `docs/product/mvp-scope.md`, `docs/product/ingestion-evidence-principles.md`,
 `docs/architecture/domain-model.md`, `docs/architecture/evidence-resolution.md`,
 relevant ADRs and contracts,
-`docs/sources/bci-current-account-lifecycle.md`, then
+`docs/design/ui-foundation.md`, `docs/sources/bci-current-account-lifecycle.md`, then
 `.ai/context.md`, `.ai/tasks/current.md`, and this handoff.
