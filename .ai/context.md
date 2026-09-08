@@ -71,10 +71,12 @@ context. `.ai/` is not canonical product documentation.
 - Django REST Framework 3.16.x is configured without authentication and with
   JSON-only rendering. Account/Category discovery and canonical Movement report GET
   endpoints fail closed without the active runtime.
-- A minimal Vite + React + TypeScript client implements Account discovery,
-  internal UUID selection, inclusive date input, and canonical Movement report
-  rendering. It preserves exact decimal strings, omits source provenance, and
-  now renders validated current classification without issuing write requests.
+- A Vite + React + TypeScript client implements Account discovery, internal UUID
+  selection, inclusive date input, and canonical Movement report rendering.
+  Gouda UI Foundation v0.1 adds CSS-first Tailwind, four narrowly owned shadcn
+  controls, semantic tokens, exact string-only signed-money presentation, and a
+  responsive semantic ledger list. It omits source provenance and renders
+  validated current classification without issuing write requests.
 - The primary local Compose path starts pinned PostgreSQL, Django, and Node
   images with health dependencies. Only Vite and PostgreSQL are published on
   numeric host loopback; Django is unpublished behind the internal application
@@ -98,17 +100,16 @@ The source-only contracts `bci_current_cartola_v0.1` and
 
 ## Current direction
 
-The current completed design checkpoint is
-[Gouda UI Foundation v0.1](../docs/design/ui-foundation.md), frozen on
-2026-09-08 after fetching and verifying clean `main`, with HEAD and `origin/main`
-both `092a22429b2aa4c9d79ca7f5d3436b2f7484d54c`
-(`feat: implement local classification write boundary`) and a valid SSH signature.
-The foundation is documentation only: system typography, neutral semantic
-colors, a restrained ledger list, exact signed-money presentation, and four
-approved shadcn controls. Tailwind/shadcn and the restyle are not implemented.
-The next bounded task is its read-client implementation; the manual editor
-follows separately under ADR-0012. This checkpoint authorizes one signed
-`docs: define Gouda UI foundation` commit and no push.
+The current implementation checkpoint is
+[Gouda UI Foundation v0.1](../docs/design/ui-foundation.md). It started on
+2026-09-08 from fetched clean `main`, with HEAD and `origin/main` both
+`16f07047d5c08d44bfc1094fcc9a45712ae7d7dd`
+(`docs: define Gouda UI foundation`) and a valid SSH signature. The read client
+now implements the frozen system typography, neutral semantic colors,
+responsive ledger list, exact signed-money presentation, and the four approved
+shadcn controls. The next bounded task is the separate manual classification
+editor under ADR-0012. This checkpoint authorizes one signed
+`feat: implement Gouda UI foundation` commit and no push.
 
 BCI Historical Current Account PDF v0.1 and both current-source parsers are
 implemented and validated. Their joint source-boundary review and narrow

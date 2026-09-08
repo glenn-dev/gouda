@@ -2,57 +2,56 @@
 
 ## Objective
 
-Completed the design/documentation checkpoint for
-[Gouda UI Foundation v0.1](../../docs/design/ui-foundation.md).
-No UI implementation, dependency installation, frontend build, or production
-frontend change belongs to this checkpoint. The commit contract is exactly one
-signed `docs: define Gouda UI foundation` commit; no push is authorized.
+Completed the implementation checkpoint for
+[Gouda UI Foundation v0.1](../../docs/design/ui-foundation.md). The read client
+now implements the frozen presentation foundation without the classification
+editor or any new product/API behavior. The commit contract is exactly one
+signed `feat: implement Gouda UI foundation` commit; no push is authorized.
 
 ## Baseline
 
 On 2026-09-08, `git fetch origin` succeeded. Branch `main` and a clean working
 tree were verified; HEAD and `origin/main` both equaled
-`092a22429b2aa4c9d79ca7f5d3436b2f7484d54c`, titled
-`feat: implement local classification write boundary`, with a good ED25519 SSH
-Git signature. This supersedes the previous review's pre-amend operational state.
+`16f07047d5c08d44bfc1094fcc9a45712ae7d7dd`, titled
+`docs: define Gouda UI foundation`, with a good ED25519 SSH Git signature.
 
-## Completed design
+## Implemented foundation
 
-The foundation freezes calm ledger hierarchy, one system sans-serif stack,
-neutral semantic colors, a small Tailwind spacing rhythm, restrained shapes,
-plain centered layout, exact signed-money formatting, classification beneath
-description, accessibility, responsive adaptation, and a four-component shadcn
-allowlist: Button, Input, Label, Native Select. It includes ownership boundaries,
-non-goals, visual acceptance criteria, and a path-by-path implementation scope.
-No ADR is added: financial, persistence, integration, and security contracts
-remain unchanged. Current official Tailwind/shadcn/Radix/W3C sources are linked
-in the design, with established conventions distinguished from Gouda choices.
+The frontend uses Tailwind's current CSS-first Vite integration and narrowly
+owned shadcn Radix-collection sources for Button, Input, Label, and Native
+Select. Gouda semantic tokens, the frozen system font stack, 44px controls,
+visible focus, a pure string-only `MoneyAmount`, `ClassificationDisplay`, and a
+responsive semantic `MovementList` replace the old panel/table presentation.
+
+All report values and ordering still come directly from the backend. Exact
+decimal strings are never converted to numbers or used in client arithmetic.
+Positive and negative values retain signed Account-effect meaning and neutral
+color. Classification remains read-only; active/inactive and both unclassified
+states preserve their frozen presentation and internal distinctions.
 
 ## Validation
 
-Documentation validation covers Markdown structure and local links/anchors,
-synthetic formatting examples, exact five-path scope, added-text privacy,
-ignored/untracked private paths, and `git diff --check`. Results are recorded
-in the handoff. No frontend or backend tests/builds are rerun for this docs-only
-change; earlier functional results remain historical.
+All 59 frontend tests pass, including the real Vite proxy test. Typecheck,
+production build, and the top-level dependency tree pass. Forty-five focused
+local-delivery/reporting tests and all 523 Django tests pass. Django check,
+migration drift, and `pip check` pass. Browser inspection covered settled and
+loading selection states, populated desktop, 375px and 320px populated layouts,
+empty report, and safe report error. At 320px there is no page overflow and all
+four controls measure 44px high. Native keyboard order and the visible 2px focus
+ring were verified. Temporary screenshots remain untracked; demo rows were
+cleared and the isolated stack was stopped without deleting its volume.
 
 ## Next bounded scope
 
-Implement the foundation's read-client restyle: add Tailwind and minimal shadcn
-infrastructure, only approved controls and presentation components, semantic
-tokens, and responsive ledger styling. Preserve current request cadence,
-validation, order/count/exact values, error states, privacy, and Vite trust gates.
-No Category catalog request, capability bootstrap, or classification editor yet.
-
-Then design/implement the separate manual editor under ADR-0012, retaining
-explicit choices, memory-only capability handling, safe revisions, and refetch
-after conflicts or ambiguous outcomes without silent replay.
-Recommended reasoning level: High.
+Design and implement the separate manual classification editor under ADR-0012.
+Retain explicit choices, memory-only capability handling, safe revisions, and
+refetch after conflicts or ambiguous outcomes without silent replay. Filtering
+remains separate.
 
 ## Deferred
 
 Final brand accent, logo, dark mode, chart vocabulary, dashboard, category
 visual identity, motion, mobile navigation, and complex visualization remain
-open. Filtering, Category management, default taxonomy, demo assignments,
-rules/AI, bulk editing, history, ownership, transfers, and income/expense
-semantics remain outside the UI foundation.
+open. Category management, default taxonomy, demo assignments, rules/AI, bulk
+editing, history, ownership, transfers, and income/expense semantics remain
+outside the UI foundation.

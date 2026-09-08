@@ -2,10 +2,11 @@
 
 ## Status and boundary
 
-Frozen design, 2026-09-08; implementation is a separate checkpoint. This is the
-small presentation foundation for the local read client, a later manual
-classification editor, and eventual household reports. It changes no financial,
-persistence, API, authorization, or source contract, so no new ADR is warranted.
+Frozen design, 2026-09-08; read-client implementation completed in the following
+checkpoint. This is the small presentation foundation for the local read client,
+a later manual classification editor, and eventual household reports. It changes
+no financial, persistence, API, authorization, or source contract, so no new ADR
+is warranted.
 
 Read the [MVP scope](../product/mvp-scope.md),
 [local HTTP contract](../architecture/local-http-delivery.md),
@@ -447,14 +448,14 @@ behavior, not just automated assertions:
   reduced motion. Behavioral tests protect API and exact-value invariants;
   human review decides calmness, hierarchy, and visual quality.
 
-## Next bounded implementation checkpoint
+## Read-client implementation checkpoint
 
-Implement the frozen foundation and restyle the existing read client. Add
-Tailwind and only approved shadcn infrastructure/components, map semantic
-tokens, and preserve all existing behavior and trust boundaries. Presentation
-changes to labels, number formatting, and list anatomy are intentional; requests,
+The implementation checkpoint added Tailwind and only approved shadcn
+infrastructure/components, mapped semantic tokens, and restyled the existing
+read client while preserving behavior and trust boundaries. Presentation changes
+to labels, number formatting, and list anatomy are intentional; requests,
 validation, exact values, order, count, privacy, and read-only behavior remain.
-No classification write editor or capability consumption in that checkpoint.
+No classification write editor or capability consumption was added.
 
 Expected path-by-path scope (new paths below are plans, not existing files):
 

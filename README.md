@@ -23,10 +23,11 @@ acceptance. Provisional product views, AI execution, and canonical Movement
 correction are not implemented. The local HTTP surface discovers accessible
 Accounts and active/inactive Categories, and delivers authorized, read-only
 canonical Movement reports with current classification state under
-the loopback-only local runtime boundary. A minimal React/TypeScript client now
-provides the complete Account-selection, inclusive-date-range, and Movement
-report flow, including read-only current classification labels, through that
-existing backend contract.
+the loopback-only local runtime boundary. A React/TypeScript client now provides
+the complete Account-selection, inclusive-date-range, and Movement report flow
+through that existing backend contract. Gouda UI Foundation v0.1 supplies its
+calm, responsive ledger presentation, exact signed-money formatting, and
+read-only current classification labels.
 
 An independently enabled local classification write boundary is also implemented
 under ADR-0012. Default startup and React remain read-only. The backend offers
@@ -168,9 +169,9 @@ memory and expires on restart; never configure, save, or log it. The complete
 [local write contract](docs/architecture/local-http-delivery.md#opt-in-classification-writes)
 documents bootstrap/PATCH, the equally explicit Compose opt-in, and the accepted
 trusted-local-process limitation. The frozen
-[Gouda UI Foundation v0.1](docs/design/ui-foundation.md) defines the next
-read-client restyle. React capability consumption and editing follow in a
-separate checkpoint.
+[Gouda UI Foundation v0.1](docs/design/ui-foundation.md) is implemented for the
+read client. React capability consumption and editing follow in a separate
+checkpoint.
 
 ## Documentation map
 

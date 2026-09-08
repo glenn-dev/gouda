@@ -33,6 +33,11 @@ describe("Gouda read-only report flow", () => {
     expect(
       screen.getByRole("option", { name: "Synthetic Card — Credit card — USD" }),
     ).toBeInTheDocument();
+    expect(selector).toHaveAccessibleDescription(
+      "Synthetic Daily Account · Current account · CLP",
+    );
+    expect(screen.getByLabelText("Start date")).toBeRequired();
+    expect(screen.getByLabelText("End date")).toBeRequired();
     expect(screen.queryByText(PRIMARY_ACCOUNT_ID)).not.toBeInTheDocument();
     expect(screen.queryByText(CARD_ACCOUNT_ID)).not.toBeInTheDocument();
   });
@@ -112,16 +117,16 @@ describe("Gouda read-only report flow", () => {
     fillDateRange("2026-04-01", "2026-04-30");
     await user.click(screen.getByRole("button", { name: "Load Movement report" }));
 
-    expect(await screen.findByText("1234567890123456.77")).toBeInTheDocument();
-    expect(screen.getByText("1234567890123456.78")).toBeInTheDocument();
-    expect(screen.getByText("-0.01")).toBeInTheDocument();
+    expect(await screen.findByText("+1.234.567.890.123.456,77 CLP")).toBeInTheDocument();
+    expect(screen.getByText("+1.234.567.890.123.456,78 CLP")).toBeInTheDocument();
+    expect(screen.getByText("−0,01 CLP")).toBeInTheDocument();
     const summary = screen.getByText("Movement count").closest("div");
     expect(summary).not.toBeNull();
     expect(within(summary!).getByText("2")).toBeInTheDocument();
 
-    const rows = screen.getAllByRole("row").slice(1);
+    const rows = screen.getAllByRole("listitem");
     expect(within(rows[0]).getByText("Synthetic returned first")).toBeInTheDocument();
-    expect(within(rows[0]).getByText("Synthetic essentials")).toBeInTheDocument();
+    expect(within(rows[0]).getByText("Category: Synthetic essentials")).toBeInTheDocument();
     expect(within(rows[0]).getByText("2026-04-30")).toBeInTheDocument();
     expect(within(rows[1]).getByText("Synthetic returned second")).toBeInTheDocument();
     expect(within(rows[1]).getByText("2026-04-01")).toBeInTheDocument();
@@ -195,13 +200,13 @@ describe("Gouda read-only report flow", () => {
     fillDateRange("2026-04-01", "2026-04-30");
     await user.click(screen.getByRole("button", { name: "Load Movement report" }));
 
-    expect(await screen.findByText("Synthetic active topic")).toBeInTheDocument();
-    const inactive = screen.getByText(
-      "Synthetic inactive topic with a deliberately long readable label",
-    ).closest("span.classification-badge");
-    expect(inactive).not.toBeNull();
-    expect(within(inactive as HTMLElement).getByText("Inactive")).toBeInTheDocument();
-    expect(screen.getAllByText("Unclassified")).toHaveLength(2);
+    expect(await screen.findByText("Category: Synthetic active topic")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Category: Synthetic inactive topic with a deliberately long readable label · Inactive",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Category: Unclassified")).toHaveLength(2);
 
     for (const hiddenValue of [
       ACTIVE_CATEGORY_ID,
@@ -245,7 +250,7 @@ describe("Gouda read-only report flow", () => {
     expect(
       await screen.findByText("No canonical Movements were found for this date range."),
     ).toBeInTheDocument();
-    expect(screen.getByText("0.00")).toBeInTheDocument();
+    expect(screen.getByText("0 CLP")).toBeInTheDocument();
   });
 
   it.each([

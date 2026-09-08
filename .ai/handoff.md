@@ -1,57 +1,69 @@
 # Handoff
 
-## UI foundation design checkpoint
+## UI foundation implementation checkpoint
 
 Completed 2026-09-08: [Gouda UI Foundation v0.1](../docs/design/ui-foundation.md)
-is frozen as design/documentation only. The next action is its bounded
-read-client implementation; the classification editor follows separately.
-This current section and the next-checkpoint section supersede historical
-instructions and validation records below.
+is implemented for the local read client. The next action is the separate
+manual classification editor under ADR-0012. This current section supersedes
+historical instructions and validation records below.
 
 After `git fetch origin`, verified clean `main`, with HEAD and `origin/main`
-both exactly `092a22429b2aa4c9d79ca7f5d3436b2f7484d54c`, titled
-`feat: implement local classification write boundary`, and a good ED25519 SSH
-Git signature. The commit contract for this design is exactly one signed
-`docs: define Gouda UI foundation` commit and no push; its resulting SHA and
-signature are available from Git history.
+both exactly `16f07047d5c08d44bfc1094fcc9a45712ae7d7dd`, titled
+`docs: define Gouda UI foundation`, and a good ED25519 SSH Git signature. The
+commit contract is exactly one signed `feat: implement Gouda UI foundation`
+commit and no push; Git history supplies the resulting SHA.
 
-Current capability is unchanged: local Account/date Movement reporting and
-read-only classification presentation in React; the separately enabled backend
-classification write boundary is implemented under ADR-0012. No Tailwind,
-shadcn component, UI restyle, editor, or capability consumer is implemented by
-this documentation checkpoint. No dependencies were installed, application
-build/test suites run, frontend source modified, or private evidence inspected.
+Tailwind 4.3.3 uses its CSS-first Vite plugin without a legacy configuration.
+The checked-in shadcn Radix-collection source is limited to Button, Input,
+Label, and Native Select, adapted to Gouda's density, one radius, tokens, focus,
+and 44px targets. Direct runtime dependencies are `cn`,
+`class-variance-authority`, `@radix-ui/react-label`, and `lucide-react`; no
+generic UI framework, overlay, animation, table, card, or chart package was
+added.
 
-The foundation specifies system typography, a neutral semantic palette, modest
-spacing/radius, a plain centered page, exact signed-money formatting, a ledger
-list with classification beneath description, accessibility, responsive behavior,
-and only Button/Input/Label/Native Select as initial shadcn controls. It records
-future editor state constraints without designing the full editor. It keeps
-brand accent, logo, dark mode, charts, dashboard, category visuals, motion, and
-mobile navigation open. Current official Tailwind/shadcn/Radix/W3C references
-are linked; recommendations and Gouda choices are separated from accessibility
-requirements. No new ADR is warranted because established domain/security/API
-and persistence contracts are unchanged.
+The frozen light semantic tokens and system sans-serif stack now drive the
+plain centered app shell. `MoneyAmount` validates and formats exact decimal
+strings with string operations only: explicit plus or typographic minus, fixed
+dot grouping, comma decimals, CLP `.00` omission, visible currency, tabular
+numerals, and one complete screen-reader phrase. It performs no conversion,
+rounding, summation, or inference. Financial direction remains neutral and is
+not communicated by color alone.
 
-Review challenged system size, toolkit aesthetics, sign semantics, unnecessary
-cards/tables, editor fit, later reporting, and premature branding. Scope was
-kept to four controls and three extracted presentation components; shell/header
-stay in App. Nonzero CLP fractions remain visible and all formatting is string
-only. No financial arithmetic, new API data, or category semantics are invented.
+`MovementList` preserves the backend array exactly in one semantic `ul`/`li`
+ledger. Each responsive row shows the full date, wrapping description,
+`ClassificationDisplay`, and a right-aligned complete amount. Active Category
+names appear plainly; inactive names add `Inactive`; `NEVER_ASSIGNED` and
+`CLEARED` remain internally distinct while both render `Unclassified`. UUIDs,
+revisions, source, timestamp, and provenance remain hidden. No Category request,
+sorting, grouping, totals, arithmetic, mutation, or editor was added.
 
-Changed paths: `docs/design/ui-foundation.md`, `README.md`, `.ai/context.md`,
-`.ai/handoff.md`, and `.ai/tasks/current.md`. README supplies discovery and the
-updated checkpoint sequence; existing architecture describes current code.
+The existing Account discovery, first selection, inclusive native date fields,
+explicit report load, loading locks, safe errors, empty states, and report reset
+behavior are unchanged. `api.ts` is unchanged. All fetches remain relative,
+GET-only, without credentials, tokens, cookies, CORS changes, or new endpoints.
+Vite's loopback bind, proxy target restrictions, duplicate-header preservation,
+framing denial, safe logging, and explicit CORS disablement are unchanged apart
+from adding the Tailwind plugin and source alias.
 
-Documentation validation passed: 43 Markdown files and 88 local links/anchors;
-changed-file Markdown structure/whitespace; six synthetic exact-format examples;
-exact five-path scope; added-text privacy and ignored/untracked private-path
-checks; unchanged implementation baseline; and `git diff --check`. Proposed
-text pairs have a minimum 6.99:1 contrast, and required control/focus pairs
-4.40:1. These are token calculations, not rendered-UI conformance claims.
-No frontend build, dependency installation, or functional tests were run.
-Screenshot, keyboard, screen-reader, zoom, and browser acceptance remain the
-implementation checkpoint's work. All five paths were reviewed before commit.
+Validation: all 59 frontend tests, TypeScript, production build, and dependency
+tree pass. Forty-five focused local-delivery/reporting tests and all 523 Django
+tests pass. Django check, migration drift, and `pip check` pass. Browser review
+used the repository Compose demo with a fresh isolated synthetic-only database;
+the pre-existing default volume's stale migration state was left untouched.
+Inspection covered loading/settled selection, populated desktop, 375px and
+320px populated layouts, empty report, and safe report error. At 320px the page
+has no horizontal overflow and every control is 44px high. The selected Account
+context remains readable outside the clipped native select. Keyboard traversal
+follows the native control order, and the tested focus ring is a visible 2px
+solid blue outline with 2px offset. Temporary screenshots are untracked. Demo
+rows were cleared and the isolated stack was stopped without deleting its volume;
+the pre-existing default volume remained untouched.
+
+Visual review found financial hierarchy clear, amounts vertically scannable,
+controls secondary, classification readable, and whitespace/separators sufficient
+without cards, gradients, shadows, badges, dashboard chrome, or admin-table feel.
+The observed clipped selected-Account context and suppressed keyboard focus ring
+were both corrected before final validation. No non-blocking visual issue remains.
 
 ## Historical independent review checkpoint
 
@@ -895,15 +907,11 @@ baseline is recorded at the top of this handoff.
 
 ## Next checkpoint
 
-Implement the frozen [UI foundation](../docs/design/ui-foundation.md) as a
-bounded read-client restyle: Tailwind, approved shadcn source, semantic tokens,
-exact string formatting, and a responsive ledger list. Follow its expected
-paths and screenshot/browser acceptance criteria. Preserve request cadence,
-API validation, financial facts, backend order/count/total, privacy, and the
-existing Vite trust edge. No Category catalog, capability bootstrap, or editing
-controls yet. The manual editor follows separately under ADR-0012, including
-explicit choices, safe revisions, memory-only capability handling, and refetch
-after conflicts/ambiguous outcomes without silent retry.
+Design and implement the bounded manual classification editor under ADR-0012,
+including explicit choices, safe revisions, memory-only capability handling,
+and refetch after conflicts or ambiguous outcomes without silent retry. Reuse
+the implemented UI foundation without expanding it into filtering, a dashboard,
+or a broader component system.
 Recommended reasoning level: High.
 
 ## Roadmap reassessment
@@ -920,9 +928,8 @@ Authentication/ownership remain absent.
 
 Priorities are:
 
-1. Implement the UI foundation read-client restyle, then the bounded manual
-   editor atop ADR-0012 in a separate checkpoint. Filtering, economic types,
-   and transfer semantics remain deferred.
+1. Implement the bounded manual editor atop ADR-0012. Filtering, economic
+   types, and transfer semantics remain deferred.
 2. Add an operational import/API surface for the already implemented
    Santander services only after the account-access and upload-security
    boundary is explicit.

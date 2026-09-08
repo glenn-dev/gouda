@@ -395,11 +395,14 @@ The client preserves monetary strings exactly and performs no financial
 arithmetic. It renders Account display name, kind, and currency; inclusive
 report dates; backend count and net signed amount; and each Movement's date,
 canonical description, current Category presentation, signed amount, and
-currency. The parser retains the bounded classification projection only after
-validating its state/category/revision combinations. A dedicated table column
-shows an active Category label, shows an inactive Category label with an
-`Inactive` marker, and presents both `NEVER_ASSIGNED` and `CLEARED` as
-`Unclassified`. It does not render UUIDs, revisions, or raw state names.
+currency. Exact string-only presentation adds an explicit sign, fixed dot
+grouping, comma decimals, and visible currency without changing API values.
+The parser retains the bounded classification projection only after validating
+its state/category/revision combinations. A semantic ledger list places
+classification below each description: active Category names appear plainly,
+inactive names include an `Inactive` marker, and both `NEVER_ASSIGNED` and
+`CLEARED` appear as `Unclassified`. It does not render UUIDs, revisions, or raw
+state names.
 
 The client intentionally drops the bounded `source_trace` from its projection
 and does not render provenance. It does not fetch Category discovery because

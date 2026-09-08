@@ -7,7 +7,13 @@ import {
   fetchAccounts,
   fetchMovementReport,
   MovementReport,
-} from "./api";
+} from "@/api";
+import { MoneyAmount } from "@/components/gouda/MoneyAmount";
+import { MovementList } from "@/components/movements/MovementList";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 
 type AccountsState =
   | { status: "loading" }
@@ -76,63 +82,72 @@ export function App() {
   }
 
   return (
-    <main className="page-shell">
-      <header className="page-header">
-        <p className="eyebrow">Local read-only client</p>
-        <h1>Gouda Movement report</h1>
-        <p className="intro">
-          Choose an accessible Account and request canonical Movements for an inclusive date
-          range.
-        </p>
+    <main className="mx-auto w-full max-w-5xl px-4 py-6 md:px-8 md:py-8">
+      <header className="border-b border-border pb-6">
+        <p className="text-sm font-medium text-muted-foreground">Gouda</p>
+        <h1 className="mt-2 text-2xl font-semibold leading-tight tracking-tight text-foreground md:text-3xl">
+          Movements
+        </h1>
       </header>
 
-      <section className="panel" aria-labelledby="report-controls-heading">
-        <h2 id="report-controls-heading">Report selection</h2>
+      <section className="py-6" aria-labelledby="report-controls-heading">
+        <h2 id="report-controls-heading" className="text-lg font-semibold text-foreground">
+          Report selection
+        </h2>
 
         {accountsState.status === "loading" && (
-          <p className="status-message" role="status">
+          <p className="mt-4 text-sm text-muted-foreground" role="status">
             Loading accessible Accounts…
           </p>
         )}
 
         {accountsState.status === "error" && (
-          <div className="status-message error-message" role="alert">
+          <div className="mt-4 space-y-3 border-l-2 border-error pl-4 text-error" role="alert">
             <p>{accountsState.message}</p>
-            <button className="secondary-button" type="button" onClick={() => void loadAccounts()}>
+            <Button type="button" variant="outline" onClick={() => void loadAccounts()}>
               Retry Account discovery
-            </button>
+            </Button>
           </div>
         )}
 
         {accountsState.status === "ready" && accounts.length === 0 && (
-          <p className="status-message" role="status">
+          <p className="mt-4 bg-muted px-4 py-3 text-sm text-muted-foreground" role="status">
             No accessible Accounts are available.
           </p>
         )}
 
         {accountsState.status === "ready" && accounts.length > 0 && (
-          <form className="report-form" onSubmit={handleReportSubmit}>
-            <div className="field field-wide">
-              <label htmlFor="account">Account</label>
-              <select
+          <form
+            className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_minmax(9rem,1fr)_minmax(9rem,1fr)_auto] lg:items-start"
+            onSubmit={handleReportSubmit}
+          >
+            <div className="min-w-0 space-y-2 md:col-span-2 lg:col-span-1">
+              <Label htmlFor="account">Account</Label>
+              <NativeSelect
                 id="account"
+                aria-describedby="selected-account-context"
                 value={selectedAccountId}
                 disabled={reportState.status === "loading"}
                 onChange={(event) => handleAccountChange(event.target.value)}
               >
                 {accounts.map((account) => (
-                  <option key={account.id} value={account.id}>
+                  <NativeSelectOption key={account.id} value={account.id}>
                     {account.display_name} — {kindLabel(account.kind)} — {account.currency}
-                  </option>
+                  </NativeSelectOption>
                 ))}
-              </select>
+              </NativeSelect>
+              <p id="selected-account-context" className="text-sm leading-normal text-muted-foreground">
+                {selectedAccount?.display_name} · {selectedAccount && kindLabel(selectedAccount.kind)} ·{" "}
+                {selectedAccount?.currency}
+              </p>
             </div>
 
-            <div className="field">
-              <label htmlFor="start-date">Start date</label>
-              <input
+            <div className="min-w-0 space-y-2">
+              <Label htmlFor="start-date">Start date</Label>
+              <Input
                 id="start-date"
                 type="date"
+                required
                 value={startDate}
                 disabled={reportState.status === "loading"}
                 onChange={(event) => {
@@ -142,11 +157,12 @@ export function App() {
               />
             </div>
 
-            <div className="field">
-              <label htmlFor="end-date">End date</label>
-              <input
+            <div className="min-w-0 space-y-2">
+              <Label htmlFor="end-date">End date</Label>
+              <Input
                 id="end-date"
                 type="date"
+                required
                 value={endDate}
                 disabled={reportState.status === "loading"}
                 onChange={(event) => {
@@ -156,27 +172,31 @@ export function App() {
               />
             </div>
 
-            <button className="primary-button" type="submit" disabled={!canRequestReport}>
+            <Button
+              className="w-full md:col-span-2 lg:col-span-1 lg:mt-6 lg:w-auto"
+              type="submit"
+              disabled={!canRequestReport}
+            >
               {reportState.status === "loading" ? "Loading report…" : "Load Movement report"}
-            </button>
+            </Button>
           </form>
         )}
       </section>
 
       {reportState.status === "idle" && selectedAccount !== null && (
-        <p className="report-placeholder" role="status">
+        <p className="border-t border-border py-4 text-sm text-muted-foreground" role="status">
           Select both dates, then load the report.
         </p>
       )}
 
       {reportState.status === "loading" && (
-        <p className="report-placeholder" role="status">
+        <p className="border-t border-border py-4 text-sm text-muted-foreground" role="status">
           Loading canonical Movements…
         </p>
       )}
 
       {reportState.status === "error" && (
-        <p className="status-message error-message" role="alert">
+        <p className="border-l-2 border-error py-2 pl-4 text-error" role="alert">
           {reportState.message}
         </p>
       )}
@@ -190,83 +210,54 @@ export function App() {
 
 function ReportResult({ account, report }: { account: AccountSummary; report: MovementReport }) {
   return (
-    <section className="panel report-panel" aria-labelledby="movement-report-heading">
-      <div className="report-heading-row">
-        <div>
-          <p className="eyebrow">Canonical report</p>
-          <h2 id="movement-report-heading">{account.display_name}</h2>
-          <p className="account-context">
+    <section className="border-t border-border pt-6" aria-labelledby="movement-report-heading">
+      <p className="sr-only" role="status">
+        Movement report loaded.
+      </p>
+      <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+        <div className="min-w-0">
+          <h2 id="movement-report-heading" className="text-lg font-semibold text-foreground">
+            {account.display_name}
+          </h2>
+          <p className="mt-1 text-sm leading-normal text-muted-foreground">
             {kindLabel(account.kind)} · {account.currency} · {report.start_date} through{" "}
             {report.end_date}
           </p>
         </div>
-        <dl className="report-summary">
+        <dl className="grid gap-4 sm:grid-cols-[auto_auto] sm:gap-8 md:text-right">
           <div>
-            <dt>Movement count</dt>
-            <dd>{report.movement_count}</dd>
+            <dt className="text-sm text-muted-foreground">Net account effect</dt>
+            <dd className="mt-1 max-w-full overflow-x-auto text-2xl font-semibold leading-tight md:overflow-visible">
+              <MoneyAmount
+                amount={report.net_signed_amount}
+                currency={account.currency}
+                className="font-semibold"
+              />
+            </dd>
           </div>
           <div>
-            <dt>Net signed amount</dt>
-            <dd className="exact-money">{report.net_signed_amount}</dd>
+            <dt className="text-sm text-muted-foreground">Movement count</dt>
+            <dd className="mt-1 text-base font-medium tabular-nums text-foreground">
+              {report.movement_count}
+            </dd>
           </div>
         </dl>
       </div>
 
-      <p className="sign-note">
-        Amounts retain Gouda&apos;s canonical signed account-effect convention and exact decimal
-        strings.
+      <p className="mt-4 max-w-3xl text-sm leading-normal text-muted-foreground">
+        Positive increases this Account&apos;s contribution to household net worth; negative
+        decreases it.
       </p>
 
-      {report.movements.length === 0 ? (
-        <p className="status-message">No canonical Movements were found for this date range.</p>
-      ) : (
-        <div className="table-scroll">
-          <table>
-            <caption className="visually-hidden">Canonical Movements in backend order</caption>
-            <thead>
-              <tr>
-                <th scope="col">Date</th>
-                <th scope="col">Description</th>
-                <th scope="col">Classification</th>
-                <th scope="col" className="numeric-column">
-                  Signed amount
-                </th>
-                <th scope="col">Currency</th>
-              </tr>
-            </thead>
-            <tbody>
-              {report.movements.map((movement) => (
-                <tr key={movement.movement_id}>
-                  <td>{movement.occurrence_date}</td>
-                  <td>{movement.description ?? "No description"}</td>
-                  <td className="classification-column">
-                    {movement.classification.state === "CLASSIFIED" ? (
-                      <span
-                        className={
-                          movement.classification.category.is_active
-                            ? "classification-badge"
-                            : "classification-badge classification-badge-inactive"
-                        }
-                      >
-                        <span className="classification-name">
-                          {movement.classification.category.display_name}
-                        </span>
-                        {!movement.classification.category.is_active && (
-                          <span className="classification-inactive-label">Inactive</span>
-                        )}
-                      </span>
-                    ) : (
-                      <span className="classification-unclassified">Unclassified</span>
-                    )}
-                  </td>
-                  <td className="numeric-column exact-money">{movement.signed_amount}</td>
-                  <td>{movement.currency}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <div className="mt-6">
+        {report.movements.length === 0 ? (
+          <p className="bg-muted px-4 py-3 text-sm text-muted-foreground">
+            No canonical Movements were found for this date range.
+          </p>
+        ) : (
+          <MovementList movements={report.movements} />
+        )}
+      </div>
     </section>
   );
 }
