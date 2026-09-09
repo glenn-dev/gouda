@@ -1,6 +1,58 @@
 # Handoff
 
-## Local demo ergonomics checkpoint
+## Local financial-import design checkpoint
+
+Completed 2026-09-08, documentation only. This section and the Next checkpoint
+section supersede historical priorities below. Real-private-statement product
+validation now precedes the manual classification editor.
+
+Baseline: clean `main`, fetched HEAD/`origin/main` both
+`ebb8b11c6c90d20c334455bc9ad66af4f0c3a1ab`, titled
+`chore: simplify local demo workflow`, with a valid ED25519 SSH signature.
+Commit contract: one signed `docs: define local financial import flow`; no push.
+Git history records the resulting SHA/signature, avoiding a self-referential SHA.
+
+Read [ADR-0013](../docs/decisions/ADR-0013-local-financial-import-boundary.md)
+and [Local financial import v0.1](../docs/architecture/local-financial-import.md)
+for the accepted design. There is no implementation in this checkpoint.
+The next action requires explicit implementation instruction.
+
+The design adds one independent import capability bootstrap and one
+Account-scoped Santander XLSX POST, with exact Host/Origin, separate live grant
+and principal checks, bounded memory-only admission, and private database/volume
+separation. It reuses the current service without a caller transaction. Artifact
+registration survives normal fatal failures; raw/Movement materialization is
+atomic. PARTIAL and NOT_RECONCILED can still contain canonical Movements, exactly
+as the frozen contract/code allow. This route creates no observations/resolutions.
+Duplicates retain a new attempt and original summary with zero new Movements.
+
+Account has no provider/current-account identity binding: explicit operator
+selection plus persisted kind/orientation/currency is the available trusted
+context. Exact bytes + Account is duplicate identity; reexports/overlap and
+wrong-Account selection remain explicit limitations. A malicious trusted-host
+process can deliberately bootstrap, as ADR-0010 permits.
+
+Self-review addressed classification privilege reuse, blanket transaction
+rollback, misleading reconciliation success, compressed/sparse workbook memory
+growth, and private data in the demo reset volume. The flow document records all
+requested adversarial cases and required future runtime tests. No unresolved
+design blocker remains; these new controls must be implemented and tested before
+private upload is enabled. No private statement, app DB, Docker container or
+volume was read or changed; no frontend screenshot or real financial value was
+collected. Historical default-volume remediation remains deferred.
+
+Validation: the existing parser/import-helper suite passed all 60 tests, with
+Django system check passing and no DB access. Production lifecycle/concurrency,
+Account/reporting, local-write, logging, and demo tests were inspected, not
+claimed as rerun. Final hygiene passed: 43 Markdown files, 119 local
+links/anchors, 11 JSON examples, exact six documentation paths, added-text
+privacy checks, ignored/untracked private-path checks, balanced fences,
+final newlines/whitespace, and `git diff --check`. No production code or fixture
+changed. The local-only checker is `/private/tmp/gouda-import-design-check.py`.
+Final commit verification must confirm one good SSH-signed commit, clean
+worktree/index, and main one ahead/zero behind the fetched origin; no push.
+
+## Historical local demo ergonomics checkpoint
 
 Completed 2026-09-08: the supported synthetic visual-demo workflow is now
 `make demo`, with `make down` as its volume-preserving teardown. This section
@@ -987,11 +1039,13 @@ baseline is recorded at the top of this handoff.
 
 ## Next checkpoint
 
-Design and implement the bounded manual classification editor under ADR-0012,
-including explicit choices, safe revisions, memory-only capability handling,
-and refetch after conflicts or ambiguous outcomes without silent retry. Reuse
-the implemented UI foundation without expanding it into filtering, a dashboard,
-or a broader component system.
+On later explicit implementation instruction, implement the accepted local
+financial-import slice under ADR-0013 and its flow contract. Keep the new private
+runtime/startup, admission/logging, authorized source-specific adapter, and React
+form within that scope. Pass synthetic acceptance before Glenn deliberately
+uses a private statement. This design checkpoint does not authorize that import.
+The manual classification editor under ADR-0012 follows real-data validation;
+filtering, dashboards, and broader component systems remain separate.
 Recommended reasoning level: High.
 
 ## Roadmap reassessment
@@ -1008,11 +1062,10 @@ Authentication/ownership remain absent.
 
 Priorities are:
 
-1. Implement the bounded manual editor atop ADR-0012. Filtering, economic
+1. Implement the designed local Santander current-account XLSX import flow
+   under ADR-0013 when instructed, then validate one private statement locally.
+2. Implement the bounded manual editor atop ADR-0012. Filtering, economic
    types, and transfer semantics remain deferred.
-2. Add an operational import/API surface for the already implemented
-   Santander services only after the account-access and upload-security
-   boundary is explicit.
 3. Resume Current-to-Historical validation only on the external artifact
    trigger described above.
 

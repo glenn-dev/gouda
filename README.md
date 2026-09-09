@@ -34,6 +34,15 @@ under ADR-0012. Default startup and React remain read-only. The backend offers
 only an ephemeral capability bootstrap and revision-checked classification PATCH;
 there are no editing controls, Category CRUD, or canonical financial writes.
 
+The next product slice is browser import of one private Santander current-account
+XLSX into a separate local PostgreSQL dataset, then inspection through the
+existing Movement report. The accepted
+[financial-import design](docs/architecture/local-financial-import.md) and
+[ADR-0013](docs/decisions/ADR-0013-local-financial-import-boundary.md) define
+independent import authority, exact-file duplicate behavior, private evidence
+handling, and separation from the synthetic demo. This is designed, not
+implemented; classification editing follows that product-validation slice.
+
 ## Local Docker demo
 
 The primary local path requires Docker with Compose and Make, but does not
@@ -215,6 +224,7 @@ checkpoint.
 
 - Product: `docs/product/`
 - Architecture: `docs/architecture/`
+- Local import design: [Local financial import v0.1](docs/architecture/local-financial-import.md)
 - UI design: [Gouda UI Foundation v0.1](docs/design/ui-foundation.md)
 - Decisions: `docs/decisions/`
 - Deterministic source contracts: `docs/contracts/`

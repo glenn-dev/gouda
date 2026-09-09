@@ -104,19 +104,30 @@ The source-only contracts `bci_current_cartola_v0.1` and
 
 ## Current direction
 
-The current checkpoint is the local demo ergonomics hardening requested after
-UI visual QA. It started on 2026-09-08 from clean `main`, with HEAD and
-`origin/main` both
-`582ff3c7c9b343e70d188a95d83a01fd499e72af`
-(`feat: implement Gouda UI foundation`) and a valid SSH signature. The fixed
-`gouda-demo` Make workflow, unpublished demo PostgreSQL service, explicit
-host-database override, regression tests, and operator documentation are
-implemented and validated. The historical default
-`gouda_gouda-postgres-data` volume remains deliberately separate: only its
-Docker metadata was inspected, and it was not attached, read, mutated, or
-deleted. This checkpoint authorizes one signed
-`chore: simplify local demo workflow` commit and no push. The next product task
-remains the separate manual classification editor under ADR-0012.
+The current checkpoint defines local financial import v0.1, documentation only.
+On 2026-09-08, clean `main` and fetched `origin/main` both equaled signed
+`ebb8b11c6c90d20c334455bc9ad66af4f0c3a1ab`
+(`chore: simplify local demo workflow`).
+[ADR-0013](../docs/decisions/ADR-0013-local-financial-import-boundary.md) and
+[the flow contract](../docs/architecture/local-financial-import.md) define
+one explicit Santander current-account XLSX upload, independent financial-import
+capability, private dataset/volume separation, bounded memory-only admission,
+and reuse of the existing import lifecycle and Movement report. The upload,
+runtime, private startup workflow, and React form are not implemented.
+
+Real-event product validation now precedes the manual classification editor.
+Implementation requires a later explicit instruction; this checkpoint permits
+one signed `docs: define local financial import flow` commit and no push.
+No private artifact, application database, or Docker volume was inspected or
+changed here. The historical default volume's previously reported migration
+mismatch remains outside scope. The handoff records current validation.
+
+Code verification established that Santander XLSX registers evidence before
+parsing and directly materializes valid Movements without observations. Partial
+row acceptance and independent reconciliation remain frozen behavior. Exact-byte
+duplicates are Account-scoped; changed exports and wrong Account selections are
+not automatically deduplicated. Account has no Santander/provider identity
+binding. These limits are explicit in the new flow, not silently repaired.
 
 BCI Historical Current Account PDF v0.1 and both current-source parsers are
 implemented and validated. Their joint source-boundary review and narrow
@@ -265,10 +276,11 @@ explicit Vite CORS disablement are implemented and covered by focused tests.
 Real Vite tests preserve duplicate header multiplicity for Django rejection;
 browser/Compose/restart validation is recorded in the handoff.
 
-After the read-client foundation implementation, a separate React manual editor
-task under ADR-0012 will cover explicit choices, memory-only capability
+After the local financial-import slice, a separate React manual editor task
+under ADR-0012 will cover explicit choices, memory-only classification capability
 acquisition, safe-integer submissions, stale-view handling, and refetch after
-conflicts or ambiguous outcomes without silent retry. Filtering remains deferred.
+conflicts or ambiguous outcomes without silent retry. Import authority does not
+authorize that editor. Filtering remains deferred.
 
 The completed independent review of signed commit `e7223f4` found an Accept-negotiation
 contract mismatch: parameters on unrelated media ranges incorrectly rejected
