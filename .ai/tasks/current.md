@@ -2,17 +2,15 @@
 
 ## Objective
 
-Implement ADR-0013's first local browser-import vertical slice for Santander
-Current Account XLSX only, preserving the existing import lifecycle and Movement
-report.
+Complete independent adversarial review and narrow correction of signed
+`7bc34f6`, preserving the existing Santander import lifecycle and Movement report.
 
 ## Baseline and commit contract
 
-Started 2026-09-09 from clean `main` with HEAD and fetched `origin/main` both
-`bbca93e54e93dfa94fb7a37623820088b56fbe44`, the signed
-`docs: define local financial import flow` commit. Create one signed
-`feat: add local Santander import flow` commit after clean validation. Do not
-push.
+Reviewed 2026-09-10 from clean `main` at signed `7bc34f6`, parent `bbca93e5`.
+Fetched origin/main already contained the original implementation commit,
+contrary to older handoff notes. Amend that commit, keep it signed, and do not
+push. The amendment creates local divergence from origin/main.
 
 ## Implemented scope
 
@@ -33,12 +31,18 @@ was changed.
 
 ## Checkpoint result
 
-Implementation and adversarial review are complete with no ADR-0013 deviation.
-All 554 Django tests on PostgreSQL and all 72 frontend tests pass, as do
-typecheck, build, dependency, migration, Compose, demo, documentation, privacy,
-and whitespace checks. A generated Santander workbook passed same-origin import,
-Movement reporting, restart persistence, and exact duplicate validation. No
-private financial artifact was read.
+Independent review corrected three BLOCK issues: unbounded Django unread-body
+cleanup, OOXML allocation bypasses and PostgreSQL error/SQL log disclosure.
+Four IMPORTANT issues are corrected: ambiguous framing, missing same-origin
+fetch mode, unreconciled completion wording and report-selection races.
+158 focused Django tests and 72 additional parser/report/runtime tests pass,
+as do all 75 frontend tests, typecheck/build, production-container admission,
+migration drift, hostile Compose/Make overrides, live synthetic import/report,
+retained bytes, restart/exact duplicates and log/reconnect privacy checks.
+The expensive complete backend suite was not repeated for ceremony.
+No private financial artifact was read. Minor result-navigation/setup-help and
+container-test mount omissions remain deferred; see
+`docs/development/local-import-adversarial-review.md`.
 
 The next action after review is Glenn's one-file private acceptance procedure in
 `docs/architecture/local-financial-import.md`, retaining only sanitized pass/fail

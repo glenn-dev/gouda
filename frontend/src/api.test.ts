@@ -311,6 +311,7 @@ describe("financial-import API client", () => {
       method: "POST",
       headers: { Accept: "application/json", "Content-Type": "application/json" },
       body: "{}",
+      mode: "same-origin",
       cache: "no-store",
       credentials: "omit",
       redirect: "error",
@@ -320,6 +321,7 @@ describe("financial-import API client", () => {
       `/api/v1/accounts/${PRIMARY_ACCOUNT_ID}/imports/santander-current-account-xlsx/`,
     );
     expect(options.method).toBe("POST");
+    expect(options.mode).toBe("same-origin");
     expect(options.credentials).toBe("omit");
     expect(options.headers).toEqual({
       Accept: "application/json",

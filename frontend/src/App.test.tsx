@@ -494,6 +494,55 @@ describe("Gouda Santander import flow", () => {
     expect(screen.queryByText("private network details")).not.toBeInTheDocument();
   });
 
+  it.each(["NOT_RECONCILED", "INSUFFICIENT_DATA"])(
+    "never labels an accepted %s statement a clean completion", async (reconciliation) => {
+      vi.stubGlobal("fetch", vi.fn()
+        .mockResolvedValueOnce(jsonResponse(accountsResponse))
+        .mockResolvedValueOnce(jsonResponse({ import_capability: "a".repeat(64) }))
+        .mockResolvedValueOnce(jsonResponse({
+          account_id: PRIMARY_ACCOUNT_ID,
+          batch_id: "22222222-2222-4222-8222-222222222222",
+          status: "ACCEPTED", duplicate_of: null, created_movement_count: 2,
+          statement: { status: "ACCEPTED", source_row_count: 8, parsed_count: 2,
+            ignored_count: 6, rejected_count: 0, reconciliation_status: reconciliation,
+            period_start: "2026-04-01", period_end: "2026-04-30" },
+        })));
+      const user = userEvent.setup();
+      render(<App />);
+      await user.selectOptions(await screen.findByLabelText("Account"), PRIMARY_ACCOUNT_ID);
+      await user.upload(screen.getByLabelText("Statement"), new File(["x"], "synthetic.xlsx"));
+      await user.click(screen.getByRole("button", { name: "Import" }));
+      await screen.findByText("2 canonical Movements were created.");
+      expect(screen.queryByRole("heading", { name: /^Import complete$/ })).not.toBeInTheDocument();
+    },
+  );
+
+  it("cannot replace report selection while another report is in flight", async () => {
+    let finishReport!: (response: Response) => void;
+    const pendingReport = new Promise<Response>((resolve) => { finishReport = resolve; });
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(accountsResponse))
+      .mockResolvedValueOnce(jsonResponse({ import_capability: "a".repeat(64) }))
+      .mockResolvedValueOnce(jsonResponse({ account_id: PRIMARY_ACCOUNT_ID,
+        batch_id: "22222222-2222-4222-8222-222222222222", status: "ACCEPTED",
+        duplicate_of: null, created_movement_count: 2,
+        statement: { status: "ACCEPTED", source_row_count: 8, parsed_count: 2,
+          ignored_count: 6, rejected_count: 0, reconciliation_status: "RECONCILED",
+          period_start: "2026-04-01", period_end: "2026-04-30" } }))
+      .mockReturnValueOnce(pendingReport);
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.selectOptions(await screen.findByLabelText("Account"), PRIMARY_ACCOUNT_ID);
+    await user.upload(screen.getByLabelText("Statement"), new File(["x"], "synthetic.xlsx"));
+    await user.click(screen.getByRole("button", { name: "Import" }));
+    await screen.findByRole("heading", { name: "Import complete" });
+    fillDateRange("2026-04-01", "2026-04-30");
+    await user.click(screen.getByRole("button", { name: "Load Movement report" }));
+    expect(screen.getByRole("button", { name: "View movements" })).toBeDisabled();
+    finishReport(jsonResponse(movementReportResponse()));
+    await screen.findByRole("heading", { name: "Synthetic Daily Account" });
+  });
+
   it.each([
     [
       "xlsx_invalid",

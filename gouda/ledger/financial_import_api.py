@@ -160,6 +160,7 @@ def _json_body(request):
         or request.META.get("HTTP_CONTENT_ENCODING", "identity") != "identity"
     ):
         _fail("unsupported_media_type")
+    _validate_framing(request, 1024)
     raw = _read_bounded(request, 1024)
     try:
         value = json.loads(
@@ -185,6 +186,17 @@ def _json_object(pairs):
     return value
 
 
+def _validate_framing(request, limit):
+    if request.META.get("HTTP_TRANSFER_ENCODING"):
+        _fail("request_body_invalid")
+    declared = request.META.get("CONTENT_LENGTH")
+    if declared not in (None, ""):
+        if not declared.isascii() or not declared.isdecimal() or declared.startswith("0"):
+            _fail("request_body_invalid")
+        if int(declared) > limit:
+            _fail("request_body_too_large")
+
+
 def _validate_import_metadata(request):
     if not _accepts_json(request.META.get("HTTP_ACCEPT")):
         _fail("not_acceptable")
@@ -192,14 +204,7 @@ def _validate_import_metadata(request):
         _fail("query_parameters_not_allowed")
     if request.META.get("HTTP_CONTENT_ENCODING", "identity") != "identity":
         _fail("unsupported_media_type")
-    if request.META.get("HTTP_TRANSFER_ENCODING"):
-        _fail("request_body_invalid")
-    declared = request.META.get("CONTENT_LENGTH")
-    if declared not in (None, ""):
-        if not declared.isascii() or not declared.isdecimal() or declared.startswith("0"):
-            _fail("request_body_invalid")
-        if int(declared) > MAX_MULTIPART_BYTES:
-            _fail("request_body_too_large")
+    _validate_framing(request, MAX_MULTIPART_BYTES)
     value = request.META.get("CONTENT_TYPE", "")
     match = _BOUNDARY_RE.fullmatch(value)
     if match is None:

@@ -62,6 +62,19 @@ DATABASES = {
     }
 }
 
+# PostgreSQL emits SQL and failing-row DETAIL independently of Python logging.
+# Apply before the first query, on every private connection (including host
+# development and reconnects). A role unable to set these fails to connect.
+if DATABASES["default"]["NAME"] == "gouda_private":
+    DATABASES["default"]["OPTIONS"] = {"options": " ".join(
+        "-c " + setting for setting in (
+            "log_min_messages=panic", "log_min_error_statement=panic",
+            "log_statement=none", "log_duration=off", "log_min_duration_statement=-1",
+            "log_min_duration_sample=-1", "log_transaction_sample_rate=0",
+            "log_parameter_max_length=0", "log_parameter_max_length_on_error=0",
+        )
+    )}
+
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True

@@ -1,6 +1,44 @@
 # Handoff
 
-## Local financial-import implementation checkpoint
+## Independent import review checkpoint
+
+Reviewed 2026-09-10 against signed `7bc34f645f3ca291b12d7b70494bfa8761167037`
+and parent `bbca93e54e93dfa94fb7a37623820088b56fbe44`. Fetched origin/main was
+already the original implementation SHA. Its historical “nothing pushed” notes
+were stale; this session makes no push. The containing signed amendment records
+the corrected implementation and creates local divergence from origin/main.
+
+The original implementation was not safe for private acceptance. Corrections
+close Django's unbounded unread-body cleanup, worksheet/relationship/range/XML
+name/shared-string/style allocation bypasses, and PostgreSQL raw error/SQL log
+disclosure. They also reject ambiguous framing, confine fetches to same-origin,
+avoid clean completion for unreconciled statements, and prevent import actions
+from replacing an in-flight report selection. Existing source semantics,
+transactions, models/migrations, canonical sign and classification are unchanged.
+
+Validation passes: 158 focused Django tests; 72 additional parser/report/runtime
+tests; all 75 frontend tests; typecheck/build; production-container admission;
+migration drift; resolved hostile Compose/Make overrides; actual synthetic
+import/report/byte retention; restart/old-token rejection/exact duplicates;
+and PostgreSQL/app/proxy log sentinel checks. Baseline resource, raw HTTP,
+privacy and UI regressions were observed failing before correction. Only
+committed/generated synthetic workbooks and isolated synthetic databases were
+used; no private file or private volume was read.
+
+The next action is Glenn's documented single untouched private Santander XLSX
+acceptance import through `make private`, with deliberate operator-known
+Account/currency selection. There is no persisted Santander account-number or
+provider binding. Do not push automatically. Minor whole-period/empty-result
+navigation wording, local Account setup help and the missing private-Compose
+test-file mount remain deferred. See the
+[full review](../docs/development/local-import-adversarial-review.md).
+
+The review Compose stack is stopped with volume preservation and the demo
+frontend is restored. The synthetic review volume is retained deliberately;
+it is not a private-data volume. The standalone disposable synthetic PostgreSQL
+test container is stopped/removed. No existing user database/volume was deleted.
+
+## Historical local financial-import implementation checkpoint
 
 Implementation completed 2026-09-09 from clean `main` at fetched
 `bbca93e54e93dfa94fb7a37623820088b56fbe44`, the signed ADR-0013 design commit.
@@ -1039,11 +1077,10 @@ baseline is recorded at the top of this handoff.
 
 ## Next checkpoint
 
-On later explicit implementation instruction, implement the accepted local
-financial-import slice under ADR-0013 and its flow contract. Keep the new private
-runtime/startup, admission/logging, authorized source-specific adapter, and React
-form within that scope. Pass synthetic acceptance before Glenn deliberately
-uses a private statement. This design checkpoint does not authorize that import.
+The financial-import slice and independent correction review are complete.
+The next action is the controlled private acceptance procedure under ADR-0013
+and its flow contract. Preserve the reviewed startup/admission/logging boundary
+and retain only sanitized pass/fail results from private acceptance.
 The manual classification editor under ADR-0012 follows real-data validation;
 filtering, dashboards, and broader component systems remain separate.
 Recommended reasoning level: High.
@@ -1062,8 +1099,8 @@ Authentication/ownership remain absent.
 
 Priorities are:
 
-1. Implement the designed local Santander current-account XLSX import flow
-   under ADR-0013 when instructed, then validate one private statement locally.
+1. Validate one untouched private Santander current-account XLSX locally through
+   the implemented and independently reviewed ADR-0013 flow.
 2. Implement the bounded manual editor atop ADR-0012. Filtering, economic
    types, and transfer semantics remain deferred.
 3. Resume Current-to-Historical validation only on the external artifact

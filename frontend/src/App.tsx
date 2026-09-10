@@ -122,6 +122,7 @@ export function App() {
       <ImportData
         accounts={accounts}
         accountsStatus={accountsState.status}
+        reportBusy={reportState.status === "loading"}
         onViewMovements={viewImportedMovements}
         onReviewReport={reviewImportOutcome}
       />
@@ -311,11 +312,13 @@ type ImportState =
 function ImportData({
   accounts,
   accountsStatus,
+  reportBusy,
   onViewMovements,
   onReviewReport,
 }: {
   accounts: ReadonlyArray<AccountSummary>;
   accountsStatus: AccountsState["status"];
+  reportBusy: boolean;
   onViewMovements: (result: SantanderImportResult) => Promise<void>;
   onReviewReport: (accountId: string) => void;
 }) {
@@ -440,6 +443,7 @@ function ImportData({
                 className="mt-3"
                 type="button"
                 variant="outline"
+                disabled={reportBusy}
                 onClick={() => onReviewReport(accountId)}
               >
                 Review Movement report
@@ -451,6 +455,7 @@ function ImportData({
       {state.status === "success" && (
         <ImportResult
           result={state.result}
+          reportBusy={reportBusy}
           onViewMovements={() => void onViewMovements(state.result)}
         />
       )}
@@ -460,9 +465,11 @@ function ImportData({
 
 function ImportResult({
   result,
+  reportBusy,
   onViewMovements,
 }: {
   result: SantanderImportResult;
+  reportBusy: boolean;
   onViewMovements: () => void;
 }) {
   const duplicate = result.status === "DUPLICATE";
@@ -496,7 +503,7 @@ function ImportResult({
           ? "No new canonical Movements were created; this is the original import summary."
           : `${result.created_movement_count} canonical Movements were created.`}
       </p>
-      <Button className="mt-4" type="button" variant="outline" onClick={onViewMovements}>
+      <Button className="mt-4" type="button" variant="outline" disabled={reportBusy} onClick={onViewMovements}>
         View movements
       </Button>
     </div>
@@ -517,6 +524,9 @@ function importResultHeading(result: SantanderImportResult): string {
   if (result.status === "PARTIAL") return "Import completed with rejected records";
   if (result.status === "REJECTED") return "No movements imported; records rejected";
   if (result.statement.parsed_count === 0) return "No movement records found";
+  if (result.statement.reconciliation_status !== "RECONCILED") {
+    return "Movements imported; reconciliation needs review";
+  }
   return "Import complete";
 }
 

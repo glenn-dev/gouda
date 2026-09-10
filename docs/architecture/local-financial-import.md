@@ -262,6 +262,13 @@ automatic parsers, or Django's default disk-spooling handlers first. Do not
 change global read API parsing. No temporary upload files, media directory,
 static copy, ZIP extraction directory, or filesystem artifact store is needed.
 
+The supported `runlocal` WSGI transport closes each connection without draining
+unread request bytes. Django 4.2's default request cleanup performs an unbounded
+read even after a view denial and therefore cannot supply this guarantee.
+The transport also preserves repeated Content-Length/Content-Type values for
+rejection. Both import routes reject transfer encoding and ambiguous framing.
+Orderly launcher exit waits for request threads before revoking runtime state.
+
 Compressed size alone is insufficient: the current parser loads a complete
 workbook and iterates its rectangular used ranges. Before invoking it, admit
 only a bounded OOXML ZIP package: at most 128 entries, 20 MiB total expanded
@@ -283,6 +290,23 @@ must establish a safe pinned XML reader configuration; a byte substring check
 for DTD is insufficient. These are browser admission limits, not revisions to
 the frozen source parser. Reject unsupported package forms safely; do not
 decrypt, prompt for a password, or fall back to another parser.
+
+Count workbook sheet references as well as physical worksheet members; reject
+aliases and relationships that would load a worksheet more than once. Hyperlink
+ranges participate in extent limits, and repeated merge/hyperlink work is also
+bounded. Only the ordinary workbook/worksheet/style/shared-string/theme/property
+relationships are admitted; comments, drawings, images, pivots, chartsheets and
+other secondary loaders are unsupported. XML relationship/content-type targets
+must remain inside inspected XML members. Reject, rather than rewrite, these
+unsupported package forms.
+
+A callback-based XML preflight applies the element/depth budget before building
+trees and limits namespace and expanded XML names to 1024 characters. Account
+for repeated shared-string and number-format use across cells within a 20 MiB
+text budget (four bytes per character). This prevents small package tables from
+multiplying private parser/evidence text. These are admission controls, not
+source interpretation changes. The 5 MiB file limit is not a 5 MiB process-RAM
+ceiling: bounded transport copies, ZIP metadata and parser objects have overhead.
 
 Once admitted, pass the unchanged file bytes and original filename metadata to
 the existing service. It computes SHA-256, compares bytes on digest reuse, and
@@ -310,6 +334,14 @@ exception chains/locals, and response payloads across Django, parser libraries,
 proxy, and React. DEBUG=false alone is insufficient. No telemetry or external
 error reporter is added. Test with synthetic sentinel values, including failures
 outside normal view execution. Never record a real-data browser screenshot/HAR.
+
+Every Django connection configured for `gouda_private` sets PostgreSQL logging
+options before its first query, including reconnects and host development.
+Disable statement/duration/sampling/parameter logging and suppress ordinary
+server error messages: PostgreSQL otherwise logs failing row DETAIL and SQL
+independently of application redaction. A DB role unable to apply the protected
+connection options fails to connect. This deliberately sacrifices raw private
+SQL/error diagnostics; application diagnostics remain fixed route/status/codes.
 
 ## Transactions and duplicate evidence
 

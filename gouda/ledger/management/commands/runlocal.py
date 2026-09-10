@@ -4,6 +4,7 @@ from argparse import Action
 
 from django.core.management import CommandError
 from django.core.management.commands.runserver import Command as RunserverCommand
+from gouda.local_http_server import LocalWSGIServer
 
 from gouda.local_delivery import (
     LocalDeliveryBootstrapError,
@@ -23,6 +24,7 @@ class _Once(Action):
 
 
 class Command(RunserverCommand):
+    server_cls = LocalWSGIServer
     help = "Start Gouda through its validated unauthenticated local delivery boundary."
 
     def add_arguments(self, parser):

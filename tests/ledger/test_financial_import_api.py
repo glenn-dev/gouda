@@ -3,6 +3,8 @@ from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
 import warnings
+import threading
+from django.db import close_old_connections, connections
 
 from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -389,3 +391,99 @@ class FinancialImportApiTests(TransactionTestCase):
             self.assertFalse(Movement.objects.exists())
 
         self.run_import_runtime(assertions)
+
+    def test_failures_after_partial_inserts_and_finalization_roll_back_whole_graph(self):
+        def assertions():
+            for model in (RawRecord, Movement):
+                original = model.objects.create
+                calls = 0
+
+                def fail_second(**kwargs):
+                    nonlocal calls
+                    calls += 1
+                    result = original(**kwargs)
+                    if calls == 2:
+                        raise DatabaseError("synthetic-private-database-sentinel")
+                    return result
+
+                with self.subTest(model=model.__name__), patch.object(model.objects, "create", side_effect=fail_second):
+                    self.assert_error(self.request(), "import_persistence_failed", 503)
+                self.assertFalse(RawRecord.objects.exists())
+                self.assertFalse(Movement.objects.exists())
+            original_finalize = santander_import._finalize_materialized_batch
+
+            def fail_after_finalize(**kwargs):
+                original_finalize(**kwargs)
+                raise DatabaseError("synthetic-private-finalization-sentinel")
+
+            with patch.object(santander_import, "_finalize_materialized_batch", side_effect=fail_after_finalize):
+                self.assert_error(self.request(), "import_persistence_failed", 503)
+            self.assertEqual(ImportBatch.objects.filter(status="FATAL").count(), 3)
+            self.assertEqual(SourceArtifact.objects.count(), 1)
+            self.assertFalse(RawRecord.objects.exists())
+            self.assertFalse(Movement.objects.exists())
+        self.run_import_runtime(assertions)
+
+    def test_registration_failure_and_postcommit_projection_have_distinct_survival(self):
+        def assertions():
+            original_create = ImportBatch.objects.create
+
+            def fail_after_attempt(**kwargs):
+                original_create(**kwargs)
+                raise DatabaseError("synthetic-private-registration-sentinel")
+
+            with patch.object(ImportBatch.objects, "create", side_effect=fail_after_attempt):
+                self.assert_error(self.request(), "import_persistence_failed", 503)
+            self.assertFalse(SourceArtifact.objects.exists())
+            self.assertFalse(ImportBatch.objects.exists())
+            with patch("gouda.ledger.financial_import_api._project_result", side_effect=DatabaseError("synthetic-projection")):
+                self.assert_error(self.request(), "internal_error", 500)
+            original = list(Movement.objects.order_by("pk").values())
+            self.assertTrue(original)
+            response = self.request()
+            self.assertEqual(response.json()["status"], "DUPLICATE")
+            self.assertEqual(response.json()["created_movement_count"], 0)
+            self.assertEqual(list(Movement.objects.order_by("pk").values()), original)
+        self.run_import_runtime(assertions)
+
+    def test_concurrent_http_upload_is_busy_then_explicit_retry_is_duplicate(self):
+        entered, release = threading.Event(), threading.Event()
+        result = []
+        original_parse = santander_import.parse_workbook
+
+        def blocked_parse(*args, **kwargs):
+            entered.set()
+            if not release.wait(5):
+                raise RuntimeError("synthetic test synchronization failed")
+            return original_parse(*args, **kwargs)
+
+        def assertions(_delivery):
+            self.capability = require_financial_import_runtime().bootstrap_capability()
+
+            def first_request():
+                close_old_connections()
+                try:
+                    result.append(self.request())
+                finally:
+                    connections.close_all()
+
+            with patch.object(santander_import, "parse_workbook", side_effect=blocked_parse):
+                thread = threading.Thread(target=first_request)
+                thread.start()
+                try:
+                    self.assertTrue(entered.wait(5))
+                    self.assert_error(self.request(), "import_busy", 429)
+                finally:
+                    release.set()
+                    thread.join(5)
+            self.assertFalse(thread.is_alive())
+            self.assertEqual(result[0].status_code, 200)
+            self.assertEqual(self.request().json()["status"], "DUPLICATE")
+            self.assertEqual(ImportBatch.objects.count(), 2)
+            self.assertEqual(SourceArtifact.objects.count(), 1)
+
+        # Keep every thread on the isolated test DB while exercising live grants.
+        with patch("gouda.local_financial_import.PRIVATE_DATABASE_NAME", settings.DATABASES["default"]["NAME"]):
+            run_validated_local_delivery(bind_host="127.0.0.1", port="8000",
+                enable_financial_imports=True, financial_import_origin=IMPORT_ORIGIN,
+                server_runner=assertions)
