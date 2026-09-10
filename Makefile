@@ -2,8 +2,10 @@ SHELL := /bin/sh
 
 override DEMO_COMPOSE := docker compose --project-directory "$(CURDIR)" --env-file "$(CURDIR)/.env" -f "$(CURDIR)/docker-compose.yml" -p gouda-demo
 override DEMO_METADATA_COMPOSE := env DJANGO_SECRET_KEY=compose-metadata-only POSTGRES_PASSWORD=compose-metadata-only docker compose --project-directory "$(CURDIR)" --env-file /dev/null -f "$(CURDIR)/docker-compose.yml" -p gouda-demo
+override PRIVATE_COMPOSE := docker compose --project-directory "$(CURDIR)" --env-file "$(CURDIR)/.env" -f "$(CURDIR)/docker-compose.yml" -f "$(CURDIR)/docker-compose.private.yml" -p gouda-private
+override PRIVATE_METADATA_COMPOSE := env DJANGO_SECRET_KEY=compose-metadata-only POSTGRES_PASSWORD=compose-metadata-only docker compose --project-directory "$(CURDIR)" --env-file /dev/null -f "$(CURDIR)/docker-compose.yml" -f "$(CURDIR)/docker-compose.private.yml" -p gouda-private
 
-.PHONY: help demo demo-check down status logs demo-reset
+.PHONY: help demo demo-check down status logs demo-reset private private-check private-down
 
 help:
 	@echo "Gouda local demo commands:"
@@ -12,6 +14,8 @@ help:
 	@echo "  make logs        Show the latest isolated demo logs"
 	@echo "  make down        Remove demo containers/networks; preserve demo data"
 	@echo "  make demo-reset  Remove demo containers/networks and ONLY the demo volume"
+	@echo "  make private     Start the isolated private import stack (no seed/reset)"
+	@echo "  make private-down Stop the private stack while preserving its private volume"
 
 demo-check:
 	@"$(CURDIR)/scripts/check-local-env.sh" "$(CURDIR)/.env"
@@ -30,6 +34,24 @@ demo: demo-check
 		exit 1; \
 	}
 	@echo "Gouda demo ready: http://127.0.0.1:5173/"
+
+private-check:
+	@"$(CURDIR)/scripts/check-local-env.sh" "$(CURDIR)/.env"
+	@$(PRIVATE_COMPOSE) config --quiet || { \
+		echo "Error: private Compose configuration is invalid." >&2; \
+		exit 1; \
+	}
+
+private: private-check
+	@$(PRIVATE_COMPOSE) up --build --detach --force-recreate --remove-orphans --wait --wait-timeout 180 || { \
+		echo "Error: private services did not start cleanly." >&2; \
+		exit 1; \
+	}
+	@echo "Gouda private import ready: http://127.0.0.1:5173/"
+
+private-down:
+	@$(PRIVATE_METADATA_COMPOSE) down --remove-orphans
+	@echo "Private stack stopped. Volume gouda-private_gouda-private-postgres-data was preserved."
 
 down:
 	@$(DEMO_METADATA_COMPOSE) down --remove-orphans

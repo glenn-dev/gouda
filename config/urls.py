@@ -10,9 +10,22 @@ from gouda.ledger.api import (
 from gouda.ledger.classification_api import (
     ClassificationWriteCapabilityView, MovementClassificationView,
 )
+from gouda.ledger.financial_import_api import (
+    FinancialImportCapabilityView, SantanderCurrentAccountImportView,
+)
 
 
 urlpatterns = [
+    path(
+        "api/v1/local/financial-import-capability/",
+        FinancialImportCapabilityView.as_view(),
+        name="financial-import-capability",
+    ),
+    path(
+        "api/v1/accounts/<str:account_uuid>/imports/santander-current-account-xlsx/",
+        SantanderCurrentAccountImportView.as_view(),
+        name="santander-current-account-import",
+    ),
     path(
         "api/v1/local/classification-write-capability/",
         ClassificationWriteCapabilityView.as_view(),

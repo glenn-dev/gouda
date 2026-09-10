@@ -2,8 +2,9 @@
 
 ## Status and scope
 
-Accepted design, 2026-09-08; no upload endpoint, import runtime, private Compose
-workflow, or React import form is implemented by this checkpoint.
+Accepted design, 2026-09-08; implemented 2026-09-09 for the single Santander
+Current Account XLSX browser route, dedicated runtime, private Compose workflow,
+bounded admission, and React import form.
 [ADR-0013](../decisions/ADR-0013-local-financial-import-boundary.md) owns the
 new authority decision. This document owns its narrow transport, product flow,
 and acceptance contract. Existing read APIs remain unchanged.
@@ -27,8 +28,8 @@ historical documentation:
 | Persistence | [models.py](../../gouda/ledger/models.py): exact-byte `SourceArtifact`; source-typed `ImportBatch`; immutable row evidence in `RawRecord`; one originating RawRecord per `Movement`. Materialized uniqueness is artifact + Account, excluding parser version. |
 | Observations | `FinancialObservation` and `ObservationResolution` exist, but this Santander service calls neither. [Evidence architecture](evidence-resolution.md) and ADR-0008/0009 explicitly preserve this deterministic route. BCI Historical separately creates unresolved observations and runs its conservative policy; do not transplant it here. |
 | Access/report | [account_access.py](../../gouda/ledger/services/account_access.py) issues/validates the opaque singleton principal and resolves read visibility. [movement_reporting.py](../../gouda/ledger/services/movement_reporting.py) reads canonical Movements by Account/inclusive occurrence dates, orders by date/UUID, and provides exact Decimal totals and bounded provenance/classification. Observation state and reconciliation are not report filters. |
-| Delivery/client | [local_delivery.py](../../gouda/local_delivery.py), [classification runtime](../../gouda/local_classification_write.py), [classification adapter](../../gouda/ledger/classification_api.py), and [URLs](../../config/urls.py) implement default reads and independent opt-in classification only. [App.tsx](../../frontend/src/App.tsx) and [api.ts](../../frontend/src/api.ts) currently issue reads and discard source trace. |
-| Demo/privacy | [Makefile](../../Makefile) fixes demo reset to its entire synthetic volume. [demo_data.py](../../gouda/ledger/demo_data.py) uses fixed UUIDs and protected atomic cleanup. [Logging](../../gouda/safe_http_logging.py) explicitly protects classification today; import routes, header, and whole-request exception suppression need equivalent coverage. |
+| Delivery/client | [local_delivery.py](../../gouda/local_delivery.py), [financial runtime](../../gouda/local_financial_import.py), [financial import adapter](../../gouda/ledger/financial_import_api.py), [authorized orchestration](../../gouda/ledger/services/financial_import_access.py), and [URLs](../../config/urls.py) implement the independent opt-in import route. [App.tsx](../../frontend/src/App.tsx) and [api.ts](../../frontend/src/api.ts) implement one-step explicit selection, memory-only capability use, bounded results, uncertain-outcome handling, and report navigation. |
+| Admission/privacy | [xlsx_admission.py](../../gouda/ledger/xlsx_admission.py) applies the frozen ZIP/XML/worksheet bounds before openpyxl. [docker-compose.private.yml](../../docker-compose.private.yml) and [Makefile](../../Makefile) isolate the private database/volume without seed/reset/file mounts. [safe_http_logging.py](../../gouda/safe_http_logging.py) protects both import routes, header names, request data, and exception reports. |
 
 The frozen [Santander contract](../contracts/santander-import-contract.md)
 remains authoritative for source semantics, although its original future-tense
@@ -356,11 +357,11 @@ delivery. Refreshing a report alone cannot prove an import failed.
 
 ## Private operator acceptance after implementation
 
-This is a future procedure, not authorization to import data in this design
-checkpoint. First pass all committed regression/adversarial tests with synthetic
-fixtures. Then Glenn may validate locally with one original private statement:
+This procedure remains deferred until the implementation review is accepted.
+First pass all committed regression/adversarial tests with synthetic fixtures.
+Then Glenn may validate locally with one original private statement:
 
-1. Start the separate ADR-0013 private stack with the proposed `make private`
+1. Start the separate ADR-0013 private stack with `make private`
    command (explicit import opt-in, DEBUG=false). Verify resolved
    project/database/volume names, migrations and
    numeric-loopback publication without printing secrets. Stop the demo to free
@@ -400,7 +401,7 @@ fixtures. Then Glenn may validate locally with one original private statement:
    and expired old capability; new bootstrap requires another explicit action.
 8. Check local logs/error surfaces without copying their private contents into
    reports. Confirm no private upload temp/static file or tracked artifact was
-   created. Use the proposed `make private-down` to stop while preserving the
+   created. Use `make private-down` to stop while preserving the
    volume. Verify demo cleanup
    targets only demo resources using metadata/tests; do not destructively test
    cleanup against real evidence. Retain only a sanitized pass/fail outcome.

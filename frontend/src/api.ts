@@ -49,6 +49,30 @@ export type MovementReport = Readonly<{
   movements: ReadonlyArray<MovementReportItem>;
 }>;
 
+export type SantanderImportStatementResult = Readonly<{
+  status: "ACCEPTED" | "PARTIAL" | "REJECTED";
+  source_row_count: number;
+  parsed_count: number;
+  ignored_count: number;
+  rejected_count: number;
+  reconciliation_status:
+    | "RECONCILED"
+    | "NOT_RECONCILED"
+    | "INSUFFICIENT_DATA"
+    | "NOT_APPLICABLE";
+  period_start: string;
+  period_end: string;
+}>;
+
+export type SantanderImportResult = Readonly<{
+  account_id: string;
+  batch_id: string;
+  status: "ACCEPTED" | "PARTIAL" | "REJECTED" | "DUPLICATE";
+  duplicate_of: string | null;
+  created_movement_count: number;
+  statement: SantanderImportStatementResult;
+}>;
+
 export class ApiError extends Error {
   readonly code: string;
   readonly status: number | null;
@@ -59,6 +83,23 @@ export class ApiError extends Error {
     this.code = code;
     this.status = status;
   }
+}
+
+export class FinancialImportError extends ApiError {
+  readonly outcomeUncertain: boolean;
+
+  constructor(message: string, code: string, status: number | null, outcomeUncertain: boolean) {
+    super(message, code, status);
+    this.name = "FinancialImportError";
+    this.outcomeUncertain = outcomeUncertain;
+  }
+}
+
+let financialImportCapability: string | null = null;
+
+/** Discard page-memory authority without exposing it. Primarily models page restart in tests. */
+export function clearFinancialImportCapability(): void {
+  financialImportCapability = null;
 }
 
 const GET_OPTIONS = Object.freeze({
@@ -88,7 +129,146 @@ const ERROR_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
     "The backend rejected the date range. The start date must not be after the end date.",
   not_acceptable: "The backend could not provide the required JSON response.",
   method_not_allowed: "The backend rejected this read request.",
+  financial_import_not_enabled:
+    "Financial imports are disabled. Start the separate private Gouda stack to import a statement.",
+  host_not_allowed: "The local financial-import boundary rejected the browser Host.",
+  origin_not_allowed: "The local financial-import boundary rejected the browser Origin.",
+  import_capability_invalid:
+    "The financial-import permission expired. Select Import again to obtain a fresh permission.",
+  account_source_incompatible:
+    "The selected Account is not compatible with Santander current-account statements.",
+  statement_missing: "Choose one non-empty Santander current-account XLSX statement.",
+  request_body_too_large: "The upload exceeds the allowed request size.",
+  statement_too_large: "The statement exceeds the 5 MiB file limit.",
+  import_busy: "Another import is in progress. Wait for it to finish, then try again.",
+  statement_resource_limit: "The workbook exceeds Gouda’s safe XLSX resource limits.",
+  xlsx_invalid: "The selected file is not a readable, unencrypted XLSX workbook.",
+  source_unrecognized: "This workbook is not a supported Santander current-account statement.",
+  statement_not_importable: "The Santander statement could not be imported safely.",
+  account_context_changed: "The selected Account changed while the statement was being imported.",
+  source_kind_conflict: "These exact bytes were already imported through another source route.",
+  import_persistence_failed: "Gouda could not safely persist the import.",
 });
+
+export async function importSantanderCurrentAccountXlsx(
+  accountId: string,
+  statement: File,
+): Promise<SantanderImportResult> {
+  if (!isUuid(accountId) || !(statement instanceof File)) {
+    throw new FinancialImportError(
+      "Choose a compatible Account and one statement.",
+      "request_invalid",
+      null,
+      false,
+    );
+  }
+  if (financialImportCapability === null) {
+    financialImportCapability = await bootstrapFinancialImportCapability();
+  }
+
+  const body = new FormData();
+  body.append("statement", statement);
+  let response: Response;
+  try {
+    response = await fetch(
+      `/api/v1/accounts/${encodeURIComponent(accountId)}/imports/santander-current-account-xlsx/`,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "X-Gouda-Financial-Import": financialImportCapability,
+        },
+        body,
+        cache: "no-store",
+        credentials: "omit",
+        redirect: "error",
+      },
+    );
+  } catch {
+    throw uncertainImportError();
+  }
+
+  let responseBody: unknown;
+  try {
+    responseBody = await response.json();
+  } catch {
+    throw response.status >= 500
+      ? uncertainImportError(response.status)
+      : new FinancialImportError(
+          "The local backend returned an unreadable import response.",
+          "unexpected_response",
+          response.status,
+          response.ok,
+        );
+  }
+  if (!response.ok) {
+    const error = apiResponseError(response.status, responseBody);
+    if (error.code === "import_capability_invalid") {
+      financialImportCapability = null;
+    }
+    throw new FinancialImportError(
+      error.message,
+      error.code,
+      error.status,
+      response.status >= 500,
+    );
+  }
+  try {
+    return parseSantanderImportResult(responseBody, accountId);
+  } catch {
+    throw uncertainImportError(response.status);
+  }
+}
+
+async function bootstrapFinancialImportCapability(): Promise<string> {
+  let response: Response;
+  try {
+    response = await fetch("/api/v1/local/financial-import-capability/", {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: "{}",
+      cache: "no-store",
+      credentials: "omit",
+      redirect: "error",
+    });
+  } catch {
+    throw new FinancialImportError(
+      "Cannot reach the private local Gouda import service.",
+      "backend_unavailable",
+      null,
+      false,
+    );
+  }
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    throw new FinancialImportError(
+      "The local backend returned an unreadable capability response.",
+      "unexpected_response",
+      response.status,
+      false,
+    );
+  }
+  if (!response.ok) {
+    const error = apiResponseError(response.status, body);
+    throw new FinancialImportError(error.message, error.code, error.status, false);
+  }
+  if (
+    !isRecord(body) ||
+    !hasExactKeys(body, ["import_capability"]) ||
+    typeof body.import_capability !== "string" ||
+    !/^[0-9a-f]{64}$/.test(body.import_capability)
+  ) {
+    throw new FinancialImportError(
+      "The local backend returned an invalid capability response.",
+      "unexpected_response",
+      response.status,
+      false,
+    );
+  }
+  return body.import_capability;
+}
 
 export async function fetchAccounts(): Promise<ReadonlyArray<AccountSummary>> {
   const response = await performGet("/api/v1/accounts/");
@@ -224,6 +404,85 @@ function parseMovementReport(
   });
 }
 
+function parseSantanderImportResult(body: unknown, requestedAccountId: string): SantanderImportResult {
+  if (
+    !isRecord(body) ||
+    !hasExactKeys(body, [
+      "account_id",
+      "batch_id",
+      "status",
+      "duplicate_of",
+      "created_movement_count",
+      "statement",
+    ]) ||
+    body.account_id !== requestedAccountId ||
+    !isUuid(body.batch_id) ||
+    !["ACCEPTED", "PARTIAL", "REJECTED", "DUPLICATE"].includes(String(body.status)) ||
+    (body.duplicate_of !== null && !isUuid(body.duplicate_of)) ||
+    !isNonnegativeInteger(body.created_movement_count)
+  ) {
+    throw unexpectedResponse();
+  }
+  const statement = parseSantanderStatementResult(body.statement);
+  if (
+    (body.status === "DUPLICATE") !== (body.duplicate_of !== null) ||
+    (body.status === "DUPLICATE" && body.created_movement_count !== 0) ||
+    (body.status !== "DUPLICATE" && body.status !== statement.status)
+  ) {
+    throw unexpectedResponse();
+  }
+  return Object.freeze({
+    account_id: body.account_id,
+    batch_id: body.batch_id,
+    status: body.status as SantanderImportResult["status"],
+    duplicate_of: body.duplicate_of,
+    created_movement_count: body.created_movement_count,
+    statement,
+  });
+}
+
+function parseSantanderStatementResult(value: unknown): SantanderImportStatementResult {
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, [
+      "status",
+      "source_row_count",
+      "parsed_count",
+      "ignored_count",
+      "rejected_count",
+      "reconciliation_status",
+      "period_start",
+      "period_end",
+    ]) ||
+    !["ACCEPTED", "PARTIAL", "REJECTED"].includes(String(value.status)) ||
+    !isNonnegativeInteger(value.source_row_count) ||
+    !isNonnegativeInteger(value.parsed_count) ||
+    !isNonnegativeInteger(value.ignored_count) ||
+    !isNonnegativeInteger(value.rejected_count) ||
+    ![
+      "RECONCILED",
+      "NOT_RECONCILED",
+      "INSUFFICIENT_DATA",
+      "NOT_APPLICABLE",
+    ].includes(String(value.reconciliation_status)) ||
+    !isIsoDate(value.period_start) ||
+    !isIsoDate(value.period_end)
+  ) {
+    throw unexpectedResponse();
+  }
+  return Object.freeze({
+    status: value.status as SantanderImportStatementResult["status"],
+    source_row_count: value.source_row_count,
+    parsed_count: value.parsed_count,
+    ignored_count: value.ignored_count,
+    rejected_count: value.rejected_count,
+    reconciliation_status:
+      value.reconciliation_status as SantanderImportStatementResult["reconciliation_status"],
+    period_start: value.period_start,
+    period_end: value.period_end,
+  });
+}
+
 function parseMovement(value: unknown, requestedAccountId: string): MovementReportItem {
   if (
     !isRecord(value) ||
@@ -345,6 +604,10 @@ function isDecimal(value: unknown): value is string {
   return typeof value === "string" && DECIMAL_PATTERN.test(value);
 }
 
+function isNonnegativeInteger(value: unknown): value is number {
+  return Number.isSafeInteger(value) && typeof value === "number" && value >= 0;
+}
+
 function unexpectedResponse(
   message = "The local backend returned an unexpected response.",
 ): ApiError {
@@ -356,5 +619,14 @@ function backendUnavailable(status: number | null = null): ApiError {
     "Cannot reach the local Gouda backend. Confirm both local services are running and try again.",
     "backend_unavailable",
     status,
+  );
+}
+
+function uncertainImportError(status: number | null = null): FinancialImportError {
+  return new FinancialImportError(
+    "The import outcome is uncertain. Gouda may already have committed it. Do not assume it failed; inspect Movements or explicitly retry the same unchanged file.",
+    "import_outcome_uncertain",
+    status,
+    true,
   );
 }

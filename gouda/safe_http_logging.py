@@ -1,4 +1,4 @@
-"""Safe operational HTTP logs and explicit classification-secret redaction."""
+"""Safe operational HTTP logs and explicit local-write secret redaction."""
 
 import logging
 import re
@@ -10,6 +10,7 @@ from django.views.debug import ExceptionReporter, SafeExceptionReporterFilter
 _ROUTES = frozenset({
     "account-discovery", "category-discovery", "canonical-movement-report",
     "classification-write-capability", "movement-classification",
+    "financial-import-capability", "santander-current-account-import",
 })
 _METHODS = frozenset({"GET", "POST", "PATCH", "PUT", "DELETE", "HEAD", "OPTIONS"})
 
@@ -49,11 +50,15 @@ class SafeHttpLogFilter(logging.Filter):
 class ClassificationExceptionReporterFilter(SafeExceptionReporterFilter):
     hidden_settings = re.compile(
         SafeExceptionReporterFilter.hidden_settings.pattern
-        + "|HTTP_X_GOUDA_CLASSIFICATION_WRITE|WRITE_CAPABILITY", re.I,
+        + "|HTTP_X_GOUDA_CLASSIFICATION_WRITE|HTTP_X_GOUDA_FINANCIAL_IMPORT"
+        + "|WRITE_CAPABILITY|IMPORT_CAPABILITY", re.I,
     )
 
     def get_traceback_frame_variables(self, request, tb_frame):
-        if getattr(request, "gouda_classification_write", False):
+        if (
+            getattr(request, "gouda_classification_write", False)
+            or getattr(request, "gouda_financial_import", False)
+        ):
             return [("locals", self.cleansed_substitute)]
         return super().get_traceback_frame_variables(request, tb_frame)
 
@@ -64,9 +69,13 @@ class ClassificationExceptionReporter(ExceptionReporter):
     def get_traceback_text(self):
         if getattr(self.request, "gouda_classification_write", False):
             return "classification internal_error"
+        if getattr(self.request, "gouda_financial_import", False):
+            return "financial_import internal_error"
         return super().get_traceback_text()
 
     def get_traceback_html(self):
         if getattr(self.request, "gouda_classification_write", False):
             return "classification internal_error"
+        if getattr(self.request, "gouda_financial_import", False):
+            return "financial_import internal_error"
         return super().get_traceback_html()

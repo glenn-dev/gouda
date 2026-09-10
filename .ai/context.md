@@ -104,23 +104,34 @@ The source-only contracts `bci_current_cartola_v0.1` and
 
 ## Current direction
 
-The current checkpoint defines local financial import v0.1, documentation only.
-On 2026-09-08, clean `main` and fetched `origin/main` both equaled signed
-`ebb8b11c6c90d20c334455bc9ad66af4f0c3a1ab`
-(`chore: simplify local demo workflow`).
+The current checkpoint implements local financial import v0.1 from clean
+`main` at signed `bbca93e54e93dfa94fb7a37623820088b56fbe44`
+(`docs: define local financial import flow`), equal to fetched `origin/main`.
 [ADR-0013](../docs/decisions/ADR-0013-local-financial-import-boundary.md) and
 [the flow contract](../docs/architecture/local-financial-import.md) define
 one explicit Santander current-account XLSX upload, independent financial-import
 capability, private dataset/volume separation, bounded memory-only admission,
-and reuse of the existing import lifecycle and Movement report. The upload,
-runtime, private startup workflow, and React form are not implemented.
+and reuse of the existing import lifecycle and Movement report. The dedicated
+runtime/grant, strict bootstrap/upload adapters, bounded in-memory multipart and
+OOXML admission, private Compose stack, safe logging, and React flow are now
+implemented without a migration or source-parser/domain change.
 
 Real-event product validation now precedes the manual classification editor.
-Implementation requires a later explicit instruction; this checkpoint permits
-one signed `docs: define local financial import flow` commit and no push.
-No private artifact, application database, or Docker volume was inspected or
-changed here. The historical default volume's previously reported migration
-mismatch remains outside scope. The handoff records current validation.
+The checkpoint permits one signed `feat: add local Santander import flow` commit
+and no push. Synthetic fixtures and an isolated synthetic PostgreSQL test
+database are the only financial inputs used. Glenn's private acceptance run is
+explicitly deferred until after implementation review. The historical default
+volume's previously reported migration mismatch remains outside scope.
+
+Implementation validation passes with 554 Django tests on PostgreSQL, 72
+frontend tests, typecheck, build, dependency checks, migration drift, Compose
+configuration/startup, default demo regression, and an actual same-origin
+synthetic import plus exact duplicate after private-stack restart. Admission
+tests cover bounded ZIP expansion, all XML parts including content types,
+entity/DTD denial, worksheet extent limits, and malformed packages. The
+disposable private validation database/volume was removed; the ordinary
+synthetic demo remains healthy and import-disabled. No private statement was
+read. Git history supplies the containing signed implementation commit.
 
 Code verification established that Santander XLSX registers evidence before
 parsing and directly materializes valid Movements without observations. Partial

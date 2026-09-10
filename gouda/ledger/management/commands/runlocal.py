@@ -55,6 +55,14 @@ class Command(RunserverCommand):
             "--classification-write-origin", action=_Once,
             help="Required with write activation: http://127.0.0.1:5173.",
         )
+        parser.add_argument(
+            "--enable-financial-imports", action=_Once, nargs=0, default=False,
+            help="Explicitly enable only Santander current-account XLSX imports.",
+        )
+        parser.add_argument(
+            "--financial-import-origin", action=_Once,
+            help="Required with import activation: http://127.0.0.1:5173.",
+        )
 
     def handle(self, *args, **options):
         try:
@@ -64,6 +72,8 @@ class Command(RunserverCommand):
                 trusted_container_network=options["trusted_container_network"],
                 enable_classification_writes=options["enable_classification_writes"],
                 classification_write_origin=options["classification_write_origin"],
+                enable_financial_imports=options["enable_financial_imports"],
+                financial_import_origin=options["financial_import_origin"],
                 server_runner=self._serve,
             )
         except LocalDeliveryBootstrapError as error:

@@ -10,7 +10,8 @@ it("preserves actual proxy headers, adds no CORS grants, and sanitizes proxy fai
   const backend = createHttpServer((req, res) => {
     res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify({ host: req.headers.host, origin: req.headers.origin,
-      capability: req.headers["x-gouda-classification-write"] }));
+      capability: req.headers["x-gouda-classification-write"],
+      importCapability: req.headers["x-gouda-financial-import"] }));
   });
   await new Promise<void>((resolve) => backend.listen(0, "127.0.0.1", resolve));
   const backendPort = (backend.address() as AddressInfo).port;
@@ -39,18 +40,22 @@ it("preserves actual proxy headers, adds no CORS grants, and sanitizes proxy fai
     for (const method of ["POST", "PATCH", "OPTIONS"]) {
       for (const origin of ["http://127.0.0.1:5173", "https://evil.invalid", "http://localhost:5173", "null"]) {
         const response = await send(method, ["Host", "127.0.0.1:5173", "Origin", origin,
-          "X-Gouda-Classification-Write", sentinel, "Access-Control-Request-Method", "PATCH"]);
+          "X-Gouda-Classification-Write", sentinel, "X-Gouda-Financial-Import", sentinel,
+          "Access-Control-Request-Method", "PATCH"]);
         expect(response.status).toBe(200); // Synthetic upstream; Django owns authorization.
-        expect(JSON.parse(response.body)).toEqual({ host: "127.0.0.1:5173", origin, capability: sentinel });
+        expect(JSON.parse(response.body)).toEqual({ host: "127.0.0.1:5173", origin,
+          capability: sentinel, importCapability: sentinel });
         expect(Object.keys(response.headers).filter((key) => key.startsWith("access-control-"))).toEqual([]);
       }
     }
-    for (const name of ["Host", "Origin", "X-Gouda-Classification-Write"]) {
+    for (const name of ["Host", "Origin", "X-Gouda-Classification-Write", "X-Gouda-Financial-Import"]) {
       const headers = ["Host", "127.0.0.1:5173", "Origin", "http://127.0.0.1:5173",
-        "X-Gouda-Classification-Write", sentinel, name, "duplicate"];
+        "X-Gouda-Classification-Write", sentinel, "X-Gouda-Financial-Import", sentinel,
+        name, "duplicate"];
       const response = await send("PATCH", headers);
       const echoed = JSON.parse(response.body) as Record<string, string>;
-      const key = name === "Host" ? "host" : name === "Origin" ? "origin" : "capability";
+      const key = name === "Host" ? "host" : name === "Origin" ? "origin" :
+        name === "X-Gouda-Classification-Write" ? "capability" : "importCapability";
       expect(echoed[key]).toContain(",duplicate");
     }
     await new Promise<void>((resolve, reject) => backend.close((error) => error ? reject(error) : resolve()));

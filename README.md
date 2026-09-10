@@ -30,18 +30,19 @@ calm, responsive ledger presentation, exact signed-money formatting, and
 read-only current classification labels.
 
 An independently enabled local classification write boundary is also implemented
-under ADR-0012. Default startup and React remain read-only. The backend offers
+under ADR-0012. Default startup remains read-only, and React has no classification
+editor. The backend offers
 only an ephemeral capability bootstrap and revision-checked classification PATCH;
 there are no editing controls, Category CRUD, or canonical financial writes.
 
-The next product slice is browser import of one private Santander current-account
-XLSX into a separate local PostgreSQL dataset, then inspection through the
+Browser import of one private Santander current-account XLSX is now implemented
+against a separate local PostgreSQL dataset, followed by inspection through the
 existing Movement report. The accepted
 [financial-import design](docs/architecture/local-financial-import.md) and
 [ADR-0013](docs/decisions/ADR-0013-local-financial-import-boundary.md) define
 independent import authority, exact-file duplicate behavior, private evidence
-handling, and separation from the synthetic demo. This is designed, not
-implemented; classification editing follows that product-validation slice.
+handling, and separation from the synthetic demo. Classification editing remains
+a later slice.
 
 ## Local Docker demo
 
@@ -125,6 +126,64 @@ Do not use `docker compose down -v` as demo cleanup. Source directories are
 mounted read-only into the development containers. Frontend source changes use
 Vite reload; restart `backend` after Python changes and rebuild after dependency
 changes.
+
+## Private Santander import
+
+The browser import is supported only in the isolated private stack. Stop the
+demo first because both intentionally use the same loopback browser port, then
+start the private stack:
+
+```text
+make down
+make private
+```
+
+`make private` uses fixed Compose project `gouda-private`, database
+`gouda_private`, and volume
+`gouda-private_gouda-private-postgres-data`. It enables only the dedicated
+Santander current-account import capability, publishes only Vite at
+`127.0.0.1:5173`, mounts no incoming/private directory, creates no Account,
+and seeds no demo data. The normal `make demo` path remains import-disabled and
+its reset command never targets the private volume.
+
+Before the first import, create a persisted current/asset Account deliberately
+through the local Django shell. Substitute the operator-known ISO-like currency;
+do not infer it from a filename or statement contents:
+
+```text
+docker compose --project-directory . --env-file .env \
+  -f docker-compose.yml -f docker-compose.private.yml -p gouda-private \
+  exec backend python manage.py shell
+```
+
+```python
+from gouda.ledger.models import Account
+
+account = Account(
+    display_name="Private current account",
+    kind=Account.Kind.CURRENT,
+    economic_orientation=Account.EconomicOrientation.ASSET,
+    currency="CLP",
+)
+account.full_clean()
+account.save()
+```
+
+Open `http://127.0.0.1:5173/`, select that Account, select one original
+Santander Current Account XLSX, and press **Import**. File selection itself does
+not upload. The exact bytes and first normalized basename are retained privately
+in PostgreSQL; they are never copied into repository/static paths. An exact
+same-file/same-Account retry returns a duplicate result and creates no new
+Movements. A resaved export, overlapping export, or different Account is not
+deduplicated by this rule.
+
+After review, follow the privacy-safe acceptance procedure in
+[Local financial import](docs/architecture/local-financial-import.md#private-operator-acceptance-after-implementation).
+Stop the stack while preserving evidence with:
+
+```text
+make private-down
+```
 
 ## Manual host development
 

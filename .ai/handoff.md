@@ -1,56 +1,56 @@
 # Handoff
 
-## Local financial-import design checkpoint
+## Local financial-import implementation checkpoint
 
-Completed 2026-09-08, documentation only. This section and the Next checkpoint
-section supersede historical priorities below. Real-private-statement product
-validation now precedes the manual classification editor.
+Implementation completed 2026-09-09 from clean `main` at fetched
+`bbca93e54e93dfa94fb7a37623820088b56fbe44`, the signed ADR-0013 design commit.
+The result is the containing signed `feat: add local Santander import flow`
+commit; Git history supplies its SHA/signature. Nothing was pushed. This section
+supersedes historical priorities below.
 
-Baseline: clean `main`, fetched HEAD/`origin/main` both
-`ebb8b11c6c90d20c334455bc9ad66af4f0c3a1ab`, titled
-`chore: simplify local demo workflow`, with a valid ED25519 SSH signature.
-Commit contract: one signed `docs: define local financial import flow`; no push.
-Git history records the resulting SHA/signature, avoiding a self-referential SHA.
+The implementation adds an independent process-memory financial-import runtime,
+capability, and Santander-only grant; exact bootstrap/upload routes; Account
+visibility plus non-demo CURRENT/ASSET/currency compatibility; bounded memory-only
+multipart and safe OOXML ZIP/XML admission; and safe result/error projection.
+It calls the existing importer without an outer transaction. Existing
+registration, fatal evidence, atomic RawRecord/Movement materialization,
+reconciliation, PARTIAL, and exact artifact+Account duplicate behavior remain
+unchanged. No observation rows or migration were added.
 
-Read [ADR-0013](../docs/decisions/ADR-0013-local-financial-import-boundary.md)
-and [Local financial import v0.1](../docs/architecture/local-financial-import.md)
-for the accepted design. There is no implementation in this checkpoint.
-The next action requires explicit implementation instruction.
+The separate `gouda-private` Compose project uses database `gouda_private` and
+volume `gouda-private_gouda-private-postgres-data`, has no seed/reset/private
+directory mount, and is enabled only by `make private`. Default demo startup
+remains import-disabled; its literal reset target is unchanged. React adds an
+explicit Account/file form, memory-only capability use, bounded truthful result,
+report navigation, and no automatic replay after ambiguous outcomes.
 
-The design adds one independent import capability bootstrap and one
-Account-scoped Santander XLSX POST, with exact Host/Origin, separate live grant
-and principal checks, bounded memory-only admission, and private database/volume
-separation. It reuses the current service without a caller transaction. Artifact
-registration survives normal fatal failures; raw/Movement materialization is
-atomic. PARTIAL and NOT_RECONCILED can still contain canonical Movements, exactly
-as the frozen contract/code allow. This route creates no observations/resolutions.
-Duplicates retain a new attempt and original summary with zero new Movements.
+Validation passed: all 554 Django tests on PostgreSQL, all 72 frontend tests,
+frontend typecheck/build/dependency tree, Django/compile/migration/pip checks,
+both Compose configurations, `make demo`, Markdown-link/privacy/ignored-path
+checks, and diff whitespace. A generated committed Santander fixture completed
+an actual same-origin Vite/Django private-stack import; the existing Movement
+report matched, exact re-upload after backend/stack restart returned DUPLICATE,
+and logs contained none of the synthetic filename, digest, or capability.
+Default demo bootstrap remained `financial_import_not_enabled` and demo seeding
+remained 2 Accounts/11 Movements.
+The disposable PostgreSQL test container and synthetic private-stack volume were
+removed; no `gouda-private` container remains. The ordinary healthy `gouda-demo`
+stack was restored without deleting its preserved volume.
 
-Account has no provider/current-account identity binding: explicit operator
-selection plus persisted kind/orientation/currency is the available trusted
-context. Exact bytes + Account is duplicate identity; reexports/overlap and
-wrong-Account selection remain explicit limitations. A malicious trusted-host
-process can deliberately bootstrap, as ADR-0010 permits.
+Adversarial review confirmed authority separation, gate-before-body/DB order,
+canonical Account binding, structural rather than filename recognition,
+restart invalidation, exact retry convergence, atomic materialization, safe
+HTTP/log projection, no frontend replay, and literal demo/private volume
+separation. It found and fixed one pre-commit resource issue: content-types XML
+now participates in the package-wide element/depth budget. Browser imports also
+suppress source-derived parser-library warnings. No ADR-0013 deviation remains.
 
-Self-review addressed classification privilege reuse, blanket transaction
-rollback, misleading reconciliation success, compressed/sparse workbook memory
-growth, and private data in the demo reset volume. The flow document records all
-requested adversarial cases and required future runtime tests. No unresolved
-design blocker remains; these new controls must be implemented and tested before
-private upload is enabled. No private statement, app DB, Docker container or
-volume was read or changed; no frontend screenshot or real financial value was
-collected. Historical default-volume remediation remains deferred.
-
-Validation: the existing parser/import-helper suite passed all 60 tests, with
-Django system check passing and no DB access. Production lifecycle/concurrency,
-Account/reporting, local-write, logging, and demo tests were inspected, not
-claimed as rerun. Final hygiene passed: 43 Markdown files, 119 local
-links/anchors, 11 JSON examples, exact six documentation paths, added-text
-privacy checks, ignored/untracked private-path checks, balanced fences,
-final newlines/whitespace, and `git diff --check`. No production code or fixture
-changed. The local-only checker is `/private/tmp/gouda-import-design-check.py`.
-Final commit verification must confirm one good SSH-signed commit, clean
-worktree/index, and main one ahead/zero behind the fetched origin; no push.
+Only synthetic fixtures and isolated synthetic PostgreSQL resources were used.
+No private statement or existing private volume was read. The disposable
+private validation volume and standalone test container were removed after
+testing. The ordinary `gouda-demo` stack is left healthy as it was at baseline.
+Glenn's documented one-file private acceptance run is the next action after
+review.
 
 ## Historical local demo ergonomics checkpoint
 

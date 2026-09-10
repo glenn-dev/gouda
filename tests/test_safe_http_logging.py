@@ -33,7 +33,12 @@ class SafeHttpLoggingTests(SimpleTestCase):
     @override_settings(DEBUG=True)
     def test_header_bootstrap_field_and_exception_report_are_explicitly_redacted(self):
         reporter_filter = ClassificationExceptionReporterFilter()
-        for name in ("HTTP_X_GOUDA_CLASSIFICATION_WRITE", "write_capability"):
+        for name in (
+            "HTTP_X_GOUDA_CLASSIFICATION_WRITE",
+            "write_capability",
+            "HTTP_X_GOUDA_FINANCIAL_IMPORT",
+            "import_capability",
+        ):
             self.assertEqual(reporter_filter.cleanse_setting(name, self.sentinel), reporter_filter.cleansed_substitute)
         request = RequestFactory().post(BOOTSTRAP, data=self.sentinel, content_type="application/json", **HEADERS,
                                        HTTP_X_GOUDA_CLASSIFICATION_WRITE=self.sentinel)
@@ -45,6 +50,25 @@ class SafeHttpLoggingTests(SimpleTestCase):
             self.assertNotIn(self.sentinel, reporter.get_traceback_text())
             self.assertNotIn(self.sentinel, reporter.get_traceback_html())
             self.assertNotIn(self.sentinel, str(reporter_filter.get_traceback_frame_variables(request, sys._getframe())))
+
+        import_request = RequestFactory().post(
+            "/api/v1/local/financial-import-capability/",
+            data=self.sentinel,
+            content_type="application/json",
+            **HEADERS,
+            HTTP_X_GOUDA_FINANCIAL_IMPORT=self.sentinel,
+        )
+        import_request.gouda_financial_import = True
+        try:
+            raise RuntimeError(self.sentinel)
+        except RuntimeError:
+            reporter = ClassificationExceptionReporter(import_request, *sys.exc_info())
+            self.assertNotIn(self.sentinel, reporter.get_traceback_text())
+            self.assertNotIn(self.sentinel, reporter.get_traceback_html())
+            self.assertNotIn(
+                self.sentinel,
+                str(reporter_filter.get_traceback_frame_variables(import_request, sys._getframe())),
+            )
 
     def test_configured_handler_sanitizes_before_emission(self):
         stream = io.StringIO()

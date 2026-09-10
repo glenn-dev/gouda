@@ -2,53 +2,46 @@
 
 ## Objective
 
-Completed the architecture/design checkpoint for local financial import v0.1.
-Only Santander Current Account XLSX is designed: explicit browser Account/file
-selection, independent import authority, existing deterministic lifecycle,
-PostgreSQL persistence, and existing Movement report/React display.
-No production code, tests, migrations, runtime, or private data changed.
+Implement ADR-0013's first local browser-import vertical slice for Santander
+Current Account XLSX only, preserving the existing import lifecycle and Movement
+report.
 
 ## Baseline and commit contract
 
-On 2026-09-08, verified clean `main` after fetching origin. HEAD and
-`origin/main` both equaled `ebb8b11c6c90d20c334455bc9ad66af4f0c3a1ab`,
-`chore: simplify local demo workflow`, with a valid ED25519 SSH signature.
-This checkpoint authorizes exactly one signed
-`docs: define local financial import flow` commit and no push. Git history
-records the resulting SHA and signature; it is not embedded in its own commit.
+Started 2026-09-09 from clean `main` with HEAD and fetched `origin/main` both
+`bbca93e54e93dfa94fb7a37623820088b56fbe44`, the signed
+`docs: define local financial import flow` commit. Create one signed
+`feat: add local Santander import flow` commit after clean validation. Do not
+push.
 
-## Durable result
+## Implemented scope
 
-- [ADR-0013](../../docs/decisions/ADR-0013-local-financial-import-boundary.md)
-  owns import authority, source/Account policy, and private dataset separation.
-- [Local financial import](../../docs/architecture/local-financial-import.md)
-  owns exact endpoints/errors, upload limits, evidence/transaction outcomes,
-  React flow, adversarial requirements, and private operator acceptance.
-- README and operational context now prioritize real-event validation before
-  classification editing. ADR-0010/0011/0012 and source contracts are unchanged.
+- Separate default-off, process-memory financial-import runtime/capability/grant.
+- Strict JSON bootstrap and Account-scoped multipart Santander XLSX endpoint.
+- Principal, read visibility, demo exclusion, and CURRENT/ASSET/currency checks
+  before upload parsing.
+- Five-MiB upload and bounded ZIP/XML/worksheet admission before openpyxl.
+- Existing importer reuse, safe fatal mapping, duplicate summary, and redaction.
+- Fixed private Compose project/database/volume with no seed, reset, or incoming
+  directory mount; unchanged import-disabled demo.
+- Minimal React Account/file/import/result/report flow with no automatic retry
+  after an ambiguous request.
 
-## Validation
+No source contract, model, migration, signed-amount semantics, reconciliation,
+classification, observation, transfer, taxonomy, auth, or remote-access behavior
+was changed.
 
-Inspected production parser/importer, persistence, existing Santander tests,
-Account access, reports, classification/runtime/HTTP/logging, React, and demo
-startup/cleanup. Ran the existing parser and import-helper tests: 60 passed;
-Django system check passed. No database was needed or opened for these tests.
-Documentation validation passed for 43 Markdown files, 119 local links/anchors,
-and 11 JSON examples. Added-text privacy, ignored/untracked private-path checks,
-exact six-file scope, and diff hygiene passed. The handoff records adversarial
-review. Runtime acceptance belongs to implementation.
+## Checkpoint result
 
-## Next bounded scope
+Implementation and adversarial review are complete with no ADR-0013 deviation.
+All 554 Django tests on PostgreSQL and all 72 frontend tests pass, as do
+typecheck, build, dependency, migration, Compose, demo, documentation, privacy,
+and whitespace checks. A generated Santander workbook passed same-origin import,
+Movement reporting, restart persistence, and exact duplicate validation. No
+private financial artifact was read.
 
-Await explicit implementation instruction, then implement this v0.1 contract,
-including independent grants, bounded admission, safe logging, isolated private
-startup, existing service reuse, and minimum React flow. Verify using synthetic
-fixtures/isolated databases before Glenn's deliberate private acceptance run.
-Do not import private files as part of this design checkpoint.
-
-Classification editor follows local import validation. TDC/BCI browser imports,
-account/provider identity verification, changed-export/cross-source deduplication,
-reprocessing, canonical correction, transfer semantics, taxonomy, AI, background
-jobs, remote access, ownership/authentication, and generic frameworks remain
-deferred. Current-to-Historical BCI validation still waits for its external
-artifact trigger.
+The next action after review is Glenn's one-file private acceptance procedure in
+`docs/architecture/local-financial-import.md`, retaining only sanitized pass/fail
+notes. Classification editing, other providers/sources, overlapping-export
+identity, retention/export/deletion tooling, and remote/authenticated delivery
+remain deliberately deferred.

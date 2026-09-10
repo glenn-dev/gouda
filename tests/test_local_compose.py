@@ -18,6 +18,7 @@ class LocalComposeContractTests(SimpleTestCase):
         super().setUpClass()
         cls.compose = (ROOT / "docker-compose.yml").read_text()
         cls.host_db_override = (ROOT / "docker-compose.host-db.yml").read_text()
+        cls.private_override = (ROOT / "docker-compose.private.yml").read_text()
         cls.makefile = (ROOT / "Makefile").read_text()
         cls.postgres = cls.compose.split("  postgres:\n", 1)[1].split(
             "  backend:\n", 1
@@ -53,6 +54,8 @@ class LocalComposeContractTests(SimpleTestCase):
         self.assertIn("--trusted-container-network", self.backend)
         self.assertNotIn("--enable-classification-writes", self.backend)
         self.assertNotIn("--classification-write-origin", self.backend)
+        self.assertNotIn("--enable-financial-imports", self.backend)
+        self.assertNotIn("--financial-import-origin", self.backend)
         self.assertNotRegex(self.backend, r"manage\.py runserver")
 
     def test_frontend_proxies_to_only_the_literal_compose_backend(self):
@@ -112,6 +115,29 @@ class LocalComposeContractTests(SimpleTestCase):
         self.assertIn("docker volume rm gouda-demo_gouda-postgres-data", reset_recipe)
         self.assertNotIn("gouda_gouda-postgres-data", reset_recipe)
         self.assertNotRegex(reset_recipe, r"docker volume rm .*\$[{(]")
+
+    def test_private_stack_is_fixed_separate_and_has_no_seed_or_reset(self):
+        self.assertIn("-p gouda-private", self.makefile)
+        self.assertIn("-f \"$(CURDIR)/docker-compose.private.yml\"", self.makefile)
+        self.assertIn("POSTGRES_DB: gouda_private", self.private_override)
+        self.assertIn("gouda-private-postgres-data:/var/lib/postgresql/data", self.private_override)
+        self.assertIn("--enable-financial-imports", self.private_override)
+        self.assertIn(
+            "--financial-import-origin http://127.0.0.1:5173",
+            self.private_override,
+        )
+        self.assertNotIn("seed_demo", self.private_override)
+        private_recipe = self.makefile.split("\nprivate: private-check\n", 1)[1].split(
+            "\nprivate-down:\n", 1
+        )[0]
+        self.assertNotIn("seed_demo", private_recipe)
+        private_down = self.makefile.split("\nprivate-down:\n", 1)[1].split(
+            "\ndown:\n", 1
+        )[0]
+        self.assertNotIn("--volumes", private_down)
+        self.assertNotIn("volume rm", private_down)
+        reset_recipe = self.makefile.split("\ndemo-reset:\n", 1)[1]
+        self.assertNotIn("gouda-private", reset_recipe)
 
     def test_environment_check_rejects_missing_and_blank_values_without_leaks(self):
         checker = ROOT / "scripts" / "check-local-env.sh"

@@ -4,9 +4,12 @@ import {
   AccountKind,
   AccountSummary,
   ApiError,
+  FinancialImportError,
   fetchAccounts,
   fetchMovementReport,
+  importSantanderCurrentAccountXlsx,
   MovementReport,
+  SantanderImportResult,
 } from "@/api";
 import { MoneyAmount } from "@/components/gouda/MoneyAmount";
 import { MovementList } from "@/components/movements/MovementList";
@@ -76,9 +79,35 @@ export function App() {
     }
   }
 
+  async function viewImportedMovements(result: SantanderImportResult) {
+    setSelectedAccountId(result.account_id);
+    setStartDate(result.statement.period_start);
+    setEndDate(result.statement.period_end);
+    setReportState({ status: "loading" });
+    try {
+      const report = await fetchMovementReport(
+        result.account_id,
+        result.statement.period_start,
+        result.statement.period_end,
+      );
+      setReportState({ status: "success", report });
+      window.requestAnimationFrame(() => {
+        document.getElementById("movement-report-heading")?.focus();
+      });
+    } catch (error) {
+      setReportState({ status: "error", message: errorMessage(error) });
+    }
+  }
+
   function handleAccountChange(accountId: string) {
     setSelectedAccountId(accountId);
     setReportState({ status: "idle" });
+  }
+
+  function reviewImportOutcome(accountId: string) {
+    setSelectedAccountId(accountId);
+    setReportState({ status: "idle" });
+    window.requestAnimationFrame(() => document.getElementById("start-date")?.focus());
   }
 
   return (
@@ -90,7 +119,14 @@ export function App() {
         </h1>
       </header>
 
-      <section className="py-6" aria-labelledby="report-controls-heading">
+      <ImportData
+        accounts={accounts}
+        accountsStatus={accountsState.status}
+        onViewMovements={viewImportedMovements}
+        onReviewReport={reviewImportOutcome}
+      />
+
+      <section className="border-t border-border py-6" aria-labelledby="report-controls-heading">
         <h2 id="report-controls-heading" className="text-lg font-semibold text-foreground">
           Report selection
         </h2>
@@ -122,7 +158,7 @@ export function App() {
             onSubmit={handleReportSubmit}
           >
             <div className="min-w-0 space-y-2 md:col-span-2 lg:col-span-1">
-              <Label htmlFor="account">Account</Label>
+              <Label htmlFor="account">Report Account</Label>
               <NativeSelect
                 id="account"
                 aria-describedby="selected-account-context"
@@ -216,7 +252,11 @@ function ReportResult({ account, report }: { account: AccountSummary; report: Mo
       </p>
       <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
         <div className="min-w-0">
-          <h2 id="movement-report-heading" className="text-lg font-semibold text-foreground">
+          <h2
+            id="movement-report-heading"
+            tabIndex={-1}
+            className="text-lg font-semibold text-foreground focus:outline-none"
+          >
             {account.display_name}
           </h2>
           <p className="mt-1 text-sm leading-normal text-muted-foreground">
@@ -260,6 +300,224 @@ function ReportResult({ account, report }: { account: AccountSummary; report: Mo
       </div>
     </section>
   );
+}
+
+type ImportState =
+  | { status: "idle" }
+  | { status: "importing" }
+  | { status: "error"; message: string; uncertain: boolean }
+  | { status: "success"; result: SantanderImportResult };
+
+function ImportData({
+  accounts,
+  accountsStatus,
+  onViewMovements,
+  onReviewReport,
+}: {
+  accounts: ReadonlyArray<AccountSummary>;
+  accountsStatus: AccountsState["status"];
+  onViewMovements: (result: SantanderImportResult) => Promise<void>;
+  onReviewReport: (accountId: string) => void;
+}) {
+  const compatibleAccounts = accounts.filter((account) => account.kind === "CURRENT");
+  const [accountId, setAccountId] = useState("");
+  const [statement, setStatement] = useState<File | null>(null);
+  const [inputKey, setInputKey] = useState(0);
+  const [state, setState] = useState<ImportState>({ status: "idle" });
+  const canImport =
+    accountId !== "" && statement !== null && state.status !== "importing";
+  const selectedImportAccount =
+    compatibleAccounts.find((account) => account.id === accountId) ?? null;
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canImport || statement === null) return;
+    setState({ status: "importing" });
+    try {
+      const result = await importSantanderCurrentAccountXlsx(accountId, statement);
+      setState({ status: "success", result });
+      setStatement(null);
+      setInputKey((value) => value + 1);
+    } catch (error) {
+      setState({
+        status: "error",
+        message: errorMessage(error),
+        uncertain: error instanceof FinancialImportError && error.outcomeUncertain,
+      });
+    }
+  }
+
+  return (
+    <section className="py-6" aria-labelledby="import-data-heading">
+      <h2 id="import-data-heading" className="text-lg font-semibold text-foreground">
+        Import data
+      </h2>
+      <p className="mt-2 max-w-3xl text-sm leading-normal text-muted-foreground">
+        Choose the Account yourself. Gouda keeps the exact statement privately in the local
+        database, imports valid rows even when others are rejected, and only recognizes exact-file
+        retries—not overlapping or re-exported statements.
+      </p>
+      <p className="mt-2 text-sm font-medium text-foreground">
+        Source: Santander Current Account XLSX
+      </p>
+
+      {accountsStatus === "ready" && compatibleAccounts.length === 0 ? (
+        <p className="mt-4 bg-muted px-4 py-3 text-sm text-muted-foreground" role="status">
+          No compatible current Accounts are available for import.
+        </p>
+      ) : (
+        <form
+          className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-start"
+          onSubmit={submit}
+          noValidate
+        >
+          <div className="space-y-2">
+            <Label htmlFor="import-account">Account</Label>
+            <NativeSelect
+              id="import-account"
+              required
+              aria-describedby="import-account-context"
+              value={accountId}
+              disabled={accountsStatus !== "ready" || state.status === "importing"}
+              onChange={(event) => {
+                setAccountId(event.target.value);
+                setState({ status: "idle" });
+              }}
+            >
+              <NativeSelectOption value="">Select a current Account</NativeSelectOption>
+              {compatibleAccounts.map((account) => (
+                <NativeSelectOption key={account.id} value={account.id}>
+                  {account.display_name} — {account.currency}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+            <p id="import-account-context" className="text-sm text-muted-foreground">
+              {selectedImportAccount
+                ? `${selectedImportAccount.display_name} · Current account · ${selectedImportAccount.currency}`
+                : "Select the persisted current Account this statement belongs to."}
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="statement">Statement</Label>
+            <Input
+              key={inputKey}
+              id="statement"
+              type="file"
+              required
+              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              disabled={state.status === "importing"}
+              onChange={(event) => {
+                setStatement(event.target.files?.[0] ?? null);
+                setState({ status: "idle" });
+              }}
+            />
+          </div>
+          <Button
+            className="w-full md:mt-6 md:w-auto"
+            type="submit"
+            disabled={!canImport}
+          >
+            {state.status === "importing" ? "Importing…" : "Import"}
+          </Button>
+        </form>
+      )}
+
+      {state.status === "importing" && (
+        <p className="mt-4 text-sm text-muted-foreground" role="status">
+          Importing the selected statement…
+        </p>
+      )}
+      {state.status === "error" && (
+        <div className="mt-4 border-l-2 border-error pl-4 text-error" role="alert">
+          <p>{state.message}</p>
+          {state.uncertain && (
+            <>
+              <p className="mt-2 text-sm">
+                Loading the Account report is safe. Resubmit only by explicitly selecting the same
+                unchanged file and pressing Import again.
+              </p>
+              <Button
+                className="mt-3"
+                type="button"
+                variant="outline"
+                onClick={() => onReviewReport(accountId)}
+              >
+                Review Movement report
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+      {state.status === "success" && (
+        <ImportResult
+          result={state.result}
+          onViewMovements={() => void onViewMovements(state.result)}
+        />
+      )}
+    </section>
+  );
+}
+
+function ImportResult({
+  result,
+  onViewMovements,
+}: {
+  result: SantanderImportResult;
+  onViewMovements: () => void;
+}) {
+  const duplicate = result.status === "DUPLICATE";
+  return (
+    <div className="mt-5 border-l-2 border-accent pl-4" role="status">
+      <h3 className="font-semibold text-foreground">{importResultHeading(result)}</h3>
+      <dl className="mt-3 grid gap-2 text-sm text-foreground sm:grid-cols-2 lg:grid-cols-5">
+        <div>
+          <dt className="text-muted-foreground">Source rows</dt>
+          <dd className="font-medium tabular-nums">{result.statement.source_row_count}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Accepted movements</dt>
+          <dd className="font-medium tabular-nums">{result.statement.parsed_count}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Ignored rows</dt>
+          <dd className="font-medium tabular-nums">{result.statement.ignored_count}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Rejected rows</dt>
+          <dd className="font-medium tabular-nums">{result.statement.rejected_count}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Reconciliation</dt>
+          <dd className="font-medium">{reconciliationLabel(result.statement.reconciliation_status)}</dd>
+        </div>
+      </dl>
+      <p className="mt-3 text-sm text-muted-foreground">
+        {duplicate
+          ? "No new canonical Movements were created; this is the original import summary."
+          : `${result.created_movement_count} canonical Movements were created.`}
+      </p>
+      <Button className="mt-4" type="button" variant="outline" onClick={onViewMovements}>
+        View movements
+      </Button>
+    </div>
+  );
+}
+
+function reconciliationLabel(value: SantanderImportResult["statement"]["reconciliation_status"]) {
+  return {
+    RECONCILED: "Statement reconciled",
+    NOT_RECONCILED: "Statement does not reconcile; valid movements were imported",
+    INSUFFICIENT_DATA: "Not enough evidence to reconcile",
+    NOT_APPLICABLE: "Reconciliation not applicable",
+  }[value];
+}
+
+function importResultHeading(result: SantanderImportResult): string {
+  if (result.status === "DUPLICATE") return "Statement already imported";
+  if (result.status === "PARTIAL") return "Import completed with rejected records";
+  if (result.status === "REJECTED") return "No movements imported; records rejected";
+  if (result.statement.parsed_count === 0) return "No movement records found";
+  return "Import complete";
 }
 
 function kindLabel(kind: AccountKind): string {

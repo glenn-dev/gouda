@@ -96,6 +96,8 @@ def run_validated_local_delivery(
     trusted_container_network: object = False,
     enable_classification_writes: object = False,
     classification_write_origin: object = None,
+    enable_financial_imports: object = False,
+    financial_import_origin: object = None,
     server_runner: Callable[[LocalDeliveryRuntime], _RunnerResult],
 ) -> _RunnerResult:
     """Validate, activate, and invoke the controlled server runner.
@@ -122,6 +124,7 @@ def run_validated_local_delivery(
     from gouda.local_classification_write import (
         _activate_validated_classification_writes,
     )
+    from gouda.local_financial_import import _activate_validated_financial_imports
 
     _active_runtime = runtime
     try:
@@ -130,7 +133,12 @@ def run_validated_local_delivery(
             enabled=enable_classification_writes,
             origin=classification_write_origin,
         ):
-            return server_runner(runtime)
+            with _activate_validated_financial_imports(
+                runtime,
+                enabled=enable_financial_imports,
+                origin=financial_import_origin,
+            ):
+                return server_runner(runtime)
     finally:
         if _active_runtime is runtime:
             _active_runtime = None

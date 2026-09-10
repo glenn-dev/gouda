@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
+import { clearFinancialImportCapability } from "./api";
 import {
   ACTIVE_CATEGORY_ID,
   accountsResponse,
@@ -23,7 +24,7 @@ describe("Gouda read-only report flow", () => {
     render(<App />);
 
     expect(screen.getByText("Loading accessible Accounts…")).toBeInTheDocument();
-    const selector = await screen.findByLabelText("Account");
+    const selector = await screen.findByLabelText("Report Account");
     expect(selector).toHaveValue(PRIMARY_ACCOUNT_ID);
     expect(
       screen.getByRole("option", {
@@ -51,7 +52,7 @@ describe("Gouda read-only report flow", () => {
     render(<App />);
 
     expect(await screen.findByText("No accessible Accounts are available.")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Account")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Report Account")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Load Movement report" })).not.toBeInTheDocument();
   });
 
@@ -83,7 +84,7 @@ describe("Gouda read-only report flow", () => {
     const user = userEvent.setup();
 
     render(<App />);
-    const selector = await screen.findByLabelText("Account");
+    const selector = await screen.findByLabelText("Report Account");
     expect(fetchMock).toHaveBeenCalledTimes(1);
     await user.selectOptions(selector, CARD_ACCOUNT_ID);
     fillDateRange("2026-06-01", "2026-06-30");
@@ -113,7 +114,7 @@ describe("Gouda read-only report flow", () => {
     const user = userEvent.setup();
 
     render(<App />);
-    await screen.findByLabelText("Account");
+    await screen.findByLabelText("Report Account");
     fillDateRange("2026-04-01", "2026-04-30");
     await user.click(screen.getByRole("button", { name: "Load Movement report" }));
 
@@ -196,7 +197,7 @@ describe("Gouda read-only report flow", () => {
     const user = userEvent.setup();
 
     render(<App />);
-    await screen.findByLabelText("Account");
+    await screen.findByLabelText("Report Account");
     fillDateRange("2026-04-01", "2026-04-30");
     await user.click(screen.getByRole("button", { name: "Load Movement report" }));
 
@@ -243,7 +244,7 @@ describe("Gouda read-only report flow", () => {
     const user = userEvent.setup();
 
     render(<App />);
-    await screen.findByLabelText("Account");
+    await screen.findByLabelText("Report Account");
     fillDateRange("2026-04-01", "2026-04-30");
     await user.click(screen.getByRole("button", { name: "Load Movement report" }));
 
@@ -280,7 +281,7 @@ describe("Gouda read-only report flow", () => {
     const user = userEvent.setup();
 
     render(<App />);
-    await screen.findByLabelText("Account");
+    await screen.findByLabelText("Report Account");
     fillDateRange("2026-05-01", "2026-04-30");
     await user.click(screen.getByRole("button", { name: "Load Movement report" }));
 
@@ -304,6 +305,240 @@ describe("Gouda read-only report flow", () => {
       await screen.findByText("The local backend returned an unexpected response."),
     ).toBeInTheDocument();
     expect(screen.queryByText("SYNTHETIC_PRIVATE_RESPONSE")).not.toBeInTheDocument();
+  });
+});
+
+describe("Gouda Santander import flow", () => {
+  beforeEach(() => {
+    clearFinancialImportCapability();
+    vi.unstubAllGlobals();
+  });
+
+  it("renders no compatible import Accounts independently of report availability", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        jsonResponse({ count: 1, accounts: [accountsResponse.accounts[1]] }),
+      ),
+    );
+    render(<App />);
+
+    expect(
+      await screen.findByText("No compatible current Accounts are available for import."),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Account")).not.toBeInTheDocument();
+    expect(await screen.findByLabelText("Report Account")).toBeInTheDocument();
+  });
+
+  it("locks import controls and renders a static importing state", async () => {
+    let releaseBootstrap!: (response: Response) => void;
+    const pendingBootstrap = new Promise<Response>((resolve) => {
+      releaseBootstrap = resolve;
+    });
+    const importResult = {
+      account_id: PRIMARY_ACCOUNT_ID,
+      batch_id: "22222222-2222-4222-8222-222222222222",
+      status: "ACCEPTED",
+      duplicate_of: null,
+      created_movement_count: 2,
+      statement: {
+        status: "ACCEPTED",
+        source_row_count: 8,
+        parsed_count: 2,
+        ignored_count: 6,
+        rejected_count: 0,
+        reconciliation_status: "RECONCILED",
+        period_start: "2026-04-01",
+        period_end: "2026-04-30",
+      },
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(accountsResponse))
+      .mockReturnValueOnce(pendingBootstrap)
+      .mockResolvedValueOnce(jsonResponse(importResult));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    const account = await screen.findByLabelText("Account");
+    const statement = screen.getByLabelText("Statement");
+    await user.selectOptions(account, PRIMARY_ACCOUNT_ID);
+    await user.upload(statement, new File(["synthetic"], "synthetic.xlsx"));
+    await user.click(screen.getByRole("button", { name: "Import" }));
+
+    expect(screen.getByText("Importing the selected statement…")).toBeInTheDocument();
+    expect(account).toBeDisabled();
+    expect(statement).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Importing…" })).toBeDisabled();
+
+    releaseBootstrap(jsonResponse({ import_capability: "f".repeat(64) }));
+    expect(await screen.findByRole("heading", { name: "Import complete" })).toBeInTheDocument();
+  });
+
+  it("requires explicit Account and file selection, then renders and navigates a truthful result", async () => {
+    const importResult = {
+      account_id: PRIMARY_ACCOUNT_ID,
+      batch_id: "22222222-2222-4222-8222-222222222222",
+      status: "PARTIAL",
+      duplicate_of: null,
+      created_movement_count: 2,
+      statement: {
+        status: "PARTIAL",
+        source_row_count: 9,
+        parsed_count: 2,
+        ignored_count: 6,
+        rejected_count: 1,
+        reconciliation_status: "NOT_RECONCILED",
+        period_start: "2026-04-01",
+        period_end: "2026-04-30",
+      },
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(accountsResponse))
+      .mockResolvedValueOnce(jsonResponse({ import_capability: "a".repeat(64) }))
+      .mockResolvedValueOnce(jsonResponse(importResult))
+      .mockResolvedValueOnce(jsonResponse(movementReportResponse()));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    const account = await screen.findByLabelText("Account");
+    const importButton = screen.getByRole("button", { name: "Import" });
+    expect(account).toHaveValue("");
+    expect(importButton).toBeDisabled();
+    await user.selectOptions(account, PRIMARY_ACCOUNT_ID);
+    const file = new File(["synthetic"], "synthetic-private-statement.xlsx");
+    await user.upload(screen.getByLabelText("Statement"), file);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(importButton).toBeEnabled();
+    await user.click(importButton);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    expect(
+      await screen.findByRole("heading", { name: "Import completed with rejected records" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Statement does not reconcile; valid movements were imported"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("2 canonical Movements were created.")).toBeInTheDocument();
+    expect(screen.queryByText("synthetic-private-statement.xlsx")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Statement")).toHaveValue("");
+
+    await user.click(screen.getByRole("button", { name: "View movements" }));
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      `/api/v1/accounts/${PRIMARY_ACCOUNT_ID}/movements/?start_date=2026-04-01&end_date=2026-04-30`,
+      { method: "GET", headers: { Accept: "application/json" } },
+    );
+    const reportHeading = await screen.findByRole("heading", { name: "Synthetic Daily Account" });
+    await waitFor(() => expect(reportHeading).toHaveFocus());
+    expect(screen.getByLabelText("Start date")).toHaveValue("2026-04-01");
+    expect(screen.getByLabelText("End date")).toHaveValue("2026-04-30");
+  });
+
+  it("renders duplicate and known invalid outcomes without exposing private metadata", async () => {
+    const duplicate = {
+      account_id: PRIMARY_ACCOUNT_ID,
+      batch_id: "22222222-2222-4222-8222-222222222222",
+      status: "DUPLICATE",
+      duplicate_of: "11111111-1111-4111-8111-111111111111",
+      created_movement_count: 0,
+      statement: {
+        status: "ACCEPTED",
+        source_row_count: 8,
+        parsed_count: 2,
+        ignored_count: 6,
+        rejected_count: 0,
+        reconciliation_status: "RECONCILED",
+        period_start: "2026-04-01",
+        period_end: "2026-04-30",
+      },
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(accountsResponse))
+      .mockResolvedValueOnce(jsonResponse({ import_capability: "b".repeat(64) }))
+      .mockResolvedValueOnce(jsonResponse(duplicate));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.selectOptions(await screen.findByLabelText("Account"), PRIMARY_ACCOUNT_ID);
+    await user.upload(
+      screen.getByLabelText("Statement"),
+      new File(["synthetic"], "private-name.xlsx"),
+    );
+    await user.click(screen.getByRole("button", { name: "Import" }));
+    expect(await screen.findByRole("heading", { name: "Statement already imported" })).toBeInTheDocument();
+    expect(screen.getByText(/No new canonical Movements/)).toBeInTheDocument();
+    for (const hidden of [duplicate.batch_id, duplicate.duplicate_of, "private-name.xlsx"]) {
+      expect(screen.queryByText(hidden)).not.toBeInTheDocument();
+    }
+  });
+
+  it("marks ambiguous network failure and never retries automatically", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(accountsResponse))
+      .mockResolvedValueOnce(jsonResponse({ import_capability: "c".repeat(64) }))
+      .mockRejectedValueOnce(new Error("private network details"));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.selectOptions(await screen.findByLabelText("Account"), PRIMARY_ACCOUNT_ID);
+    await user.upload(screen.getByLabelText("Statement"), new File(["x"], "private.xlsx"));
+    await user.click(screen.getByRole("button", { name: "Import" }));
+    expect(await screen.findByText(/The import outcome is uncertain/)).toBeInTheDocument();
+    expect(screen.getByText(/Resubmit only by explicitly selecting/)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(screen.queryByText("private network details")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    [
+      "xlsx_invalid",
+      422,
+      "The selected file is not a readable, unencrypted XLSX workbook.",
+      false,
+    ],
+    [
+      "account_not_accessible",
+      404,
+      "The selected Account is no longer accessible. Reload Accounts and choose again.",
+      false,
+    ],
+    [
+      "account_source_incompatible",
+      409,
+      "The selected Account is not compatible with Santander current-account statements.",
+      false,
+    ],
+    [
+      "financial_import_not_enabled",
+      403,
+      "Financial imports are disabled. Start the separate private Gouda stack to import a statement.",
+      true,
+    ],
+  ])("renders the safe import failure %s", async (code, status, message, bootstrapFailure) => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(accountsResponse));
+    if (bootstrapFailure) {
+      fetchMock.mockResolvedValueOnce(jsonResponse({ code }, status));
+    } else {
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse({ import_capability: "d".repeat(64) }))
+        .mockResolvedValueOnce(jsonResponse({ code }, status));
+    }
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.selectOptions(await screen.findByLabelText("Account"), PRIMARY_ACCOUNT_ID);
+    await user.upload(screen.getByLabelText("Statement"), new File(["x"], "private.xlsx"));
+    await user.click(screen.getByRole("button", { name: "Import" }));
+
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.queryByText(code)).not.toBeInTheDocument();
+    expect(screen.queryByText("private.xlsx")).not.toBeInTheDocument();
   });
 });
 

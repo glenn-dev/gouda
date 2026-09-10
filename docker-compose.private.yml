@@ -1,0 +1,26 @@
+services:
+  postgres:
+    environment:
+      POSTGRES_DB: gouda_private
+      POSTGRES_USER: gouda
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - gouda-private-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gouda -d gouda_private"]
+
+  backend:
+    environment:
+      POSTGRES_DB: gouda_private
+    command:
+      - sh
+      - -c
+      - >-
+        python manage.py migrate --noinput &&
+        exec python manage.py runlocal --host 0.0.0.0 --port 8000
+        --trusted-container-network
+        --enable-financial-imports
+        --financial-import-origin http://127.0.0.1:5173
+
+volumes:
+  gouda-private-postgres-data:

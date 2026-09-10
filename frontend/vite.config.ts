@@ -45,7 +45,14 @@ export function preserveBoundaryHeaders(): Plugin {
         if (req.url?.startsWith(API_PROXY_PATH)) {
           // Node normally discards repeated Host fields. Preserve multiplicity
           // as a combined invalid value so Django can reject it independently.
-          for (const name of ["host", "origin", "x-gouda-classification-write"]) {
+          for (const name of [
+            "host",
+            "origin",
+            "x-gouda-classification-write",
+            "x-gouda-financial-import",
+            "content-length",
+            "transfer-encoding",
+          ]) {
             const values: string[] = [];
             for (let i = 0; i < req.rawHeaders.length; i += 2) {
               if (req.rawHeaders[i].toLowerCase() === name) values.push(req.rawHeaders[i + 1]);
