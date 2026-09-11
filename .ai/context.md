@@ -1,23 +1,15 @@
 # AI context
 
-## Current independent review
+## First private real-data acceptance
 
-The 2026-09-10 review of signed `7bc34f6` found and corrected three BLOCK
-issues (unbounded Django body cleanup, OOXML allocation bypasses, PostgreSQL
-error-log disclosure) and four IMPORTANT issues (framing, fetch confinement,
-completion wording and report-selection races). The existing signed
-implementation commit is amended; no push is authorized or performed. Fetched
-origin/main already contained the original SHA at review start, contrary to
-the older handoff. The amendment therefore diverges locally from that commit.
-
-Validation: 158 focused backend tests, 72 additional parser/report/runtime
-tests, all 75 frontend tests, typecheck/build, production-container admission,
-migration drift, hostile Compose/Make overrides, live synthetic import/report,
-restart/exact duplicate, byte retention and database/application log checks pass.
-No private file was used. The next action is one controlled private acceptance
-import with deliberate operator-known Account/currency selection. Small result
-navigation/setup-help and container-test mount omissions remain deferred;
-see the [independent review](../docs/development/local-import-adversarial-review.md).
+On 2026-09-10, the Santander Current Account XLSX vertical slice passed its
+first controlled end-to-end acceptance with one real private statement through
+the intended local workflow. Canonical materialization, reconciliation,
+operator comparison with the private source, exact-file/same-Account duplicate
+convergence, and persistence across private-stack restart all passed. Only
+approved aggregate evidence and explicit unvalidated boundaries are retained
+in the [acceptance result](../docs/development/local-import-adversarial-review.md#private-acceptance-result);
+no private source-derived value or artifact is recorded in Git.
 
 ## Product and architecture
 
@@ -135,12 +127,12 @@ runtime/grant, strict bootstrap/upload adapters, bounded in-memory multipart and
 OOXML admission, private Compose stack, safe logging, and React flow are now
 implemented without a migration or source-parser/domain change.
 
-Real-event product validation now precedes the manual classification editor.
+Real-event product validation completed before the manual classification editor.
 The checkpoint permits one signed `feat: add local Santander import flow` commit
 and no push. Synthetic fixtures and an isolated synthetic PostgreSQL test
-database are the only financial inputs used. Glenn's private acceptance run is
-explicitly deferred until after implementation review. The historical default
-volume's previously reported migration mismatch remains outside scope.
+database were the only financial inputs used during implementation. The later
+private acceptance is recorded above. The historical default volume's previously
+reported migration mismatch remains outside scope.
 
 Implementation validation passes with 554 Django tests on PostgreSQL, 72
 frontend tests, typecheck, build, dependency checks, migration drift, Compose

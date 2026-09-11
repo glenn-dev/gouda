@@ -4,7 +4,10 @@
 
 Accepted design, 2026-09-08; implemented 2026-09-09 for the single Santander
 Current Account XLSX browser route, dedicated runtime, private Compose workflow,
-bounded admission, and React import form.
+bounded admission, and React import form. The first controlled private
+real-data acceptance completed on 2026-09-10; its sanitized evidence and limits
+are recorded in the
+[adversarial review](../development/local-import-adversarial-review.md#private-acceptance-result).
 [ADR-0013](../decisions/ADR-0013-local-financial-import-boundary.md) owns the
 new authority decision. This document owns its narrow transport, product flow,
 and acceptance contract. Existing read APIs remain unchanged.
@@ -389,9 +392,12 @@ delivery. Refreshing a report alone cannot prove an import failed.
 
 ## Private operator acceptance after implementation
 
-This procedure remains deferred until the implementation review is accepted.
-First pass all committed regression/adversarial tests with synthetic fixtures.
-Then Glenn may validate locally with one original private statement:
+The first controlled run of this procedure completed on 2026-09-10 after the
+implementation review was accepted. Its sanitized outcome is recorded in the
+[adversarial review](../development/local-import-adversarial-review.md#private-acceptance-result).
+Retain these steps for later controlled runs: first pass all committed
+regression/adversarial tests with synthetic fixtures, then validate locally
+with one original private statement.
 
 1. Start the separate ADR-0013 private stack with `make private`
    command (explicit import opt-in, DEBUG=false). Verify resolved
@@ -419,8 +425,10 @@ Then Glenn may validate locally with one original private statement:
    reconciliation, and the batch-specific canonical count through private local
    DB inspection. Verify exact amounts, currency, resolved dates and deterministic
    descriptions by RawRecord ordinal; report order instead uses date/UUID.
-   No real values, UUIDs, period, basename, digest, or row counts enter committed
-   docs/tests/fixtures, screenshots, logs, prompts, or external services.
+   No real values, UUIDs, period, basename, digest, or row-level source details
+   enter committed docs/tests/fixtures, screenshots, logs, prompts, or external
+   services. Retain aggregate counts only when they are explicitly approved as
+   sanitized acceptance evidence.
 6. Use View movements. Verify selected Account/period, every canonical item,
    exact signed account effect, count and backend total. No source metadata or
    inferred category appears; new Movements show Unclassified. If the Account
@@ -463,10 +471,9 @@ are implementation requirements, not claims about the current read-only app.
 | Response fails after successful commit | Preserve completed graph, safe uncertain-outcome message, no automatic replay; explicit exact-file retry converges to duplicate. |
 | TDC/BCI requires a replacement framework | Add separately authorized narrow routes/adapters later. Preserve TDC binding and BCI lifecycle; do not route them through Santander XLSX or grant access now. |
 
-Before shipping implementation, add focused HTTP/bootstrap/authorization and
-resource/admission tests; repeat the existing Santander service/concurrency and
-reporting regressions; test private-vs-demo Compose resolution/lifecycle with
-synthetic databases; and exercise same-origin and hostile-origin browser flows,
-actual restart, response-loss retry, multipart header/framing behavior, safe
-logging and UI states. Then perform the private operator acceptance above.
-Unimplemented protections must never be reported as passing runtime tests.
+The implementation review completed the focused HTTP/bootstrap/authorization,
+resource/admission, Santander service/concurrency/reporting,
+private-vs-demo Compose, browser, restart, retry, framing, logging, and UI
+checks before the first private operator acceptance above. Repeat the applicable
+checks before later changes or controlled runs. Unimplemented protections must
+never be reported as passing runtime tests.

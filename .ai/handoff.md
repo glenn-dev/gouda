@@ -1,6 +1,26 @@
 # Handoff
 
-## Independent import review checkpoint
+## First private import acceptance checkpoint
+
+Completed 2026-09-10: the Santander Current Account XLSX vertical slice passed
+its first controlled end-to-end acceptance with one real private statement
+through the intended local workflow. Canonical Movement materialization,
+reconciliation, operator comparison with the private source,
+exact-file/same-Account duplicate convergence with zero new Movements, and
+persistence across private-stack restart all passed. The approved aggregate
+evidence and the exact boundary between demonstrated and unvalidated behavior
+are recorded in the
+[private acceptance result](../docs/development/local-import-adversarial-review.md#private-acceptance-result).
+No private source-derived value, identifier, filename, artifact, or screenshot
+is recorded in Git.
+
+The next bounded objective is the manual Movement classification editor within
+the accepted ADR-0012 write boundary. Do not combine that checkpoint with
+filtering, economic types, transfer semantics, another source adapter, or
+broader authentication. The known Santander identity and cross-export
+deduplication limits remain unchanged.
+
+## Historical independent import review checkpoint
 
 Reviewed 2026-09-10 against signed `7bc34f645f3ca291b12d7b70494bfa8761167037`
 and parent `bbca93e54e93dfa94fb7a37623820088b56fbe44`. Fetched origin/main was
@@ -25,12 +45,10 @@ privacy and UI regressions were observed failing before correction. Only
 committed/generated synthetic workbooks and isolated synthetic databases were
 used; no private file or private volume was read.
 
-The next action is Glenn's documented single untouched private Santander XLSX
-acceptance import through `make private`, with deliberate operator-known
-Account/currency selection. There is no persisted Santander account-number or
-provider binding. Do not push automatically. Minor whole-period/empty-result
-navigation wording, local Account setup help and the missing private-Compose
-test-file mount remain deferred. See the
+The controlled private acceptance that followed is recorded above. There is no
+persisted Santander account-number or provider binding. Minor
+whole-period/empty-result navigation wording, local Account setup help and the
+missing private-Compose test-file mount remain deferred. See the
 [full review](../docs/development/local-import-adversarial-review.md).
 
 The review Compose stack is stopped with volume preservation and the demo
@@ -87,8 +105,8 @@ Only synthetic fixtures and isolated synthetic PostgreSQL resources were used.
 No private statement or existing private volume was read. The disposable
 private validation volume and standalone test container were removed after
 testing. The ordinary `gouda-demo` stack is left healthy as it was at baseline.
-Glenn's documented one-file private acceptance run is the next action after
-review.
+The documented one-file private acceptance later completed and is recorded at
+the top of this handoff.
 
 ## Historical local demo ergonomics checkpoint
 
@@ -1077,12 +1095,11 @@ baseline is recorded at the top of this handoff.
 
 ## Next checkpoint
 
-The financial-import slice and independent correction review are complete.
-The next action is the controlled private acceptance procedure under ADR-0013
-and its flow contract. Preserve the reviewed startup/admission/logging boundary
-and retain only sanitized pass/fail results from private acceptance.
-The manual classification editor under ADR-0012 follows real-data validation;
-filtering, dashboards, and broader component systems remain separate.
+The financial-import slice, independent correction review, and first controlled
+private acceptance are complete. The next action is the bounded manual
+classification editor under ADR-0012. Preserve the reviewed import boundary;
+filtering, dashboards, broader component systems, and additional import sources
+remain separate.
 Recommended reasoning level: High.
 
 ## Roadmap reassessment
@@ -1099,11 +1116,9 @@ Authentication/ownership remain absent.
 
 Priorities are:
 
-1. Validate one untouched private Santander current-account XLSX locally through
-   the implemented and independently reviewed ADR-0013 flow.
-2. Implement the bounded manual editor atop ADR-0012. Filtering, economic
+1. Implement the bounded manual editor atop ADR-0012. Filtering, economic
    types, and transfer semantics remain deferred.
-3. Resume Current-to-Historical validation only on the external artifact
+2. Resume Current-to-Historical validation only on the external artifact
    trigger described above.
 
 Cross-source identity/deduplication, transfer pairing, household-flow

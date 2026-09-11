@@ -16,6 +16,37 @@ documented private stack, with deliberate operator Account/currency selection.
 This is readiness for the private acceptance procedure, not a claim that an
 unseen statement has already passed it.
 
+## Private acceptance result
+
+On 2026-09-10, after the corrected review above, Gouda completed its first
+controlled private real-data acceptance. One real Santander Current Account
+XLSX was imported through the intended private local workflow. The import
+processed 36 source rows, created 7 canonical Movements, ignored 29 rows,
+rejected 0 rows, and reconciled successfully. The operator manually compared
+all 7 resulting Movements with the private source and confirmed that the
+relevant dates, descriptions, canonical signed amounts, and complete movement
+set matched.
+
+Uploading the same untouched file to the same Account was recognized as an
+exact duplicate. The retry created 0 new canonical Movements and returned the
+original bounded import summary. After the private stack was stopped and
+restarted, the Account and imported Movements remained persisted and readable
+through the existing Movement report.
+
+This acceptance demonstrates real Santander Current Account XLSX ingestion,
+canonical Movement materialization for the accepted statement, reconciliation,
+exact-file/same-Account duplicate convergence, private-stack restart
+persistence, and operator comparison with the private source. It does not
+demonstrate semantic deduplication of overlapping statements; deduplication of
+changed or re-exported statements; strong persisted Santander provider or
+account-number identity binding; Santander credit-card or BCI browser import;
+other institutions or source contracts; production or remote-deployment
+security; or correctness for arbitrary future Santander statement variants.
+
+Only the approved aggregate counts and pass/fail outcomes above are retained
+as evidence. No filename, account or personal identifier, source-derived value,
+private artifact, or screenshot is recorded in Git.
+
 ## BLOCK findings, corrected
 
 1. **Unbounded server cleanup.** Django 4.2's `ServerHandler.close()` calls an

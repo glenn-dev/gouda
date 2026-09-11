@@ -37,7 +37,10 @@ there are no editing controls, Category CRUD, or canonical financial writes.
 
 Browser import of one private Santander current-account XLSX is now implemented
 against a separate local PostgreSQL dataset, followed by inspection through the
-existing Movement report. The accepted
+existing Movement report. The slice passed its first controlled private
+real-data acceptance on 2026-09-10; the sanitized
+[acceptance result](docs/development/local-import-adversarial-review.md#private-acceptance-result)
+records what was and was not demonstrated. The accepted
 [financial-import design](docs/architecture/local-financial-import.md) and
 [ADR-0013](docs/decisions/ADR-0013-local-financial-import-boundary.md) define
 independent import authority, exact-file duplicate behavior, private evidence
